@@ -1,43 +1,61 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useSlideshow } from '../context/SlideshowContext';
+import './Slideshow.css';
 
 const Slideshow = () => {
-  const { current, slides } = useSlideshow();
-  const [displayIndex, setDisplayIndex] = useState(current);
-  const [fading, setFading] = useState(false);
+  const { current, slides, imagesLoaded } = useSlideshow();
+  const [activeIndex, setActiveIndex] = useState(current);
+  const [nextIndex, setNextIndex] = useState(null);
+  const [isTransitioning, setIsTransitioning] = useState(false);
+  const timeoutRef = useRef(null);
 
   useEffect(() => {
-    if (current !== displayIndex) {
-      setFading(true);
-      const timer = setTimeout(() => {
-        setDisplayIndex(current);
-        setFading(false);
-      }, 600);
-      return () => clearTimeout(timer);
+    if (current !== activeIndex && !isTransitioning) {
+      setNextIndex(current);
+      setIsTransitioning(true);
+      
+      // After transition completes, update active
+      timeoutRef.current = setTimeout(() => {
+        setActiveIndex(current);
+        setNextIndex(null);
+        setIsTransitioning(false);
+      }, 1500); // Match CSS transition duration
     }
-  }, [current, displayIndex]);
+
+    return () => {
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current);
+      }
+    };
+  }, [current, activeIndex, isTransitioning]);
+
+  if (!imagesLoaded) {
+    return (
+      <div className="slideshow-container">
+        <div className="slideshow-loading" />
+        <div className="slideshow-overlay" />
+      </div>
+    );
+  }
 
   return (
-    <div style={{
-      position: 'absolute',
-      inset: 0,
-      overflow: 'hidden',
-    }}>
-      <div style={{
-        position: 'absolute',
-        inset: 0,
-        backgroundImage: `url(${slides[displayIndex]})`,
-        backgroundSize: 'cover',
-        backgroundPosition: 'center',
-        transition: 'opacity 0.6s ease',
-        opacity: fading ? 0.3 : 1,
-      }} />
+    <div className="slideshow-container">
+      {/* Active slide */}
+      <div 
+        className={`slide ${isTransitioning ? 'fade-out' : ''}`}
+        style={{ backgroundImage: `url(${slides[activeIndex]})` }}
+      />
       
-      <div style={{
-        position: 'absolute',
-        inset: 0,
-        background: 'linear-gradient(135deg, rgba(10,10,15,0.8) 0%, rgba(10,10,15,0.85) 50%, rgba(10,10,15,0.9) 100%)',
-      }} />
+      {/* Next slide (fades in on top) */}
+      {nextIndex !== null && (
+        <div 
+          className="slide next-slide"
+          style={{ backgroundImage: `url(${slides[nextIndex]})` }}
+        />
+      )}
+      
+      {/* Dark overlay */}
+      <div className="slideshow-overlay" />
     </div>
   );
 };
