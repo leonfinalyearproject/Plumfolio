@@ -1,29 +1,21 @@
 import React, { useState, useEffect } from 'react';
-
-import slide1 from '../pages/slide1.jpg';
-import slide2 from '../pages/slide2.jpg';
-import slide3 from '../pages/slide3.jpg';
-import slide4 from '../pages/slide4.jpg';
-import slide5 from '../pages/slide5.jpg';
-import slide6 from '../pages/slide6.jpg';
-
-const slides = [slide1, slide2, slide3, slide4, slide5, slide6];
+import { useSlideshow } from '../context/SlideshowContext';
 
 const Slideshow = () => {
-  const [current, setCurrent] = useState(0);
+  const { current, slides } = useSlideshow();
+  const [displayIndex, setDisplayIndex] = useState(current);
   const [fading, setFading] = useState(false);
 
   useEffect(() => {
-    const interval = setInterval(() => {
+    if (current !== displayIndex) {
       setFading(true);
-      setTimeout(() => {
-        setCurrent((prev) => (prev + 1) % slides.length);
+      const timer = setTimeout(() => {
+        setDisplayIndex(current);
         setFading(false);
-      }, 800);
-    }, 5000);
-
-    return () => clearInterval(interval);
-  }, []);
+      }, 600);
+      return () => clearTimeout(timer);
+    }
+  }, [current, displayIndex]);
 
   return (
     <div style={{
@@ -31,22 +23,20 @@ const Slideshow = () => {
       inset: 0,
       overflow: 'hidden',
     }}>
-      {/* Current slide */}
       <div style={{
         position: 'absolute',
         inset: 0,
-        backgroundImage: `url(${slides[current]})`,
+        backgroundImage: `url(${slides[displayIndex]})`,
         backgroundSize: 'cover',
         backgroundPosition: 'center',
-        transition: 'opacity 0.8s ease',
-        opacity: fading ? 0 : 1,
+        transition: 'opacity 0.6s ease',
+        opacity: fading ? 0.3 : 1,
       }} />
       
-      {/* Dark overlay */}
       <div style={{
         position: 'absolute',
         inset: 0,
-        background: 'linear-gradient(135deg, rgba(10,10,15,0.82) 0%, rgba(10,10,15,0.88) 50%, rgba(10,10,15,0.92) 100%)',
+        background: 'linear-gradient(135deg, rgba(10,10,15,0.8) 0%, rgba(10,10,15,0.85) 50%, rgba(10,10,15,0.9) 100%)',
       }} />
     </div>
   );
