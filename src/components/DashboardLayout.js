@@ -1,48 +1,54 @@
-import React, { useState } from 'react';
-import { Outlet, Navigate, useLocation } from 'react-router-dom';
+import React, { useEffect } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import Sidebar from './Sidebar';
 import Header from './Header';
 import './DashboardLayout.css';
 
-const DashboardLayout = () => {
+const DashboardLayout = ({ children }) => {
   const { user, loading } = useAuth();
-  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const navigate = useNavigate();
   const location = useLocation();
 
-  // Determine page title from path
-  const getTitleFromPath = (pathname) => {
-    const titles = {
-      '/dashboard': 'Dashboard',
-      '/transactions': 'Transactions',
-      '/budgets': 'Budgets',
-      '/analytics': 'Analytics',
-      '/settings': 'Settings',
-    };
-    return titles[pathname] || 'Dashboard';
-  };
+  useEffect(() => {
+    if (!loading && !user) {
+      navigate('/signin');
+    }
+  }, [user, loading, navigate]);
 
   if (loading) {
     return (
       <div className="loading-screen">
-        <div className="loading-spinner" />
-        <p>Loading...</p>
+        <div className="spinner" />
       </div>
     );
   }
 
   if (!user) {
-    return <Navigate to="/signin" replace />;
+    return null;
   }
+
+  const getPageTitle = () => {
+    const path = location.pathname;
+    if (path.includes('dashboard')) return 'Dashboard';
+    if (path.includes('transactions')) return 'Transactions';
+    if (path.includes('budgets')) return 'Budgets';
+    if (path.includes('analytics')) return 'Analytics';
+    if (path.includes('settings')) return 'Settings';
+    return 'Dashboard';
+  };
 
   return (
     <div className="dashboard-layout">
-      <Sidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
-      <div className="main-content">
-        <Header title={getTitleFromPath(location.pathname)} onMenuClick={() => setSidebarOpen(true)} />
-        <main className="page-content">
-          <Outlet />
+      <Sidebar />
+      <div className="dashboard-main">
+        <Header title={getPageTitle()} />
+        <main className="dashboard-content">
+          {children}
         </main>
+        <footer className="dashboard-footer">
+          <p>&copy; Plumfolio 2026</p>
+        </footer>
       </div>
     </div>
   );
