@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { ArrowRight } from 'lucide-react';
+import landingBg from './landing-bg.jpg';
 import './Landing.css';
 
 const Landing = () => {
@@ -41,7 +42,7 @@ const Landing = () => {
 
       {/* Main Landing Content */}
       <div className={`landing-main ${showMain ? 'visible' : ''}`}>
-        <div className="landing-bg" />
+        <div className="landing-bg" style={{ backgroundImage: `url(${landingBg})` }} />
         <div className="landing-overlay" />
         
         <div className="landing-content">

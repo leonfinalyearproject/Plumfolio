@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { Mail, Lock, User, ArrowRight, Check, AlertCircle } from 'lucide-react';
+import Slideshow from '../components/Slideshow';
 import './Auth.css';
 
 const SignUp = () => {
@@ -51,9 +52,8 @@ const SignUp = () => {
 
   if (success) {
     return (
-      <div className="auth-page signup-page">
-        <div className="auth-bg signup-bg" />
-        <div className="auth-overlay" />
+      <div className="auth-page">
+        <Slideshow />
         <div className="auth-container">
           <div className="auth-card success-card">
             <div className="success-icon">
@@ -69,9 +69,8 @@ const SignUp = () => {
   }
 
   return (
-    <div className="auth-page signup-page">
-      <div className="auth-bg signup-bg" />
-      <div className="auth-overlay" />
+    <div className="auth-page">
+      <Slideshow />
       
       <div className="auth-container">
         <Link to="/" className="auth-logo-link">

@@ -39,8 +39,8 @@
 }
 
 .intro-logo-container.glow {
-  filter: drop-shadow(0 0 60px rgba(157, 78, 221, 0.5))
-          drop-shadow(0 0 120px rgba(157, 78, 221, 0.3));
+  filter: drop-shadow(0 0 50px rgba(157, 78, 221, 0.45))
+          drop-shadow(0 0 100px rgba(157, 78, 221, 0.25));
 }
 
 .intro-logo-container.zoom-out {
@@ -49,7 +49,7 @@
 }
 
 .intro-logo {
-  width: 380px;
+  width: 240px;
   height: auto;
 }
 
@@ -72,7 +72,6 @@
 .landing-bg {
   position: absolute;
   inset: 0;
-  background-image: url('./landing-bg.jpg');
   background-size: cover;
   background-position: center;
   background-repeat: no-repeat;
@@ -83,9 +82,9 @@
   inset: 0;
   background: linear-gradient(
     180deg,
-    rgba(10, 10, 15, 0.7) 0%,
-    rgba(10, 10, 15, 0.85) 50%,
-    rgba(10, 10, 15, 0.95) 100%
+    rgba(10, 10, 15, 0.55) 0%,
+    rgba(10, 10, 15, 0.65) 40%,
+    rgba(10, 10, 15, 0.85) 100%
   );
 }
 
@@ -97,26 +96,16 @@
 }
 
 .landing-logo {
-  width: 320px;
+  width: 180px;
   height: auto;
   margin-bottom: 20px;
-  filter: drop-shadow(0 8px 32px rgba(157, 78, 221, 0.3));
-  animation: floatLogo 4s ease-in-out infinite;
-}
-
-@keyframes floatLogo {
-  0%, 100% {
-    transform: translateY(0);
-  }
-  50% {
-    transform: translateY(-8px);
-  }
+  filter: drop-shadow(0 6px 24px rgba(157, 78, 221, 0.25));
 }
 
 .landing-tagline {
-  font-size: 1.15rem;
+  font-size: 1.1rem;
   color: rgba(255, 255, 255, 0.8);
-  margin-bottom: 40px;
+  margin-bottom: 36px;
   font-weight: 400;
   letter-spacing: 0.02em;
 }
@@ -125,7 +114,7 @@
   display: flex;
   flex-direction: column;
   gap: 14px;
-  max-width: 280px;
+  max-width: 260px;
   margin: 0 auto;
 }
 
@@ -134,10 +123,10 @@
   align-items: center;
   justify-content: center;
   gap: 8px;
-  padding: 15px 32px;
+  padding: 14px 28px;
   background: linear-gradient(135deg, #7B2D8E 0%, #4A1D6B 100%);
   color: #fff;
-  font-size: 1rem;
+  font-size: 0.95rem;
   font-weight: 500;
   border-radius: 12px;
   border: none;
@@ -146,16 +135,16 @@
 }
 
 .btn-main:hover {
-  transform: translateY(-3px);
-  box-shadow: 0 12px 32px rgba(123, 45, 142, 0.4);
+  transform: translateY(-2px);
+  box-shadow: 0 10px 28px rgba(123, 45, 142, 0.35);
 }
 
 .btn-outline {
-  padding: 15px 32px;
-  background: rgba(255, 255, 255, 0.05);
+  padding: 14px 28px;
+  background: rgba(255, 255, 255, 0.06);
   backdrop-filter: blur(10px);
   color: #fff;
-  font-size: 1rem;
+  font-size: 0.95rem;
   font-weight: 500;
   border: 1px solid rgba(255, 255, 255, 0.15);
   border-radius: 12px;
@@ -180,18 +169,18 @@
 
 .landing-footer p {
   font-size: 0.75rem;
-  color: rgba(255, 255, 255, 0.4);
+  color: rgba(255, 255, 255, 0.35);
   letter-spacing: 0.02em;
 }
 
 /* ========== RESPONSIVE ========== */
 @media (max-width: 480px) {
   .intro-logo {
-    width: 280px;
+    width: 180px;
   }
   
   .landing-logo {
-    width: 240px;
+    width: 150px;
   }
   
   .landing-tagline {
@@ -201,15 +190,15 @@
 
 @media (min-width: 768px) {
   .intro-logo {
-    width: 450px;
+    width: 280px;
   }
   
   .landing-logo {
-    width: 380px;
+    width: 220px;
   }
   
   .landing-tagline {
-    font-size: 1.25rem;
+    font-size: 1.2rem;
   }
   
   .landing-buttons {

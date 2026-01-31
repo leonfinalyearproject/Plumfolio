@@ -8,73 +8,48 @@
   overflow: hidden;
 }
 
-.auth-bg {
-  position: absolute;
-  inset: 0;
-  background-image: url('./signin-bg.jpg');
-  background-size: cover;
-  background-position: center;
-  background-repeat: no-repeat;
-}
-
-.signup-page .auth-bg,
-.auth-bg.signup-bg {
-  background-image: url('./signup-bg.jpg');
-}
-
-.auth-overlay {
-  position: absolute;
-  inset: 0;
-  background: linear-gradient(
-    135deg,
-    rgba(10, 10, 15, 0.85) 0%,
-    rgba(10, 10, 15, 0.9) 50%,
-    rgba(10, 10, 15, 0.95) 100%
-  );
-}
-
 .auth-container {
   position: relative;
-  z-index: 1;
+  z-index: 2;
   width: 100%;
-  max-width: 420px;
+  max-width: 400px;
   padding: 24px;
 }
 
 .auth-logo-link {
   display: block;
   text-align: center;
-  margin-bottom: 32px;
+  margin-bottom: 28px;
 }
 
 .auth-logo {
-  width: 200px;
+  width: 140px;
   height: auto;
-  filter: drop-shadow(0 4px 24px rgba(157, 78, 221, 0.25));
+  filter: drop-shadow(0 4px 20px rgba(157, 78, 221, 0.2));
 }
 
 .auth-card {
-  background: rgba(18, 18, 26, 0.7);
-  backdrop-filter: blur(20px);
+  background: rgba(18, 18, 26, 0.75);
+  backdrop-filter: blur(24px);
   border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 20px;
-  padding: 36px 32px;
+  padding: 32px 28px;
 }
 
 .auth-header {
   text-align: center;
-  margin-bottom: 28px;
+  margin-bottom: 24px;
 }
 
 .auth-header h1 {
-  font-size: 1.6rem;
+  font-size: 1.4rem;
   font-weight: 600;
-  margin-bottom: 8px;
+  margin-bottom: 6px;
   color: #fff;
 }
 
 .auth-header p {
-  font-size: 0.95rem;
+  font-size: 0.9rem;
   color: rgba(255, 255, 255, 0.5);
 }
 
@@ -83,32 +58,32 @@
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 14px 16px;
+  padding: 12px 14px;
   background: rgba(239, 68, 68, 0.1);
   border: 1px solid rgba(239, 68, 68, 0.2);
   border-radius: 12px;
   color: #f87171;
-  font-size: 0.9rem;
-  margin-bottom: 24px;
+  font-size: 0.85rem;
+  margin-bottom: 20px;
 }
 
 /* Form */
 .auth-form {
   display: flex;
   flex-direction: column;
-  gap: 20px;
+  gap: 18px;
 }
 
 .input-group {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 6px;
 }
 
 .input-group label {
-  font-size: 0.85rem;
+  font-size: 0.8rem;
   font-weight: 500;
-  color: rgba(255, 255, 255, 0.7);
+  color: rgba(255, 255, 255, 0.65);
 }
 
 .input-field {
@@ -119,24 +94,24 @@
 
 .input-field svg {
   position: absolute;
-  left: 16px;
-  color: rgba(255, 255, 255, 0.35);
+  left: 14px;
+  color: rgba(255, 255, 255, 0.3);
   pointer-events: none;
 }
 
 .input-field input {
   width: 100%;
-  padding: 14px 16px 14px 48px;
+  padding: 13px 14px 13px 46px;
   background: rgba(255, 255, 255, 0.04);
   border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 12px;
   color: #fff;
-  font-size: 1rem;
+  font-size: 0.95rem;
   transition: all 0.2s ease;
 }
 
 .input-field input::placeholder {
-  color: rgba(255, 255, 255, 0.3);
+  color: rgba(255, 255, 255, 0.25);
 }
 
 .input-field input:focus {
@@ -152,16 +127,16 @@
   align-items: center;
   justify-content: center;
   gap: 8px;
-  padding: 15px 28px;
+  padding: 14px 24px;
   background: linear-gradient(135deg, #7B2D8E 0%, #4A1D6B 100%);
   color: white;
-  font-size: 1rem;
+  font-size: 0.95rem;
   font-weight: 500;
   border: none;
   border-radius: 12px;
   cursor: pointer;
   transition: all 0.25s ease;
-  margin-top: 8px;
+  margin-top: 4px;
 }
 
 .auth-btn:hover:not(:disabled) {
@@ -191,9 +166,9 @@
 /* Switch Link */
 .auth-switch {
   text-align: center;
-  margin-top: 28px;
-  font-size: 0.9rem;
-  color: rgba(255, 255, 255, 0.5);
+  margin-top: 24px;
+  font-size: 0.85rem;
+  color: rgba(255, 255, 255, 0.45);
 }
 
 .auth-switch a {
@@ -209,13 +184,13 @@
 /* Success Card */
 .success-card {
   text-align: center;
-  padding: 48px 32px;
+  padding: 44px 28px;
 }
 
 .success-icon {
-  width: 64px;
-  height: 64px;
-  margin: 0 auto 24px;
+  width: 60px;
+  height: 60px;
+  margin: 0 auto 20px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -225,15 +200,14 @@
 }
 
 .success-card h2 {
-  font-size: 1.4rem;
-  margin-bottom: 12px;
+  font-size: 1.3rem;
+  margin-bottom: 10px;
   color: #fff;
 }
 
 .success-card p {
   color: rgba(255, 255, 255, 0.6);
-  font-size: 0.95rem;
-  margin-bottom: 4px;
+  font-size: 0.9rem;
 }
 
 .success-card strong {
@@ -242,9 +216,9 @@
 
 .success-note {
   display: block;
-  margin-top: 20px;
-  font-size: 0.85rem;
-  color: rgba(255, 255, 255, 0.4);
+  margin-top: 18px;
+  font-size: 0.8rem;
+  color: rgba(255, 255, 255, 0.35);
 }
 
 /* Responsive */
@@ -254,21 +228,17 @@
   }
   
   .auth-card {
-    padding: 28px 20px;
+    padding: 24px 20px;
     border-radius: 16px;
   }
   
   .auth-logo {
-    width: 160px;
-  }
-  
-  .auth-header h1 {
-    font-size: 1.4rem;
+    width: 120px;
   }
 }
 
 @media (min-width: 768px) {
   .auth-logo {
-    width: 240px;
+    width: 160px;
   }
 }

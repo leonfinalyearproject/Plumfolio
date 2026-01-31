@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { Mail, Lock, ArrowRight, AlertCircle } from 'lucide-react';
+import Slideshow from '../components/Slideshow';
 import './Auth.css';
 
 const SignIn = () => {
@@ -41,9 +42,8 @@ const SignIn = () => {
   };
 
   return (
-    <div className="auth-page signin-page">
-      <div className="auth-bg" />
-      <div className="auth-overlay" />
+    <div className="auth-page">
+      <Slideshow />
       
       <div className="auth-container">
         <Link to="/" className="auth-logo-link">
