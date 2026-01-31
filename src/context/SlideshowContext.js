@@ -13,18 +13,38 @@ const SlideshowContext = createContext();
 
 export const SlideshowProvider = ({ children }) => {
   const [current, setCurrent] = useState(0);
+  const [imagesLoaded, setImagesLoaded] = useState(false);
   const intervalRef = useRef(null);
 
+  // Preload all images on mount
   useEffect(() => {
-    intervalRef.current = setInterval(() => {
-      setCurrent((prev) => (prev + 1) % slides.length);
-    }, 5000);
-
-    return () => clearInterval(intervalRef.current);
+    let loadedCount = 0;
+    
+    slides.forEach((src) => {
+      const img = new Image();
+      img.onload = () => {
+        loadedCount++;
+        if (loadedCount === slides.length) {
+          setImagesLoaded(true);
+        }
+      };
+      img.src = src;
+    });
   }, []);
 
+  // Start slideshow after images are loaded
+  useEffect(() => {
+    if (!imagesLoaded) return;
+
+    intervalRef.current = setInterval(() => {
+      setCurrent((prev) => (prev + 1) % slides.length);
+    }, 6000);
+
+    return () => clearInterval(intervalRef.current);
+  }, [imagesLoaded]);
+
   return (
-    <SlideshowContext.Provider value={{ current, slides }}>
+    <SlideshowContext.Provider value={{ current, slides, imagesLoaded }}>
       {children}
     </SlideshowContext.Provider>
   );
