@@ -29,8 +29,10 @@ const Landing = () => {
 
   return (
     <div className="landing-wrapper">
-      {/* Intro Overlay */}
+      {/* Intro Overlay with background image */}
       <div className={`intro-overlay ${introPhase >= 3 ? 'fade-out' : ''} ${introPhase >= 4 ? 'hidden' : ''}`}>
+        <div className="intro-bg" style={{ backgroundImage: `url(${landingBg})` }} />
+        <div className="intro-bg-overlay" />
         <div className={`intro-logo-container ${introPhase >= 1 ? 'visible' : ''} ${introPhase >= 2 ? 'glow' : ''} ${introPhase >= 3 ? 'zoom-out' : ''}`}>
           <img 
             src={`${process.env.PUBLIC_URL}/logo.png`} 
@@ -40,10 +42,15 @@ const Landing = () => {
         </div>
       </div>
 
-      {/* Main Landing Content */}
+      {/* Main Landing Content with animated spotlights */}
       <div className={`landing-main ${showMain ? 'visible' : ''}`}>
-        <div className="landing-bg" style={{ backgroundImage: `url(${landingBg})` }} />
-        <div className="landing-overlay" />
+        {/* Animated spotlights */}
+        <div className="spotlights">
+          <div className="spotlight purple" />
+          <div className="spotlight green" />
+          <div className="spotlight purple-2" />
+          <div className="spotlight green-2" />
+        </div>
         
         <div className="landing-content">
           <img 

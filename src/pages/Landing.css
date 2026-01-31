@@ -6,16 +6,28 @@
   overflow: hidden;
 }
 
-/* ========== INTRO ANIMATION ========== */
+/* ========== INTRO WITH BACKGROUND ========== */
 .intro-overlay {
   position: fixed;
   inset: 0;
-  background: #0a0a0f;
   display: flex;
   align-items: center;
   justify-content: center;
   z-index: 100;
   transition: opacity 0.8s ease-out;
+}
+
+.intro-bg {
+  position: absolute;
+  inset: 0;
+  background-size: cover;
+  background-position: center;
+}
+
+.intro-bg-overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(10, 10, 15, 0.5);
 }
 
 .intro-overlay.fade-out {
@@ -28,6 +40,8 @@
 }
 
 .intro-logo-container {
+  position: relative;
+  z-index: 1;
   opacity: 0;
   transform: scale(0.6);
   transition: all 1s cubic-bezier(0.16, 1, 0.3, 1);
@@ -39,8 +53,8 @@
 }
 
 .intro-logo-container.glow {
-  filter: drop-shadow(0 0 50px rgba(157, 78, 221, 0.45))
-          drop-shadow(0 0 100px rgba(157, 78, 221, 0.25));
+  filter: drop-shadow(0 0 40px rgba(157, 78, 221, 0.5))
+          drop-shadow(0 0 80px rgba(157, 78, 221, 0.3));
 }
 
 .intro-logo-container.zoom-out {
@@ -49,11 +63,11 @@
 }
 
 .intro-logo {
-  width: 240px;
+  width: 200px;
   height: auto;
 }
 
-/* ========== MAIN LANDING ========== */
+/* ========== MAIN LANDING WITH SPOTLIGHTS ========== */
 .landing-main {
   min-height: 100vh;
   display: flex;
@@ -61,6 +75,7 @@
   align-items: center;
   justify-content: center;
   position: relative;
+  background: #0a0a0f;
   opacity: 0;
   transition: opacity 0.8s ease-out;
 }
@@ -69,23 +84,81 @@
   opacity: 1;
 }
 
-.landing-bg {
+/* Animated Spotlights */
+.spotlights {
   position: absolute;
   inset: 0;
-  background-size: cover;
-  background-position: center;
-  background-repeat: no-repeat;
+  overflow: hidden;
+  pointer-events: none;
 }
 
-.landing-overlay {
+.spotlight {
   position: absolute;
-  inset: 0;
-  background: linear-gradient(
-    180deg,
-    rgba(10, 10, 15, 0.55) 0%,
-    rgba(10, 10, 15, 0.65) 40%,
-    rgba(10, 10, 15, 0.85) 100%
-  );
+  border-radius: 50%;
+  filter: blur(80px);
+  opacity: 0.15;
+}
+
+.spotlight.purple {
+  width: 400px;
+  height: 400px;
+  background: #7B2D8E;
+  top: 10%;
+  left: 10%;
+  animation: moveSpotlight1 20s ease-in-out infinite;
+}
+
+.spotlight.green {
+  width: 350px;
+  height: 350px;
+  background: #2E7D32;
+  bottom: 20%;
+  right: 10%;
+  animation: moveSpotlight2 25s ease-in-out infinite;
+}
+
+.spotlight.purple-2 {
+  width: 300px;
+  height: 300px;
+  background: #9D4EDD;
+  bottom: 10%;
+  left: 20%;
+  animation: moveSpotlight3 22s ease-in-out infinite;
+}
+
+.spotlight.green-2 {
+  width: 250px;
+  height: 250px;
+  background: #4CAF50;
+  top: 20%;
+  right: 20%;
+  animation: moveSpotlight4 18s ease-in-out infinite;
+}
+
+@keyframes moveSpotlight1 {
+  0%, 100% { transform: translate(0, 0); }
+  25% { transform: translate(100px, 50px); }
+  50% { transform: translate(50px, 100px); }
+  75% { transform: translate(-50px, 50px); }
+}
+
+@keyframes moveSpotlight2 {
+  0%, 100% { transform: translate(0, 0); }
+  25% { transform: translate(-80px, -40px); }
+  50% { transform: translate(-40px, -80px); }
+  75% { transform: translate(40px, -40px); }
+}
+
+@keyframes moveSpotlight3 {
+  0%, 100% { transform: translate(0, 0); }
+  33% { transform: translate(60px, -60px); }
+  66% { transform: translate(-60px, -30px); }
+}
+
+@keyframes moveSpotlight4 {
+  0%, 100% { transform: translate(0, 0); }
+  33% { transform: translate(-50px, 70px); }
+  66% { transform: translate(50px, 40px); }
 }
 
 .landing-content {
@@ -96,16 +169,16 @@
 }
 
 .landing-logo {
-  width: 180px;
+  width: 140px;
   height: auto;
-  margin-bottom: 20px;
-  filter: drop-shadow(0 6px 24px rgba(157, 78, 221, 0.25));
+  margin-bottom: 16px;
+  filter: drop-shadow(0 4px 16px rgba(157, 78, 221, 0.2));
 }
 
 .landing-tagline {
-  font-size: 1.1rem;
-  color: rgba(255, 255, 255, 0.8);
-  margin-bottom: 36px;
+  font-size: 1rem;
+  color: rgba(255, 255, 255, 0.7);
+  margin-bottom: 32px;
   font-weight: 400;
   letter-spacing: 0.02em;
 }
@@ -113,8 +186,8 @@
 .landing-buttons {
   display: flex;
   flex-direction: column;
-  gap: 14px;
-  max-width: 260px;
+  gap: 12px;
+  max-width: 240px;
   margin: 0 auto;
 }
 
@@ -123,12 +196,12 @@
   align-items: center;
   justify-content: center;
   gap: 8px;
-  padding: 14px 28px;
+  padding: 13px 26px;
   background: linear-gradient(135deg, #7B2D8E 0%, #4A1D6B 100%);
   color: #fff;
-  font-size: 0.95rem;
+  font-size: 0.9rem;
   font-weight: 500;
-  border-radius: 12px;
+  border-radius: 10px;
   border: none;
   cursor: pointer;
   transition: all 0.25s ease;
@@ -136,31 +209,30 @@
 
 .btn-main:hover {
   transform: translateY(-2px);
-  box-shadow: 0 10px 28px rgba(123, 45, 142, 0.35);
+  box-shadow: 0 8px 24px rgba(123, 45, 142, 0.3);
 }
 
 .btn-outline {
-  padding: 14px 28px;
-  background: rgba(255, 255, 255, 0.06);
-  backdrop-filter: blur(10px);
+  padding: 13px 26px;
+  background: rgba(255, 255, 255, 0.04);
   color: #fff;
-  font-size: 0.95rem;
+  font-size: 0.9rem;
   font-weight: 500;
-  border: 1px solid rgba(255, 255, 255, 0.15);
-  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 10px;
   cursor: pointer;
   transition: all 0.25s ease;
 }
 
 .btn-outline:hover {
-  background: rgba(255, 255, 255, 0.1);
-  border-color: rgba(255, 255, 255, 0.25);
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.2);
 }
 
 /* Footer */
 .landing-footer {
   position: absolute;
-  bottom: 24px;
+  bottom: 20px;
   left: 0;
   right: 0;
   text-align: center;
@@ -168,37 +240,37 @@
 }
 
 .landing-footer p {
-  font-size: 0.75rem;
-  color: rgba(255, 255, 255, 0.35);
-  letter-spacing: 0.02em;
+  font-size: 0.7rem;
+  color: rgba(255, 255, 255, 0.3);
 }
 
 /* ========== RESPONSIVE ========== */
 @media (max-width: 480px) {
   .intro-logo {
-    width: 180px;
+    width: 160px;
   }
   
   .landing-logo {
-    width: 150px;
+    width: 120px;
   }
   
-  .landing-tagline {
-    font-size: 1rem;
+  .spotlight {
+    filter: blur(60px);
+    opacity: 0.12;
   }
 }
 
 @media (min-width: 768px) {
   .intro-logo {
-    width: 280px;
+    width: 240px;
   }
   
   .landing-logo {
-    width: 220px;
+    width: 160px;
   }
   
   .landing-tagline {
-    font-size: 1.2rem;
+    font-size: 1.1rem;
   }
   
   .landing-buttons {
