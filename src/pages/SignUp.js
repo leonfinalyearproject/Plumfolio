@@ -57,12 +57,15 @@ const SignUp = () => {
         <div className="auth-container">
           <div className="auth-card success-card">
             <div className="success-icon">
-              <Check size={28} />
+              <Check size={24} />
             </div>
             <h2>Check your email</h2>
             <p>We sent a verification link to <strong>{formData.email}</strong></p>
             <span className="success-note">Redirecting to sign in...</span>
           </div>
+          <footer className="auth-footer">
+            <p>&copy; Plumfolio 2026</p>
+          </footer>
         </div>
       </div>
     );
@@ -80,7 +83,7 @@ const SignUp = () => {
         <div className="auth-card">
           <div className="auth-header">
             <h1>Create account</h1>
-            <p>Start tracking your finances today</p>
+            <p>Start tracking your finances</p>
           </div>
           
           {error && (
@@ -171,6 +174,10 @@ const SignUp = () => {
             Already have an account? <Link to="/signin">Sign in</Link>
           </p>
         </div>
+        
+        <footer className="auth-footer">
+          <p>&copy; Plumfolio 2026</p>
+        </footer>
       </div>
     </div>
   );

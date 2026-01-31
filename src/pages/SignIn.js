@@ -112,6 +112,10 @@ const SignIn = () => {
             Don't have an account? <Link to="/signup">Create one</Link>
           </p>
         </div>
+        
+        <footer className="auth-footer">
+          <p>&copy; Plumfolio 2026</p>
+        </footer>
       </div>
     </div>
   );
