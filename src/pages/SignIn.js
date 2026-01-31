@@ -41,7 +41,10 @@ const SignIn = () => {
   };
 
   return (
-    <div className="auth-page">
+    <div className="auth-page signin-page">
+      <div className="auth-bg" />
+      <div className="auth-overlay" />
+      
       <div className="auth-container">
         <Link to="/" className="auth-logo-link">
           <img src={`${process.env.PUBLIC_URL}/logo.png`} alt="Plumfolio" className="auth-logo" />

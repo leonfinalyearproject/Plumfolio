@@ -16,18 +16,13 @@ const Landing = () => {
       return;
     }
 
-    // Phase 1: Logo appears (0ms)
-    // Phase 2: Logo fully visible with glow (800ms)
-    // Phase 3: Start fade/zoom transition (2200ms)
-    // Phase 4: Show main content (3000ms)
-    
     setTimeout(() => setIntroPhase(1), 100);
-    setTimeout(() => setIntroPhase(2), 800);
-    setTimeout(() => setIntroPhase(3), 2200);
+    setTimeout(() => setIntroPhase(2), 1000);
+    setTimeout(() => setIntroPhase(3), 2800);
     setTimeout(() => {
       setIntroPhase(4);
       setShowMain(true);
-    }, 3000);
+    }, 3600);
 
   }, [user, navigate]);
 
@@ -42,18 +37,13 @@ const Landing = () => {
             className="intro-logo"
           />
         </div>
-        
-        {/* Subtle particles */}
-        <div className="particles">
-          <div className="particle" style={{ '--delay': '0s', '--x': '20%', '--y': '30%' }} />
-          <div className="particle" style={{ '--delay': '0.5s', '--x': '80%', '--y': '20%' }} />
-          <div className="particle" style={{ '--delay': '1s', '--x': '70%', '--y': '70%' }} />
-          <div className="particle" style={{ '--delay': '1.5s', '--x': '30%', '--y': '80%' }} />
-        </div>
       </div>
 
       {/* Main Landing Content */}
       <div className={`landing-main ${showMain ? 'visible' : ''}`}>
+        <div className="landing-bg" />
+        <div className="landing-overlay" />
+        
         <div className="landing-content">
           <img 
             src={`${process.env.PUBLIC_URL}/logo.png`} 

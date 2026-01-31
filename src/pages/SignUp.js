@@ -51,7 +51,9 @@ const SignUp = () => {
 
   if (success) {
     return (
-      <div className="auth-page">
+      <div className="auth-page signup-page">
+        <div className="auth-bg signup-bg" />
+        <div className="auth-overlay" />
         <div className="auth-container">
           <div className="auth-card success-card">
             <div className="success-icon">
@@ -67,7 +69,10 @@ const SignUp = () => {
   }
 
   return (
-    <div className="auth-page">
+    <div className="auth-page signup-page">
+      <div className="auth-bg signup-bg" />
+      <div className="auth-overlay" />
+      
       <div className="auth-container">
         <Link to="/" className="auth-logo-link">
           <img src={`${process.env.PUBLIC_URL}/logo.png`} alt="Plumfolio" className="auth-logo" />
