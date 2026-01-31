@@ -52,15 +52,14 @@ const SignUp = () => {
   if (success) {
     return (
       <div className="auth-page">
-        <div className="auth-bg" />
         <div className="auth-container">
-          <div className="success-card">
+          <div className="auth-card success-card">
             <div className="success-icon">
-              <Check size={32} />
+              <Check size={28} />
             </div>
             <h2>Check your email</h2>
-            <p>We've sent a verification link to <strong>{formData.email}</strong></p>
-            <p className="success-note">Redirecting to sign in...</p>
+            <p>We sent a verification link to <strong>{formData.email}</strong></p>
+            <span className="success-note">Redirecting to sign in...</span>
           </div>
         </div>
       </div>
@@ -69,133 +68,104 @@ const SignUp = () => {
 
   return (
     <div className="auth-page">
-      <div className="auth-bg" />
-      
       <div className="auth-container">
+        <Link to="/" className="auth-logo-link">
+          <img src={`${process.env.PUBLIC_URL}/logo.png`} alt="Plumfolio" className="auth-logo" />
+        </Link>
+        
         <div className="auth-card">
-          {/* Left Panel - Decorative */}
-          <div className="auth-panel-left">
-            <Link to="/" className="auth-brand">
-              <img src={`${process.env.PUBLIC_URL}/logo.png`} alt="" className="auth-logo" />
-              <span>Plumfolio</span>
-            </Link>
-            
-            <div className="auth-panel-content">
-              <h2>Start your journey to financial freedom</h2>
-              <p>Join thousands of users who have taken control of their finances with Plumfolio.</p>
-              
-              <div className="auth-features">
-                <div className="auth-feature">
-                  <div className="feature-check"><Check size={14} /></div>
-                  <span>Free forever, no hidden costs</span>
-                </div>
-                <div className="auth-feature">
-                  <div className="feature-check"><Check size={14} /></div>
-                  <span>Bank-level security</span>
-                </div>
-                <div className="auth-feature">
-                  <div className="feature-check"><Check size={14} /></div>
-                  <span>Instant insights into spending</span>
-                </div>
-              </div>
-            </div>
+          <div className="auth-header">
+            <h1>Create account</h1>
+            <p>Start tracking your finances today</p>
           </div>
           
-          {/* Right Panel - Form */}
-          <div className="auth-panel-right">
-            <div className="auth-form-header">
-              <h1>Create account</h1>
-              <p>Enter your details to get started</p>
+          {error && (
+            <div className="auth-error">
+              <AlertCircle size={16} />
+              <span>{error}</span>
+            </div>
+          )}
+          
+          <form onSubmit={handleSubmit} className="auth-form">
+            <div className="input-group">
+              <label htmlFor="fullName">Full Name</label>
+              <div className="input-field">
+                <User size={18} />
+                <input
+                  type="text"
+                  id="fullName"
+                  name="fullName"
+                  value={formData.fullName}
+                  onChange={handleChange}
+                  placeholder="John Doe"
+                  required
+                />
+              </div>
             </div>
             
-            {error && (
-              <div className="auth-error">
-                <AlertCircle size={16} />
-                <span>{error}</span>
+            <div className="input-group">
+              <label htmlFor="email">Email</label>
+              <div className="input-field">
+                <Mail size={18} />
+                <input
+                  type="email"
+                  id="email"
+                  name="email"
+                  value={formData.email}
+                  onChange={handleChange}
+                  placeholder="you@example.com"
+                  required
+                />
               </div>
-            )}
+            </div>
             
-            <form onSubmit={handleSubmit} className="auth-form">
-              <div className="form-group">
-                <label htmlFor="fullName">Full Name</label>
-                <div className="input-wrapper">
-                  <User size={18} className="input-icon" />
-                  <input
-                    type="text"
-                    id="fullName"
-                    name="fullName"
-                    value={formData.fullName}
-                    onChange={handleChange}
-                    placeholder="John Doe"
-                    required
-                  />
-                </div>
+            <div className="input-group">
+              <label htmlFor="password">Password</label>
+              <div className="input-field">
+                <Lock size={18} />
+                <input
+                  type="password"
+                  id="password"
+                  name="password"
+                  value={formData.password}
+                  onChange={handleChange}
+                  placeholder="Min. 6 characters"
+                  required
+                />
               </div>
-              
-              <div className="form-group">
-                <label htmlFor="email">Email</label>
-                <div className="input-wrapper">
-                  <Mail size={18} className="input-icon" />
-                  <input
-                    type="email"
-                    id="email"
-                    name="email"
-                    value={formData.email}
-                    onChange={handleChange}
-                    placeholder="you@example.com"
-                    required
-                  />
-                </div>
-              </div>
-              
-              <div className="form-group">
-                <label htmlFor="password">Password</label>
-                <div className="input-wrapper">
-                  <Lock size={18} className="input-icon" />
-                  <input
-                    type="password"
-                    id="password"
-                    name="password"
-                    value={formData.password}
-                    onChange={handleChange}
-                    placeholder="Min. 6 characters"
-                    required
-                  />
-                </div>
-              </div>
-              
-              <div className="form-group">
-                <label htmlFor="confirmPassword">Confirm Password</label>
-                <div className="input-wrapper">
-                  <Lock size={18} className="input-icon" />
-                  <input
-                    type="password"
-                    id="confirmPassword"
-                    name="confirmPassword"
-                    value={formData.confirmPassword}
-                    onChange={handleChange}
-                    placeholder="Repeat your password"
-                    required
-                  />
-                </div>
-              </div>
-              
-              <button type="submit" className="auth-submit" disabled={loading}>
-                {loading ? (
-                  <span className="spinner" />
-                ) : (
-                  <>
-                    Create Account
-                    <ArrowRight size={18} />
-                  </>
-                )}
-              </button>
-            </form>
+            </div>
             
-            <p className="auth-footer-text">
-              Already have an account? <Link to="/signin">Sign in</Link>
-            </p>
-          </div>
+            <div className="input-group">
+              <label htmlFor="confirmPassword">Confirm Password</label>
+              <div className="input-field">
+                <Lock size={18} />
+                <input
+                  type="password"
+                  id="confirmPassword"
+                  name="confirmPassword"
+                  value={formData.confirmPassword}
+                  onChange={handleChange}
+                  placeholder="Repeat password"
+                  required
+                />
+              </div>
+            </div>
+            
+            <button type="submit" className="auth-btn" disabled={loading}>
+              {loading ? (
+                <span className="spinner" />
+              ) : (
+                <>
+                  Create Account
+                  <ArrowRight size={18} />
+                </>
+              )}
+            </button>
+          </form>
+          
+          <p className="auth-switch">
+            Already have an account? <Link to="/signin">Sign in</Link>
+          </p>
         </div>
       </div>
     </div>

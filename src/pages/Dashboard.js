@@ -1,18 +1,19 @@
 import React, { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { supabase } from '../lib/supabase';
 import { 
-  TrendingUp, 
-  TrendingDown, 
   Wallet, 
-  ArrowUpRight, 
+  TrendingUp, 
+  TrendingDown,
+  ArrowUpRight,
   ArrowDownRight,
-  ShoppingCart,
+  Coffee,
   Home,
   Car,
   Zap,
-  GraduationCap,
-  Coffee
+  ShoppingBag,
+  ChevronRight
 } from 'lucide-react';
 import { Doughnut } from 'react-chartjs-2';
 import { Chart as ChartJS, ArcElement, Tooltip, Legend } from 'chart.js';
@@ -26,7 +27,6 @@ const Dashboard = () => {
     balance: 0,
     income: 0,
     expenses: 0,
-    savings: 0,
   });
   const [transactions, setTransactions] = useState([]);
   const [budgets, setBudgets] = useState([]);
@@ -40,7 +40,6 @@ const Dashboard = () => {
 
   const fetchData = async () => {
     try {
-      // Fetch transactions
       const { data: transactionsData } = await supabase
         .from('transactions')
         .select('*')
@@ -48,7 +47,6 @@ const Dashboard = () => {
         .order('date', { ascending: false })
         .limit(5);
 
-      // Fetch budgets
       const { data: budgetsData } = await supabase
         .from('budgets')
         .select('*')
@@ -57,7 +55,6 @@ const Dashboard = () => {
       if (transactionsData) {
         setTransactions(transactionsData);
         
-        // Calculate stats from all transactions
         const { data: allTransactions } = await supabase
           .from('transactions')
           .select('*')
@@ -76,7 +73,6 @@ const Dashboard = () => {
             balance: income - expenses,
             income,
             expenses,
-            savings: income - expenses,
           });
         }
       }
@@ -91,27 +87,25 @@ const Dashboard = () => {
     }
   };
 
-  // Demo data for when there's no real data
+  // Demo data
   const demoStats = {
     balance: 24567.89,
     income: 6325.50,
     expenses: 2209.21,
-    savings: 4116.29,
   };
 
   const demoTransactions = [
-    { id: 1, description: 'Salary Deposit', category: 'Income', type: 'income', amount: 5200, date: '2026-01-30' },
-    { id: 2, description: 'Groceries', category: 'Food & Dining', type: 'expense', amount: 156.32, date: '2026-01-29' },
-    { id: 3, description: 'Electric Bill', category: 'Utilities', type: 'expense', amount: 89.00, date: '2026-01-28' },
-    { id: 4, description: 'Freelance Work', category: 'Income', type: 'income', amount: 750, date: '2026-01-27' },
-    { id: 5, description: 'Coffee Shop', category: 'Food & Dining', type: 'expense', amount: 24.50, date: '2026-01-26' },
+    { id: 1, description: 'Salary', category: 'Income', type: 'income', amount: 5200, date: '2026-01-30' },
+    { id: 2, description: 'Groceries', category: 'Food', type: 'expense', amount: 156.32, date: '2026-01-29' },
+    { id: 3, description: 'Electricity', category: 'Utilities', type: 'expense', amount: 89.00, date: '2026-01-28' },
+    { id: 4, description: 'Freelance', category: 'Income', type: 'income', amount: 750, date: '2026-01-27' },
+    { id: 5, description: 'Transport', category: 'Transport', type: 'expense', amount: 45.50, date: '2026-01-26' },
   ];
 
   const demoBudgets = [
-    { category: 'Food & Dining', allocated: 500, spent: 240 },
+    { category: 'Food', allocated: 500, spent: 240 },
     { category: 'Housing', allocated: 1200, spent: 1200 },
-    { category: 'Transportation', allocated: 300, spent: 52 },
-    { category: 'Utilities', allocated: 200, spent: 154 },
+    { category: 'Transport', allocated: 300, spent: 52 },
   ];
 
   const displayStats = transactions.length > 0 ? stats : demoStats;
@@ -120,173 +114,125 @@ const Dashboard = () => {
 
   const getCategoryIcon = (category) => {
     const icons = {
+      'Food': Coffee,
       'Food & Dining': Coffee,
       'Housing': Home,
+      'Transport': Car,
       'Transportation': Car,
       'Utilities': Zap,
-      'Education': GraduationCap,
+      'Shopping': ShoppingBag,
       'Income': Wallet,
-      'Shopping': ShoppingCart,
     };
-    return icons[category] || ShoppingCart;
+    return icons[category] || ShoppingBag;
+  };
+
+  const formatCurrency = (amount) => {
+    return 'P' + amount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   };
 
   const chartData = {
-    labels: ['Housing', 'Food & Dining', 'Utilities', 'Education'],
+    labels: ['Housing', 'Food', 'Transport', 'Other'],
     datasets: [{
       data: [45, 25, 15, 15],
       backgroundColor: [
-        'rgba(157, 78, 221, 0.8)',
-        'rgba(76, 175, 80, 0.8)',
-        'rgba(255, 179, 0, 0.8)',
-        'rgba(59, 130, 246, 0.8)',
+        '#7B2D8E',
+        '#4CAF50',
+        '#FFB300',
+        '#3B82F6',
       ],
-      borderColor: [
-        'rgba(157, 78, 221, 1)',
-        'rgba(76, 175, 80, 1)',
-        'rgba(255, 179, 0, 1)',
-        'rgba(59, 130, 246, 1)',
-      ],
-      borderWidth: 2,
+      borderWidth: 0,
+      spacing: 2,
     }],
   };
 
   const chartOptions = {
     responsive: true,
     maintainAspectRatio: false,
-    cutout: '70%',
+    cutout: '72%',
     plugins: {
-      legend: {
-        position: 'bottom',
-        labels: {
-          color: '#A1A1AA',
-          padding: 16,
-          usePointStyle: true,
-          font: {
-            family: "'DM Sans', sans-serif",
-            size: 12,
-          },
-        },
+      legend: { display: false },
+      tooltip: {
+        backgroundColor: '#1a1a24',
+        titleColor: '#f5f5f7',
+        bodyColor: '#a1a1aa',
+        borderColor: 'rgba(255,255,255,0.1)',
+        borderWidth: 1,
+        cornerRadius: 8,
+        padding: 12,
       },
     },
-  };
-
-  const formatCurrency = (amount) => {
-    return new Intl.NumberFormat('en-BW', {
-      style: 'currency',
-      currency: 'BWP',
-      minimumFractionDigits: 2,
-    }).format(amount).replace('BWP', 'P');
-  };
-
-  const getBudgetProgress = (spent, allocated) => {
-    const percentage = (spent / allocated) * 100;
-    return Math.min(percentage, 100);
-  };
-
-  const getBudgetColor = (spent, allocated) => {
-    const percentage = (spent / allocated) * 100;
-    if (percentage >= 100) return 'var(--error)';
-    if (percentage >= 75) return 'var(--warning)';
-    return 'var(--success)';
   };
 
   if (loading) {
     return (
       <div className="dashboard-loading">
-        <div className="loading-spinner" />
+        <div className="spinner" />
       </div>
     );
   }
 
   return (
     <div className="dashboard">
-      <div className="welcome-section">
-        <h2>Welcome back, {userName}</h2>
-        <p>Here's what's happening with your finances today.</p>
+      <div className="dashboard-greeting">
+        <h1>Hey, {userName}</h1>
+        <p>Here's your financial overview</p>
       </div>
 
-      {/* Stats Grid */}
-      <div className="stats-grid">
-        <div className="stat-card">
-          <div className="stat-header">
-            <span className="stat-label">Total Balance</span>
-            <div className="stat-icon balance">
-              <Wallet size={20} />
-            </div>
+      {/* Stats */}
+      <div className="stats-row">
+        <div className="stat-card main">
+          <div className="stat-top">
+            <span className="stat-label">Balance</span>
+            <Wallet size={20} />
           </div>
-          <div className="stat-value">{formatCurrency(displayStats.balance)}</div>
-          <div className="stat-change positive">
-            <ArrowUpRight size={14} />
-            <span>12.5% from last month</span>
-          </div>
+          <span className="stat-amount">{formatCurrency(displayStats.balance)}</span>
         </div>
 
         <div className="stat-card">
-          <div className="stat-header">
-            <span className="stat-label">Monthly Income</span>
-            <div className="stat-icon income">
-              <TrendingUp size={20} />
+          <div className="stat-top">
+            <span className="stat-label">Income</span>
+            <div className="stat-badge up">
+              <ArrowUpRight size={14} />
             </div>
           </div>
-          <div className="stat-value">{formatCurrency(displayStats.income)}</div>
-          <div className="stat-change positive">
-            <ArrowUpRight size={14} />
-            <span>8.2% from last month</span>
-          </div>
+          <span className="stat-amount">{formatCurrency(displayStats.income)}</span>
         </div>
 
         <div className="stat-card">
-          <div className="stat-header">
-            <span className="stat-label">Monthly Expenses</span>
-            <div className="stat-icon expenses">
-              <TrendingDown size={20} />
+          <div className="stat-top">
+            <span className="stat-label">Expenses</span>
+            <div className="stat-badge down">
+              <ArrowDownRight size={14} />
             </div>
           </div>
-          <div className="stat-value">{formatCurrency(displayStats.expenses)}</div>
-          <div className="stat-change negative">
-            <ArrowDownRight size={14} />
-            <span>3.1% from last month</span>
-          </div>
-        </div>
-
-        <div className="stat-card">
-          <div className="stat-header">
-            <span className="stat-label">Monthly Savings</span>
-            <div className="stat-icon savings">
-              <Wallet size={20} />
-            </div>
-          </div>
-          <div className="stat-value">{formatCurrency(displayStats.savings)}</div>
-          <div className="stat-change positive">
-            <ArrowUpRight size={14} />
-            <span>15.7% from last month</span>
-          </div>
+          <span className="stat-amount">{formatCurrency(displayStats.expenses)}</span>
         </div>
       </div>
 
-      {/* Content Grid */}
-      <div className="content-grid">
-        {/* Recent Transactions */}
-        <div className="card transactions-card">
-          <div className="card-header">
-            <h3>Recent Transactions</h3>
-            <a href="/transactions" className="view-all">View All</a>
+      {/* Content */}
+      <div className="dashboard-grid">
+        {/* Transactions */}
+        <div className="card">
+          <div className="card-top">
+            <h2>Recent Transactions</h2>
+            <Link to="/transactions" className="card-link">
+              View all <ChevronRight size={16} />
+            </Link>
           </div>
           <div className="transactions-list">
-            {displayTransactions.map((transaction) => {
-              const Icon = getCategoryIcon(transaction.category);
+            {displayTransactions.map((t) => {
+              const Icon = getCategoryIcon(t.category);
               return (
-                <div key={transaction.id} className="transaction-item">
+                <div key={t.id} className="transaction-row">
                   <div className="transaction-icon">
-                    <Icon size={18} />
+                    <Icon size={16} />
                   </div>
                   <div className="transaction-info">
-                    <span className="transaction-desc">{transaction.description}</span>
-                    <span className="transaction-category">{transaction.category}</span>
+                    <span className="transaction-name">{t.description}</span>
+                    <span className="transaction-cat">{t.category}</span>
                   </div>
-                  <span className={`transaction-amount ${transaction.type}`}>
-                    {transaction.type === 'income' ? '+' : '-'}{formatCurrency(transaction.amount)}
+                  <span className={`transaction-amt ${t.type}`}>
+                    {t.type === 'income' ? '+' : '-'}{formatCurrency(t.amount)}
                   </span>
                 </div>
               );
@@ -294,38 +240,44 @@ const Dashboard = () => {
           </div>
         </div>
 
-        {/* Expense Breakdown */}
-        <div className="card chart-card">
-          <div className="card-header">
-            <h3>Expense Breakdown</h3>
+        {/* Chart */}
+        <div className="card">
+          <div className="card-top">
+            <h2>Spending</h2>
           </div>
-          <div className="chart-container">
+          <div className="chart-area">
             <Doughnut data={chartData} options={chartOptions} />
+          </div>
+          <div className="chart-legend">
+            <div className="legend-item"><span style={{ background: '#7B2D8E' }} />Housing</div>
+            <div className="legend-item"><span style={{ background: '#4CAF50' }} />Food</div>
+            <div className="legend-item"><span style={{ background: '#FFB300' }} />Transport</div>
+            <div className="legend-item"><span style={{ background: '#3B82F6' }} />Other</div>
           </div>
         </div>
 
-        {/* Budget Overview */}
-        <div className="card budget-card">
-          <div className="card-header">
-            <h3>Budget Overview</h3>
-            <a href="/budgets" className="view-all">Manage</a>
+        {/* Budgets */}
+        <div className="card wide">
+          <div className="card-top">
+            <h2>Budgets</h2>
+            <Link to="/budgets" className="card-link">
+              Manage <ChevronRight size={16} />
+            </Link>
           </div>
-          <div className="budget-list">
-            {displayBudgets.map((budget, index) => {
-              const progress = getBudgetProgress(budget.spent, budget.allocated);
-              const color = getBudgetColor(budget.spent, budget.allocated);
+          <div className="budgets-list">
+            {displayBudgets.map((b, i) => {
+              const pct = Math.min((b.spent / b.allocated) * 100, 100);
+              const over = pct >= 100;
               return (
-                <div key={index} className="budget-item">
+                <div key={i} className="budget-row">
                   <div className="budget-info">
-                    <span className="budget-category">{budget.category}</span>
-                    <span className="budget-amounts">
-                      {formatCurrency(budget.spent)} / {formatCurrency(budget.allocated)}
-                    </span>
+                    <span className="budget-name">{b.category}</span>
+                    <span className="budget-nums">{formatCurrency(b.spent)} of {formatCurrency(b.allocated)}</span>
                   </div>
-                  <div className="budget-progress">
+                  <div className="budget-bar">
                     <div 
-                      className="budget-bar" 
-                      style={{ width: `${progress}%`, backgroundColor: color }}
+                      className={`budget-fill ${over ? 'over' : ''}`} 
+                      style={{ width: `${pct}%` }} 
                     />
                   </div>
                 </div>
