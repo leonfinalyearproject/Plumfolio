@@ -13,14 +13,18 @@ export const AuthProvider = ({ children }) => {
   useEffect(() => {
     // Get initial session
     const getSession = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      setUser(session?.user ?? null);
-      
-      if (session?.user) {
-        await fetchProfile(session.user.id);
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        setUser(session?.user ?? null);
+        
+        if (session?.user) {
+          await fetchProfile(session.user.id);
+        }
+      } catch (error) {
+        console.error('Error getting session:', error);
+      } finally {
+        setLoading(false);
       }
-      
-      setLoading(false);
     };
 
     getSession();
@@ -42,8 +46,6 @@ export const AuthProvider = ({ children }) => {
   }, []);
 
   // Fetch user profile from profiles table
-  // Maps to proposal: User entity (user_id, email, created_at)
-  // Extended with: full_name, avatar_url, currency
   const fetchProfile = async (userId) => {
     try {
       const { data, error } = await supabase
@@ -63,9 +65,9 @@ export const AuthProvider = ({ children }) => {
   };
 
   // FR-1.1: The system shall allow a new user to register with an email and password
+  // Profile is created automatically by a database trigger (not client-side)
   const signUp = async (email, password, fullName) => {
     try {
-      // Create auth user
       const { data, error } = await supabase.auth.signUp({
         email,
         password,
@@ -77,26 +79,6 @@ export const AuthProvider = ({ children }) => {
       });
 
       if (error) throw error;
-
-      // Create profile record after successful signup
-      // This creates the User entity from proposal with extended fields
-      if (data.user) {
-        const { error: profileError } = await supabase
-          .from('profiles')
-          .insert([
-            {
-              id: data.user.id,
-              email: email,
-              full_name: fullName,
-              currency: 'BWP', // Default currency for Botswana
-              created_at: new Date().toISOString(),
-            },
-          ]);
-
-        if (profileError && profileError.code !== '23505') {
-          console.error('Error creating profile:', profileError);
-        }
-      }
 
       return { data, error: null };
     } catch (error) {
