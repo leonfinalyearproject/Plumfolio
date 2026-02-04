@@ -109,18 +109,19 @@
   align-items: center;
 }
 
-.input-field svg {
+.input-field > svg {
   position: absolute;
   left: 12px;
   color: rgba(255, 255, 255, 0.3);
   pointer-events: none;
   width: 16px;
   height: 16px;
+  z-index: 1;
 }
 
 .input-field input {
   width: 100%;
-  padding: 11px 40px 11px 40px;
+  padding: 11px 12px 11px 40px;
   background: rgba(255, 255, 255, 0.04);
   border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 10px;
@@ -166,7 +167,9 @@
 /* Password toggle button */
 .password-toggle {
   position: absolute;
-  right: 12px;
+  right: 10px;
+  top: 50%;
+  transform: translateY(-50%);
   background: none;
   border: none;
   color: rgba(255, 255, 255, 0.3);
@@ -176,10 +179,23 @@
   align-items: center;
   justify-content: center;
   transition: color 0.2s ease;
+  z-index: 2;
+}
+
+.password-toggle svg {
+  width: 16px;
+  height: 16px;
+  pointer-events: none;
 }
 
 .password-toggle:hover {
   color: rgba(255, 255, 255, 0.6);
+}
+
+/* Inputs with password toggle need extra right padding */
+.password-toggle ~ input,
+.input-field:has(.password-toggle) input {
+  padding-right: 40px;
 }
 
 /* Password Strength Meter */
