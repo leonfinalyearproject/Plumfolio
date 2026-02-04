@@ -12,7 +12,7 @@
   position: relative;
   z-index: 2;
   width: 100%;
-  max-width: 380px;
+  max-width: 400px;
   padding: 20px;
   display: flex;
   flex-direction: column;
@@ -60,22 +60,28 @@
 /* Error Message */
 .auth-error {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 8px;
-  padding: 10px 12px;
+  padding: 12px 14px;
   background: rgba(239, 68, 68, 0.1);
   border: 1px solid rgba(239, 68, 68, 0.2);
   border-radius: 10px;
   color: #f87171;
   font-size: 0.8rem;
   margin-bottom: 18px;
+  line-height: 1.4;
+}
+
+.auth-error svg {
+  flex-shrink: 0;
+  margin-top: 1px;
 }
 
 /* Form */
 .auth-form {
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 18px;
 }
 
 .input-group {
@@ -88,6 +94,13 @@
   font-size: 0.75rem;
   font-weight: 500;
   color: rgba(255, 255, 255, 0.6);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.required {
+  color: #f87171;
 }
 
 .input-field {
@@ -107,7 +120,7 @@
 
 .input-field input {
   width: 100%;
-  padding: 11px 12px 11px 40px;
+  padding: 11px 40px 11px 40px;
   background: rgba(255, 255, 255, 0.04);
   border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 10px;
@@ -126,6 +139,82 @@
   background: rgba(255, 255, 255, 0.06);
 }
 
+/* Error state */
+.input-field.error input {
+  border-color: rgba(239, 68, 68, 0.5);
+  background: rgba(239, 68, 68, 0.05);
+}
+
+.input-field.error input:focus {
+  border-color: rgba(239, 68, 68, 0.7);
+}
+
+/* Field error message */
+.field-error {
+  font-size: 0.7rem;
+  color: #f87171;
+  margin-top: 2px;
+}
+
+/* Field hint */
+.field-hint {
+  font-size: 0.65rem;
+  color: rgba(255, 255, 255, 0.35);
+  margin-top: 2px;
+}
+
+/* Password toggle button */
+.password-toggle {
+  position: absolute;
+  right: 12px;
+  background: none;
+  border: none;
+  color: rgba(255, 255, 255, 0.3);
+  cursor: pointer;
+  padding: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: color 0.2s ease;
+}
+
+.password-toggle:hover {
+  color: rgba(255, 255, 255, 0.6);
+}
+
+/* Password Strength Meter */
+.password-strength {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 6px;
+}
+
+.strength-bar {
+  display: flex;
+  gap: 3px;
+  flex: 1;
+}
+
+.strength-segment {
+  height: 3px;
+  flex: 1;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 2px;
+  transition: background-color 0.3s ease;
+}
+
+.strength-segment.active {
+  background: #22c55e;
+}
+
+.strength-label {
+  font-size: 0.65rem;
+  font-weight: 500;
+  min-width: 60px;
+  text-align: right;
+}
+
 /* Submit Button */
 .auth-btn {
   display: flex;
@@ -141,7 +230,7 @@
   border-radius: 10px;
   cursor: pointer;
   transition: all 0.25s ease;
-  margin-top: 4px;
+  margin-top: 6px;
 }
 
 .auth-btn:hover:not(:disabled) {
@@ -235,6 +324,149 @@
 .auth-footer p {
   font-size: 0.75rem;
   color: rgba(255, 255, 255, 0.3);
+}
+
+/* =============================================
+   EMAIL VERIFICATION PAGE
+   ============================================= */
+.verification-page {
+  background: #0a0a0f;
+}
+
+.verification-page .spotlights {
+  position: fixed;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+  z-index: 0;
+}
+
+.verification-page .spotlight {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(100px);
+  opacity: 0.1;
+}
+
+.verification-page .spotlight.purple {
+  width: 500px;
+  height: 500px;
+  background: #7B2D8E;
+  top: 5%;
+  left: 5%;
+  animation: moveSpotlight1 25s ease-in-out infinite;
+}
+
+.verification-page .spotlight.green {
+  width: 400px;
+  height: 400px;
+  background: #2E7D32;
+  bottom: 10%;
+  right: 5%;
+  animation: moveSpotlight2 30s ease-in-out infinite;
+}
+
+.verification-page .spotlight.purple-2 {
+  width: 350px;
+  height: 350px;
+  background: #9D4EDD;
+  bottom: 30%;
+  left: 15%;
+  animation: moveSpotlight3 28s ease-in-out infinite;
+}
+
+.verification-page .spotlight.green-2 {
+  width: 300px;
+  height: 300px;
+  background: #4CAF50;
+  top: 40%;
+  right: 15%;
+  animation: moveSpotlight4 22s ease-in-out infinite;
+}
+
+@keyframes moveSpotlight1 {
+  0%, 100% { transform: translate(0, 0); }
+  25% { transform: translate(150px, 80px); }
+  50% { transform: translate(80px, 150px); }
+  75% { transform: translate(-80px, 80px); }
+}
+
+@keyframes moveSpotlight2 {
+  0%, 100% { transform: translate(0, 0); }
+  25% { transform: translate(-120px, -60px); }
+  50% { transform: translate(-60px, -120px); }
+  75% { transform: translate(60px, -60px); }
+}
+
+@keyframes moveSpotlight3 {
+  0%, 100% { transform: translate(0, 0); }
+  33% { transform: translate(100px, -100px); }
+  66% { transform: translate(-100px, -50px); }
+}
+
+@keyframes moveSpotlight4 {
+  0%, 100% { transform: translate(0, 0); }
+  33% { transform: translate(-80px, 100px); }
+  66% { transform: translate(80px, 60px); }
+}
+
+.verification-card {
+  text-align: center;
+  padding: 40px 32px;
+}
+
+.verification-icon {
+  width: 72px;
+  height: 72px;
+  margin: 0 auto 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+}
+
+.verification-icon.verifying {
+  background: rgba(157, 78, 221, 0.15);
+  color: #C77DFF;
+}
+
+.verification-icon.success {
+  background: rgba(76, 175, 80, 0.15);
+  color: #66BB6A;
+}
+
+.verification-icon.error {
+  background: rgba(239, 68, 68, 0.15);
+  color: #f87171;
+}
+
+.verification-icon .spin {
+  animation: spin 1s linear infinite;
+}
+
+.verification-card h2 {
+  font-size: 1.4rem;
+  font-weight: 600;
+  margin-bottom: 10px;
+  color: #fff;
+}
+
+.verification-card p {
+  color: rgba(255, 255, 255, 0.6);
+  font-size: 0.9rem;
+  margin-bottom: 8px;
+}
+
+.verification-note {
+  color: rgba(255, 255, 255, 0.4) !important;
+  font-size: 0.8rem !important;
+  margin-top: 16px !important;
+}
+
+.verification-btn {
+  margin-top: 24px;
+  text-decoration: none;
+  display: inline-flex;
 }
 
 /* Responsive */
