@@ -19,8 +19,13 @@
           var decoded = l.search.slice(1).split('&').map(function(s) { 
             return s.replace(/~and~/g, '&')
           }).join('?');
+          var path = l.pathname;
+          // Remove trailing slash only if path is longer than /Plumfolio/
+          if (path.endsWith('/') && path.length > 1) {
+            path = path.slice(0, -1);
+          }
           window.history.replaceState(null, null,
-              l.pathname.slice(0, -1) + decoded + l.hash
+              path + decoded + l.hash
           );
         }
       }(window.location))
