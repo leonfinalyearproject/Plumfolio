@@ -5,6 +5,7 @@ import { SlideshowProvider } from './context/SlideshowContext';
 import Landing from './pages/Landing';
 import SignIn from './pages/SignIn';
 import SignUp from './pages/SignUp';
+import EmailVerified from './pages/EmailVerified';
 import Dashboard from './pages/Dashboard';
 import Transactions from './pages/Transactions';
 import Budgets from './pages/Budgets';
@@ -22,6 +23,7 @@ function App() {
             <Route path="/" element={<Landing />} />
             <Route path="/signin" element={<SignIn />} />
             <Route path="/signup" element={<SignUp />} />
+            <Route path="/verified" element={<EmailVerified />} />
             <Route path="/dashboard" element={<DashboardLayout><Dashboard /></DashboardLayout>} />
             <Route path="/transactions" element={<DashboardLayout><Transactions /></DashboardLayout>} />
             <Route path="/budgets" element={<DashboardLayout><Budgets /></DashboardLayout>} />
