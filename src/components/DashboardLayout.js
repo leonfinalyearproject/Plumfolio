@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import Sidebar from './Sidebar';
@@ -6,17 +6,36 @@ import Header from './Header';
 import './DashboardLayout.css';
 
 const DashboardLayout = ({ children }) => {
-  const { user, loading } = useAuth();
+  const { user, loading, signOut } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
+  const [loadingTimeout, setLoadingTimeout] = useState(false);
 
+  // Timeout protection - if loading takes more than 5 seconds, something is wrong
   useEffect(() => {
-    if (!loading && !user) {
+    const timer = setTimeout(() => {
+      if (loading) {
+        console.warn('Loading timeout - redirecting to signin');
+        setLoadingTimeout(true);
+      }
+    }, 5000);
+
+    return () => clearTimeout(timer);
+  }, [loading]);
+
+  // Redirect to signin if not authenticated or timeout
+  useEffect(() => {
+    if (loadingTimeout) {
+      // Force sign out and redirect
+      signOut().then(() => {
+        navigate('/signin');
+      });
+    } else if (!loading && !user) {
       navigate('/signin');
     }
-  }, [user, loading, navigate]);
+  }, [user, loading, loadingTimeout, navigate, signOut]);
 
-  if (loading) {
+  if (loading && !loadingTimeout) {
     return (
       <div className="loading-screen">
         <div className="spinner" />
