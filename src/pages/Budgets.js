@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { supabase } from '../lib/supabase';
-import { Plus, Edit, Trash2, X, AlertTriangle, CheckCircle } from 'lucide-react';
+import { Plus, Edit, Trash2, X, AlertTriangle, CheckCircle, Target } from 'lucide-react';
 import './Budgets.css';
 
 const Budgets = () => {
@@ -29,7 +29,9 @@ const Budgets = () => {
   ];
 
   useEffect(() => {
-    fetchBudgets();
+    if (user) {
+      fetchBudgets();
+    }
   }, [user]);
 
   const fetchBudgets = async () => {
@@ -155,41 +157,39 @@ const Budgets = () => {
     return 'good';
   };
 
-  // Demo budgets
-  const demoBudgets = [
-    { id: 1, category: 'Food & Dining', allocated: 1500, spent: 720, month_year: '2026-01' },
-    { id: 2, category: 'Housing', allocated: 3000, spent: 3000, month_year: '2026-01' },
-    { id: 3, category: 'Transportation', allocated: 800, spent: 136, month_year: '2026-01' },
-    { id: 4, category: 'Utilities', allocated: 600, spent: 462, month_year: '2026-01' },
-    { id: 5, category: 'Entertainment', allocated: 400, spent: 120, month_year: '2026-01' },
-    { id: 6, category: 'Education', allocated: 1000, spent: 650, month_year: '2026-01' },
-  ];
+  if (loading) {
+    return (
+      <div className="budgets-loading">
+        <div className="spinner" />
+      </div>
+    );
+  }
 
-  const displayBudgets = budgets.length > 0 ? budgets : demoBudgets;
-
-  const totalAllocated = displayBudgets.reduce((sum, b) => sum + b.allocated, 0);
-  const totalSpent = displayBudgets.reduce((sum, b) => sum + b.spent, 0);
+  const totalAllocated = budgets.reduce((sum, b) => sum + parseFloat(b.allocated), 0);
+  const totalSpent = budgets.reduce((sum, b) => sum + b.spent, 0);
   const remaining = totalAllocated - totalSpent;
 
   return (
     <div className="budgets-page">
-      {/* Summary Cards */}
-      <div className="budget-summary">
-        <div className="summary-card">
-          <span className="summary-label">Total Budget</span>
-          <span className="summary-value">{formatCurrency(totalAllocated)}</span>
+      {/* Summary Cards - only show if there are budgets */}
+      {budgets.length > 0 && (
+        <div className="budget-summary">
+          <div className="summary-card">
+            <span className="summary-label">Total Budget</span>
+            <span className="summary-value">{formatCurrency(totalAllocated)}</span>
+          </div>
+          <div className="summary-card">
+            <span className="summary-label">Total Spent</span>
+            <span className="summary-value spent">{formatCurrency(totalSpent)}</span>
+          </div>
+          <div className="summary-card">
+            <span className="summary-label">Remaining</span>
+            <span className={`summary-value ${remaining >= 0 ? 'positive' : 'negative'}`}>
+              {formatCurrency(remaining)}
+            </span>
+          </div>
         </div>
-        <div className="summary-card">
-          <span className="summary-label">Total Spent</span>
-          <span className="summary-value spent">{formatCurrency(totalSpent)}</span>
-        </div>
-        <div className="summary-card">
-          <span className="summary-label">Remaining</span>
-          <span className={`summary-value ${remaining >= 0 ? 'positive' : 'negative'}`}>
-            {formatCurrency(remaining)}
-          </span>
-        </div>
-      </div>
+      )}
 
       {/* Actions */}
       <div className="budgets-header">
@@ -200,52 +200,66 @@ const Budgets = () => {
         </button>
       </div>
 
-      {/* Budget Grid */}
-      <div className="budget-grid">
-        {displayBudgets.map((budget) => {
-          const progress = getProgress(budget.spent, budget.allocated);
-          const status = getStatus(budget.spent, budget.allocated);
-          
-          return (
-            <div key={budget.id} className={`budget-card ${status}`}>
-              <div className="budget-card-header">
-                <h3>{budget.category}</h3>
-                <div className="budget-actions">
-                  <button onClick={() => handleEdit(budget)}>
-                    <Edit size={16} />
-                  </button>
-                  <button onClick={() => handleDelete(budget.id)}>
-                    <Trash2 size={16} />
-                  </button>
+      {/* Budget Grid or Empty State */}
+      {budgets.length > 0 ? (
+        <div className="budget-grid">
+          {budgets.map((budget) => {
+            const progress = getProgress(budget.spent, budget.allocated);
+            const status = getStatus(budget.spent, budget.allocated);
+            
+            return (
+              <div key={budget.id} className={`budget-card ${status}`}>
+                <div className="budget-card-header">
+                  <h3>{budget.category}</h3>
+                  <div className="budget-actions">
+                    <button onClick={() => handleEdit(budget)} title="Edit">
+                      <Edit size={16} />
+                    </button>
+                    <button onClick={() => handleDelete(budget.id)} title="Delete">
+                      <Trash2 size={16} />
+                    </button>
+                  </div>
+                </div>
+                
+                <div className="budget-amounts">
+                  <span className="spent">{formatCurrency(budget.spent)}</span>
+                  <span className="separator">/</span>
+                  <span className="allocated">{formatCurrency(budget.allocated)}</span>
+                </div>
+                
+                <div className="budget-progress-bar">
+                  <div 
+                    className="progress-fill"
+                    style={{ width: `${progress}%` }}
+                  />
+                </div>
+                
+                <div className="budget-footer">
+                  <span className="percentage">{progress.toFixed(0)}% used</span>
+                  <span className={`status-badge ${status}`}>
+                    {status === 'exceeded' && <AlertTriangle size={12} />}
+                    {status === 'warning' && <AlertTriangle size={12} />}
+                    {status === 'good' && <CheckCircle size={12} />}
+                    {status === 'exceeded' ? 'Over budget' : status === 'warning' ? 'Almost there' : 'On track'}
+                  </span>
                 </div>
               </div>
-              
-              <div className="budget-amounts">
-                <span className="spent">{formatCurrency(budget.spent)}</span>
-                <span className="separator">/</span>
-                <span className="allocated">{formatCurrency(budget.allocated)}</span>
-              </div>
-              
-              <div className="budget-progress-bar">
-                <div 
-                  className="progress-fill"
-                  style={{ width: `${progress}%` }}
-                />
-              </div>
-              
-              <div className="budget-footer">
-                <span className="percentage">{progress.toFixed(0)}% used</span>
-                <span className={`status-badge ${status}`}>
-                  {status === 'exceeded' && <AlertTriangle size={12} />}
-                  {status === 'warning' && <AlertTriangle size={12} />}
-                  {status === 'good' && <CheckCircle size={12} />}
-                  {status === 'exceeded' ? 'Over budget' : status === 'warning' ? 'Almost there' : 'On track'}
-                </span>
-              </div>
-            </div>
-          );
-        })}
-      </div>
+            );
+          })}
+        </div>
+      ) : (
+        <div className="empty-state-container">
+          <div className="empty-state">
+            <Target size={64} strokeWidth={1} />
+            <h3>No budgets yet</h3>
+            <p>Set up budgets to track your spending and stay on top of your finances</p>
+            <button className="empty-action-btn" onClick={() => setModalOpen(true)}>
+              <Plus size={18} />
+              Create Your First Budget
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Modal */}
       {modalOpen && (

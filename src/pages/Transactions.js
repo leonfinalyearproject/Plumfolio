@@ -20,7 +20,8 @@ import {
   Film,
   MoreHorizontal,
   Trash2,
-  Edit
+  Edit,
+  Receipt
 } from 'lucide-react';
 import './Transactions.css';
 
@@ -53,7 +54,9 @@ const Transactions = () => {
   ];
 
   useEffect(() => {
-    fetchTransactions();
+    if (user) {
+      fetchTransactions();
+    }
   }, [user]);
 
   const fetchTransactions = async () => {
@@ -185,25 +188,13 @@ const Transactions = () => {
     return t.type === filter;
   });
 
-  // Demo transactions if no real data
-  const demoTransactions = [
-    { id: 1, description: 'Salary Deposit', category: 'Income', type: 'income', amount: 5200, date: '2026-01-30' },
-    { id: 2, description: 'Groceries at Choppies', category: 'Food & Dining', type: 'expense', amount: 156.32, date: '2026-01-29' },
-    { id: 3, description: 'Electric Bill - BPC', category: 'Utilities', type: 'expense', amount: 289.00, date: '2026-01-28' },
-    { id: 4, description: 'Freelance Web Design', category: 'Income', type: 'income', amount: 1750, date: '2026-01-27' },
-    { id: 5, description: 'Coffee & Snacks', category: 'Food & Dining', type: 'expense', amount: 84.50, date: '2026-01-26' },
-    { id: 6, description: 'Fuel - Shell', category: 'Transportation', type: 'expense', amount: 450.00, date: '2026-01-25' },
-    { id: 7, description: 'Internet - BTCL', category: 'Utilities', type: 'expense', amount: 399.00, date: '2026-01-24' },
-    { id: 8, description: 'Gym Membership', category: 'Health & Fitness', type: 'expense', amount: 350.00, date: '2026-01-23' },
-    { id: 9, description: 'Movie Tickets', category: 'Entertainment', type: 'expense', amount: 120.00, date: '2026-01-22' },
-    { id: 10, description: 'Textbooks', category: 'Education', type: 'expense', amount: 650.00, date: '2026-01-21' },
-    { id: 11, description: 'Part-time Job', category: 'Income', type: 'income', amount: 800, date: '2026-01-20' },
-    { id: 12, description: 'Rent Payment', category: 'Housing', type: 'expense', amount: 2500.00, date: '2026-01-15' },
-  ];
-
-  const displayTransactions = transactions.length > 0 
-    ? filteredTransactions 
-    : demoTransactions.filter((t) => filter === 'all' || t.type === filter);
+  if (loading) {
+    return (
+      <div className="transactions-loading">
+        <div className="spinner" />
+      </div>
+    );
+  }
 
   return (
     <div className="transactions-page">
@@ -231,14 +222,6 @@ const Transactions = () => {
         </div>
         
         <div className="action-buttons">
-          <button className="action-btn secondary">
-            <Filter size={18} />
-            <span>Filter</span>
-          </button>
-          <button className="action-btn secondary">
-            <Download size={18} />
-            <span>Export</span>
-          </button>
           <button className="action-btn primary" onClick={() => setModalOpen(true)}>
             <Plus size={18} />
             <span>Add Transaction</span>
@@ -246,69 +229,85 @@ const Transactions = () => {
         </div>
       </div>
 
-      {/* Transactions Table */}
-      <div className="transactions-table-wrapper">
-        <table className="transactions-table">
-          <thead>
-            <tr>
-              <th>Date</th>
-              <th>Description</th>
-              <th>Category</th>
-              <th>Type</th>
-              <th>Amount</th>
-              <th></th>
-            </tr>
-          </thead>
-          <tbody>
-            {displayTransactions.map((transaction) => {
-              const Icon = getCategoryIcon(transaction.category);
-              return (
-                <tr key={transaction.id}>
-                  <td className="date-cell">{formatDate(transaction.date)}</td>
-                  <td className="desc-cell">
-                    <div className="desc-wrapper">
-                      <div className="transaction-icon">
-                        <Icon size={16} />
+      {/* Content */}
+      {filteredTransactions.length > 0 ? (
+        <div className="transactions-table-wrapper">
+          <table className="transactions-table">
+            <thead>
+              <tr>
+                <th>Date</th>
+                <th>Description</th>
+                <th>Category</th>
+                <th>Type</th>
+                <th>Amount</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              {filteredTransactions.map((transaction) => {
+                const Icon = getCategoryIcon(transaction.category);
+                return (
+                  <tr key={transaction.id}>
+                    <td className="date-cell">{formatDate(transaction.date)}</td>
+                    <td className="desc-cell">
+                      <div className="desc-wrapper">
+                        <div className="transaction-icon">
+                          <Icon size={16} />
+                        </div>
+                        <span>{transaction.description}</span>
                       </div>
-                      <span>{transaction.description}</span>
-                    </div>
-                  </td>
-                  <td>
-                    <span className="category-badge">{transaction.category}</span>
-                  </td>
-                  <td>
-                    <span className={`type-badge ${transaction.type}`}>
-                      {transaction.type === 'income' ? (
-                        <ArrowUpCircle size={14} />
-                      ) : (
-                        <ArrowDownCircle size={14} />
-                      )}
-                      {transaction.type}
-                    </span>
-                  </td>
-                  <td className={`amount-cell ${transaction.type}`}>
-                    {transaction.type === 'income' ? '+' : '-'}{formatCurrency(transaction.amount)}
-                  </td>
-                  <td className="actions-cell">
-                    <button 
-                      className="row-action edit"
-                      onClick={() => handleEdit(transaction)}
-                    >
-                      <Edit size={16} />
-                    </button>
-                    <button 
-                      className="row-action delete"
-                      onClick={() => handleDelete(transaction.id)}
-                    >
-                      <Trash2 size={16} />
-                    </button>
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      </div>
+                    </td>
+                    <td>
+                      <span className="category-badge">{transaction.category}</span>
+                    </td>
+                    <td>
+                      <span className={`type-badge ${transaction.type}`}>
+                        {transaction.type === 'income' ? (
+                          <ArrowUpCircle size={14} />
+                        ) : (
+                          <ArrowDownCircle size={14} />
+                        )}
+                        {transaction.type}
+                      </span>
+                    </td>
+                    <td className={`amount-cell ${transaction.type}`}>
+                      {transaction.type === 'income' ? '+' : '-'}{formatCurrency(transaction.amount)}
+                    </td>
+                    <td className="actions-cell">
+                      <button 
+                        className="row-action edit"
+                        onClick={() => handleEdit(transaction)}
+                        title="Edit"
+                      >
+                        <Edit size={16} />
+                      </button>
+                      <button 
+                        className="row-action delete"
+                        onClick={() => handleDelete(transaction.id)}
+                        title="Delete"
+                      >
+                        <Trash2 size={16} />
+                      </button>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      ) : (
+        <div className="empty-state-container">
+          <div className="empty-state">
+            <Receipt size={64} strokeWidth={1} />
+            <h3>No transactions yet</h3>
+            <p>Start tracking your finances by adding your first transaction</p>
+            <button className="empty-action-btn" onClick={() => setModalOpen(true)}>
+              <Plus size={18} />
+              Add Transaction
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Mobile FAB */}
       <button className="fab" onClick={() => setModalOpen(true)}>
