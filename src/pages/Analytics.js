@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { supabase } from '../lib/supabase';
-import { TrendingUp, TrendingDown, Calendar } from 'lucide-react';
+import { TrendingUp, TrendingDown, Calendar, BarChart3, Plus } from 'lucide-react';
 import { Line, Doughnut, Bar } from 'react-chartjs-2';
 import {
   Chart as ChartJS,
@@ -35,10 +36,11 @@ const Analytics = () => {
   const { user } = useAuth();
   const [transactions, setTransactions] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [period, setPeriod] = useState('6months');
 
   useEffect(() => {
-    fetchTransactions();
+    if (user) {
+      fetchTransactions();
+    }
   }, [user]);
 
   const fetchTransactions = async () => {
@@ -58,69 +60,6 @@ const Analytics = () => {
     }
   };
 
-  // Demo data
-  const demoTransactions = [
-    { type: 'income', amount: 5200, category: 'Income', date: '2025-08-01' },
-    { type: 'expense', amount: 1200, category: 'Housing', date: '2025-08-05' },
-    { type: 'expense', amount: 450, category: 'Food & Dining', date: '2025-08-10' },
-    { type: 'income', amount: 5200, category: 'Income', date: '2025-09-01' },
-    { type: 'expense', amount: 1200, category: 'Housing', date: '2025-09-05' },
-    { type: 'expense', amount: 380, category: 'Food & Dining', date: '2025-09-12' },
-    { type: 'expense', amount: 200, category: 'Transportation', date: '2025-09-15' },
-    { type: 'income', amount: 5700, category: 'Income', date: '2025-10-01' },
-    { type: 'expense', amount: 1200, category: 'Housing', date: '2025-10-05' },
-    { type: 'expense', amount: 520, category: 'Food & Dining', date: '2025-10-08' },
-    { type: 'expense', amount: 150, category: 'Entertainment', date: '2025-10-20' },
-    { type: 'income', amount: 5700, category: 'Income', date: '2025-11-01' },
-    { type: 'income', amount: 800, category: 'Income', date: '2025-11-10' },
-    { type: 'expense', amount: 1200, category: 'Housing', date: '2025-11-05' },
-    { type: 'expense', amount: 480, category: 'Food & Dining', date: '2025-11-15' },
-    { type: 'expense', amount: 300, category: 'Utilities', date: '2025-11-18' },
-    { type: 'income', amount: 5700, category: 'Income', date: '2025-12-01' },
-    { type: 'expense', amount: 1200, category: 'Housing', date: '2025-12-05' },
-    { type: 'expense', amount: 650, category: 'Food & Dining', date: '2025-12-10' },
-    { type: 'expense', amount: 400, category: 'Shopping', date: '2025-12-20' },
-    { type: 'income', amount: 5700, category: 'Income', date: '2026-01-01' },
-    { type: 'income', amount: 1750, category: 'Income', date: '2026-01-15' },
-    { type: 'expense', amount: 1200, category: 'Housing', date: '2026-01-05' },
-    { type: 'expense', amount: 720, category: 'Food & Dining', date: '2026-01-20' },
-    { type: 'expense', amount: 350, category: 'Utilities', date: '2026-01-25' },
-  ];
-
-  const data = transactions.length > 0 ? transactions : demoTransactions;
-
-  // Process data for charts
-  const months = ['Aug', 'Sep', 'Oct', 'Nov', 'Dec', 'Jan'];
-  
-  const monthlyData = months.map((month, idx) => {
-    const monthNum = (8 + idx) % 12 || 12;
-    const year = monthNum >= 8 ? 2025 : 2026;
-    const monthStr = `${year}-${monthNum.toString().padStart(2, '0')}`;
-    
-    const monthTransactions = data.filter(t => t.date.startsWith(monthStr));
-    const income = monthTransactions.filter(t => t.type === 'income').reduce((sum, t) => sum + t.amount, 0);
-    const expenses = monthTransactions.filter(t => t.type === 'expense').reduce((sum, t) => sum + t.amount, 0);
-    
-    return { month, income, expenses, savings: income - expenses };
-  });
-
-  // Category breakdown
-  const categoryTotals = data
-    .filter(t => t.type === 'expense')
-    .reduce((acc, t) => {
-      acc[t.category] = (acc[t.category] || 0) + t.amount;
-      return acc;
-    }, {});
-
-  const sortedCategories = Object.entries(categoryTotals)
-    .sort((a, b) => b[1] - a[1])
-    .slice(0, 5);
-
-  const totalIncome = data.filter(t => t.type === 'income').reduce((sum, t) => sum + t.amount, 0);
-  const totalExpenses = data.filter(t => t.type === 'expense').reduce((sum, t) => sum + t.amount, 0);
-  const avgMonthlyIncome = totalIncome / 6;
-  const avgMonthlyExpenses = totalExpenses / 6;
-
   const formatCurrency = (amount) => {
     return new Intl.NumberFormat('en-BW', {
       style: 'currency',
@@ -129,9 +68,64 @@ const Analytics = () => {
     }).format(amount).replace('BWP', 'P');
   };
 
+  // Get last 6 months dynamically
+  const getLastSixMonths = () => {
+    const months = [];
+    const now = new Date();
+    for (let i = 5; i >= 0; i--) {
+      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      months.push({
+        label: d.toLocaleDateString('en-US', { month: 'short' }),
+        year: d.getFullYear(),
+        month: d.getMonth() + 1,
+        key: `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
+      });
+    }
+    return months;
+  };
+
+  const months = getLastSixMonths();
+
+  // Process data for charts
+  const monthlyData = months.map(({ label, key }) => {
+    const monthTransactions = transactions.filter(t => t.date && t.date.startsWith(key));
+    const income = monthTransactions
+      .filter(t => t.type === 'income')
+      .reduce((sum, t) => sum + parseFloat(t.amount), 0);
+    const expenses = monthTransactions
+      .filter(t => t.type === 'expense')
+      .reduce((sum, t) => sum + parseFloat(t.amount), 0);
+    
+    return { month: label, income, expenses, savings: income - expenses };
+  });
+
+  // Category breakdown
+  const categoryTotals = transactions
+    .filter(t => t.type === 'expense')
+    .reduce((acc, t) => {
+      acc[t.category] = (acc[t.category] || 0) + parseFloat(t.amount);
+      return acc;
+    }, {});
+
+  const sortedCategories = Object.entries(categoryTotals)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 5);
+
+  const totalIncome = transactions
+    .filter(t => t.type === 'income')
+    .reduce((sum, t) => sum + parseFloat(t.amount), 0);
+  const totalExpenses = transactions
+    .filter(t => t.type === 'expense')
+    .reduce((sum, t) => sum + parseFloat(t.amount), 0);
+  
+  // Calculate months with data for accurate average
+  const monthsWithData = monthlyData.filter(m => m.income > 0 || m.expenses > 0).length;
+  const avgMonthlyIncome = monthsWithData > 0 ? totalIncome / monthsWithData : 0;
+  const avgMonthlyExpenses = monthsWithData > 0 ? totalExpenses / monthsWithData : 0;
+
   // Chart configs
   const lineChartData = {
-    labels: months,
+    labels: months.map(m => m.label),
     datasets: [
       {
         label: 'Income',
@@ -217,7 +211,7 @@ const Analytics = () => {
   };
 
   const barChartData = {
-    labels: months,
+    labels: months.map(m => m.label),
     datasets: [{
       label: 'Net Savings',
       data: monthlyData.map(d => d.savings),
@@ -248,6 +242,33 @@ const Analytics = () => {
       },
     },
   };
+
+  if (loading) {
+    return (
+      <div className="analytics-loading">
+        <div className="spinner" />
+      </div>
+    );
+  }
+
+  // Empty state if no transactions
+  if (transactions.length === 0) {
+    return (
+      <div className="analytics-page">
+        <div className="empty-state-container">
+          <div className="empty-state">
+            <BarChart3 size={64} strokeWidth={1} />
+            <h3>No data to analyze yet</h3>
+            <p>Start adding transactions to see your spending trends, category breakdowns, and savings patterns</p>
+            <Link to="/transactions" className="empty-action-btn">
+              <Plus size={18} />
+              Add Your First Transaction
+            </Link>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="analytics-page">
@@ -295,9 +316,15 @@ const Analytics = () => {
         {/* Expense Breakdown */}
         <div className="chart-card">
           <h3>Expense Breakdown</h3>
-          <div className="chart-wrapper doughnut">
-            <Doughnut data={doughnutData} options={doughnutOptions} />
-          </div>
+          {sortedCategories.length > 0 ? (
+            <div className="chart-wrapper doughnut">
+              <Doughnut data={doughnutData} options={doughnutOptions} />
+            </div>
+          ) : (
+            <div className="chart-empty">
+              <p>No expenses recorded yet</p>
+            </div>
+          )}
         </div>
 
         {/* Monthly Savings */}
@@ -311,26 +338,32 @@ const Analytics = () => {
         {/* Top Spending Categories */}
         <div className="chart-card">
           <h3>Top Spending Categories</h3>
-          <div className="category-list">
-            {sortedCategories.map(([category, amount], idx) => (
-              <div key={category} className="category-item">
-                <div className="category-rank">{idx + 1}</div>
-                <div className="category-info">
-                  <span className="category-name">{category}</span>
-                  <div className="category-bar">
-                    <div 
-                      className="category-fill"
-                      style={{ 
-                        width: `${(amount / sortedCategories[0][1]) * 100}%`,
-                        backgroundColor: ['#9D4EDD', '#4CAF50', '#FFB300', '#3B82F6', '#EF4444'][idx]
-                      }}
-                    />
+          {sortedCategories.length > 0 ? (
+            <div className="category-list">
+              {sortedCategories.map(([category, amount], idx) => (
+                <div key={category} className="category-item">
+                  <div className="category-rank">{idx + 1}</div>
+                  <div className="category-info">
+                    <span className="category-name">{category}</span>
+                    <div className="category-bar">
+                      <div 
+                        className="category-fill"
+                        style={{ 
+                          width: `${(amount / sortedCategories[0][1]) * 100}%`,
+                          backgroundColor: ['#9D4EDD', '#4CAF50', '#FFB300', '#3B82F6', '#EF4444'][idx]
+                        }}
+                      />
+                    </div>
                   </div>
+                  <span className="category-amount">{formatCurrency(amount)}</span>
                 </div>
-                <span className="category-amount">{formatCurrency(amount)}</span>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          ) : (
+            <div className="chart-empty">
+              <p>No expense categories yet</p>
+            </div>
+          )}
         </div>
       </div>
     </div>
