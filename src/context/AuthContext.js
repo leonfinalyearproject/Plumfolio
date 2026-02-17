@@ -11,62 +11,34 @@ export const AuthProvider = ({ children }) => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Get initial session
-    const getSession = async () => {
+    // Clear any existing session on app load - require fresh sign in
+    const clearSessionOnLoad = async () => {
       try {
-        const { data: { session }, error } = await supabase.auth.getSession();
-        
-        // If there's an error getting session, clear everything
-        if (error) {
-          console.error('Session error:', error);
-          setUser(null);
-          setProfile(null);
-          setLoading(false);
-          return;
-        }
-
-        if (session?.user) {
-          setUser(session.user);
-          await fetchProfile(session.user.id);
-        } else {
-          setUser(null);
-          setProfile(null);
-        }
-      } catch (error) {
-        console.error('Error getting session:', error);
-        // On any error, clear state to allow fresh login
+        await supabase.auth.signOut();
         setUser(null);
         setProfile(null);
+      } catch (error) {
+        console.error('Error clearing session:', error);
       } finally {
         setLoading(false);
       }
     };
 
-    getSession();
+    clearSessionOnLoad();
 
-    // Listen for auth changes (handles token refresh, sign in, sign out)
+    // Listen for auth changes during this session
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       console.log('Auth event:', event);
-      
-      if (event === 'SIGNED_OUT' || event === 'USER_DELETED') {
-        setUser(null);
-        setProfile(null);
-        setLoading(false);
-        return;
-      }
 
-      if (event === 'TOKEN_REFRESHED') {
-        console.log('Token refreshed successfully');
-      }
-
-      if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED' || event === 'INITIAL_SESSION') {
+      if (event === 'SIGNED_IN') {
         if (session?.user) {
           setUser(session.user);
-          await fetchProfile(session.user.id);
+          fetchProfile(session.user.id);
         }
+      } else if (event === 'SIGNED_OUT') {
+        setUser(null);
+        setProfile(null);
       }
-      
-      setLoading(false);
     });
 
     return () => subscription.unsubscribe();
@@ -81,19 +53,8 @@ export const AuthProvider = ({ children }) => {
         .eq('id', userId)
         .single();
 
-      if (error) {
-        // If we can't fetch profile due to auth error, sign out
-        if (error.code === 'PGRST301' || error.message?.includes('JWT')) {
-          console.error('Auth error fetching profile, signing out');
-          await supabase.auth.signOut();
-          setUser(null);
-          setProfile(null);
-          return;
-        }
-        
-        if (error.code !== 'PGRST116') {
-          console.error('Error fetching profile:', error);
-        }
+      if (error && error.code !== 'PGRST116') {
+        console.error('Error fetching profile:', error);
       }
       
       setProfile(data || null);
@@ -103,7 +64,7 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  // FR-1.1: The system shall allow a new user to register with an email and password
+  // FR-1.1: Register
   const signUp = async (email, password, fullName) => {
     try {
       const { data, error } = await supabase.auth.signUp({
@@ -117,14 +78,13 @@ export const AuthProvider = ({ children }) => {
       });
 
       if (error) throw error;
-
       return { data, error: null };
     } catch (error) {
       return { data: null, error };
     }
   };
 
-  // FR-1.2: The system shall allow a registered user to log in
+  // FR-1.2: Sign in
   const signIn = async (email, password) => {
     try {
       const { data, error } = await supabase.auth.signInWithPassword({
@@ -133,27 +93,29 @@ export const AuthProvider = ({ children }) => {
       });
 
       if (error) throw error;
-
+      
+      if (data?.user) {
+        setUser(data.user);
+        fetchProfile(data.user.id);
+      }
+      
       return { data, error: null };
     } catch (error) {
       return { data: null, error };
     }
   };
 
-  // FR-1.3: The system shall allow a logged-in user to log out
+  // FR-1.3: Sign out
   const signOut = async () => {
     try {
       const { error } = await supabase.auth.signOut();
-      if (error) throw error;
       
       setUser(null);
       setProfile(null);
       
+      if (error) throw error;
       return { error: null };
     } catch (error) {
-      // Even if signOut fails, clear local state
-      setUser(null);
-      setProfile(null);
       return { error };
     }
   };
@@ -169,9 +131,7 @@ export const AuthProvider = ({ children }) => {
         .single();
 
       if (error) throw error;
-      
       setProfile(data);
-      
       return { data, error: null };
     } catch (error) {
       return { data: null, error };
@@ -186,7 +146,6 @@ export const AuthProvider = ({ children }) => {
       });
 
       if (error) throw error;
-      
       return { data, error: null };
     } catch (error) {
       return { data: null, error };
