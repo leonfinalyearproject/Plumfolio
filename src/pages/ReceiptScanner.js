@@ -2,6 +2,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { supabase } from '../lib/supabase';
+import { parseReceiptText } from '../utils/receiptParser';
 import {
   Camera, FileText, Check, X, Loader, Receipt,
   DollarSign, Tag, Calendar, AlertCircle, Plus, Edit3
@@ -15,6 +16,7 @@ const ReceiptScanner = () => {
   const [preview, setPreview] = useState(null);
   const [scanning, setScanning] = useState(false);
   const [scanProgress, setScanProgress] = useState(0);
+  const [scanStatus, setScanStatus] = useState('');
   const [extractedData, setExtractedData] = useState(null);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
@@ -49,113 +51,86 @@ const ReceiptScanner = () => {
     setExtractedData(null);
     setSuccess('');
     setScanProgress(0);
+    setScanStatus('');
     const reader = new FileReader();
     reader.onload = (e) => setPreview(e.target.result);
     reader.readAsDataURL(file);
   };
 
-  const parseReceiptText = (rawText) => {
-    const lines = rawText.split('\n').map(l => l.trim()).filter(l => l.length > 0);
-    if (lines.length === 0) return null;
+  /**
+   * Preprocess image for much better OCR accuracy:
+   * 1. Scale up small images
+   * 2. Convert to grayscale
+   * 3. Boost contrast aggressively
+   * 4. Apply threshold to make text crisp black on white
+   */
+  const preprocessImage = (imageDataUrl) => {
+    return new Promise((resolve) => {
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        const ctx = canvas.getContext('2d');
 
-    // Merchant: first substantial line
-    let merchant = 'Unknown Merchant';
-    for (let i = 0; i < Math.min(5, lines.length); i++) {
-      const line = lines[i].replace(/[^a-zA-Z0-9\s&'.-]/g, '').trim();
-      if (line.length > 2 && !/^\d+$/.test(line) && !/^(tel|phone|fax|vat|tax|receipt|invoice)/i.test(line)) {
-        merchant = line;
-        break;
-      }
-    }
-
-    // Date
-    let date = new Date().toISOString().split('T')[0];
-    const monthMap = { jan:'01',feb:'02',mar:'03',apr:'04',may:'05',jun:'06',jul:'07',aug:'08',sep:'09',oct:'10',nov:'11',dec:'12' };
-    const datePatterns = [
-      /(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{4})/,
-      /(\d{4})[\/\-.](\d{1,2})[\/\-.](\d{1,2})/,
-      /(\d{1,2})\s+(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\w*\s+(\d{4})/i,
-      /(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\w*\s+(\d{1,2}),?\s+(\d{4})/i,
-    ];
-    for (const line of lines) {
-      for (const pattern of datePatterns) {
-        const match = line.match(pattern);
-        if (match) {
-          try {
-            if (match[2] && monthMap[match[2].toLowerCase().substring(0,3)]) {
-              date = `${match[3]}-${monthMap[match[2].toLowerCase().substring(0,3)]}-${match[1].padStart(2,'0')}`;
-            } else if (match[1] && monthMap[match[1].toLowerCase().substring(0,3)]) {
-              date = `${match[3]}-${monthMap[match[1].toLowerCase().substring(0,3)]}-${match[2].padStart(2,'0')}`;
-            } else if (match[1].length === 4) {
-              date = `${match[1]}-${match[2].padStart(2,'0')}-${match[3].padStart(2,'0')}`;
-            } else {
-              date = `${match[3]}-${match[2].padStart(2,'0')}-${match[1].padStart(2,'0')}`;
-            }
-          } catch (e) {}
-          break;
+        // Scale up small images - Tesseract works best with larger images
+        let w = img.width;
+        let h = img.height;
+        const minDim = 1500;
+        if (Math.max(w, h) < minDim) {
+          const scale = minDim / Math.max(w, h);
+          w = Math.round(w * scale);
+          h = Math.round(h * scale);
         }
-      }
-    }
-
-    // Items and amounts
-    const items = [];
-    const amountPattern = /(\d+[.,]\d{2})/g;
-    const totalPatterns = [
-      /(?:total|tot|amount\s*due|grand\s*total|balance\s*due|sum|net|gross)\s*[:\s]*[A-Z$P]*\s*(\d+[.,]\d{2})/i,
-      /(\d+[.,]\d{2})\s*(?:total|tot|amount\s*due|grand\s*total)/i,
-    ];
-
-    let total = 0;
-    let foundTotal = false;
-    for (const line of lines) {
-      for (const pattern of totalPatterns) {
-        const match = line.match(pattern);
-        if (match) {
-          total = parseFloat(match[1].replace(',', '.'));
-          foundTotal = true;
-          break;
+        // Cap at reasonable size
+        const maxDim = 3000;
+        if (Math.max(w, h) > maxDim) {
+          const scale = maxDim / Math.max(w, h);
+          w = Math.round(w * scale);
+          h = Math.round(h * scale);
         }
-      }
-      if (foundTotal) break;
-    }
 
-    for (const line of lines) {
-      if (/^(tel|phone|fax|vat|tax|receipt|invoice|change|cash|card|visa|master|debit|credit|thank|welcome)/i.test(line)) continue;
-      if (/total|subtotal|sub-total|amount due/i.test(line)) continue;
-      const amounts = line.match(amountPattern);
-      if (amounts && amounts.length > 0) {
-        const amount = parseFloat(amounts[amounts.length - 1].replace(',', '.'));
-        const desc = line.replace(amountPattern, '').replace(/[^\w\s&'.-]/g, '').trim();
-        if (desc.length > 1 && amount > 0 && amount < 100000) {
-          items.push({ description: desc.substring(0, 50), amount });
+        canvas.width = w;
+        canvas.height = h;
+        ctx.drawImage(img, 0, 0, w, h);
+
+        const imageData = ctx.getImageData(0, 0, w, h);
+        const data = imageData.data;
+
+        // Pass 1: Convert to grayscale and find min/max for normalization
+        const grayValues = new Uint8Array(data.length / 4);
+        let minGray = 255, maxGray = 0;
+        for (let i = 0; i < data.length; i += 4) {
+          const gray = Math.round(0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2]);
+          grayValues[i / 4] = gray;
+          if (gray < minGray) minGray = gray;
+          if (gray > maxGray) maxGray = gray;
         }
-      }
-    }
 
-    if (!foundTotal && items.length > 0) {
-      total = items.reduce((sum, item) => sum + item.amount, 0);
-    }
-    if (total === 0) {
-      const allAmounts = [];
-      for (const line of lines) {
-        const matches = line.match(amountPattern);
-        if (matches) matches.forEach(m => allAmounts.push(parseFloat(m.replace(',', '.'))));
-      }
-      if (allAmounts.length > 0) total = Math.max(...allAmounts);
-    }
+        // Pass 2: Normalize + contrast stretch + threshold
+        const range = maxGray - minGray || 1;
+        for (let i = 0; i < data.length; i += 4) {
+          // Normalize to 0-255 range
+          let val = ((grayValues[i / 4] - minGray) / range) * 255;
+          
+          // Aggressive contrast boost
+          val = ((val - 128) * 2.0) + 128;
+          val = Math.max(0, Math.min(255, val));
 
-    // Category guess
-    const text = rawText.toLowerCase();
-    let category = 'Other';
-    if (/restaurant|cafe|coffee|food|eat|dine|pizza|burger|chicken|bakery|grocery|spar|shoprite|choppies|pick.*pay/i.test(text)) category = 'Food & Dining';
-    else if (/fuel|petrol|gas|shell|engen|parking|uber|taxi|bus|transport/i.test(text)) category = 'Transportation';
-    else if (/pharmacy|clinic|hospital|doctor|medical|health|chemist/i.test(text)) category = 'Healthcare';
-    else if (/game|makro|pep|jet|wool|cloth|shoe|fashion|mall|shop/i.test(text)) category = 'Shopping';
-    else if (/electric|water|internet|wifi|airtime|dstv|btc|bpc|wuc/i.test(text)) category = 'Utilities';
-    else if (/cinema|movie|ticket|event|concert/i.test(text)) category = 'Entertainment';
-    else if (/school|university|book|tuition|education|stationery/i.test(text)) category = 'Education';
+          // Adaptive threshold for receipt text
+          // Receipt text is usually very dark on light background
+          if (val < 120) val = 0;       // Make text solid black
+          else if (val > 160) val = 255; // Make background solid white
+          // Leave middle values for edge anti-aliasing
 
-    return { merchant: merchant.substring(0, 60), date, items, total: Math.round(total * 100) / 100, category, rawText };
+          data[i] = val;
+          data[i + 1] = val;
+          data[i + 2] = val;
+        }
+
+        ctx.putImageData(imageData, 0, 0);
+        resolve(canvas.toDataURL('image/png'));
+      };
+      img.src = imageDataUrl;
+    });
   };
 
   const scanReceipt = async () => {
@@ -163,20 +138,57 @@ const ReceiptScanner = () => {
     setScanning(true);
     setError('');
     setScanProgress(0);
+    setScanStatus('Preparing image...');
+
     try {
-      const result = await window.Tesseract.recognize(selectedFile, 'eng', {
-        logger: (m) => { if (m.status === 'recognizing text') setScanProgress(Math.round(m.progress * 100)); },
+      // Read file as data URL
+      const imageDataUrl = await new Promise((resolve) => {
+        const reader = new FileReader();
+        reader.onload = (e) => resolve(e.target.result);
+        reader.readAsDataURL(selectedFile);
       });
+
+      // Preprocess for better OCR
+      setScanStatus('Enhancing image...');
+      const processedImage = await preprocessImage(imageDataUrl);
+
+      // Run Tesseract OCR with optimized settings
+      setScanStatus('Reading receipt text...');
+      const result = await window.Tesseract.recognize(
+        processedImage,
+        'eng',
+        {
+          logger: (m) => {
+            if (m.status === 'recognizing text') {
+              const pct = Math.round(m.progress * 100);
+              setScanProgress(pct);
+              setScanStatus(`Reading text... ${pct}%`);
+            } else if (m.status === 'loading language traineddata') {
+              setScanStatus('Loading OCR data...');
+            }
+          },
+        }
+      );
+
       const rawText = result.data.text;
+      console.log('=== RAW OCR TEXT ===');
+      console.log(rawText);
+      console.log('===================');
+
       if (!rawText || rawText.trim().length < 5) {
-        setError('Could not read text from this image. Try a clearer photo.');
+        setError('Could not read text from this image. Try a clearer, well-lit photo with the receipt flat.');
         return;
       }
+
+      // Parse with the robust parser
+      setScanStatus('Extracting receipt data...');
       const parsed = parseReceiptText(rawText);
+
       if (!parsed) {
-        setError('Could not extract receipt details. Please enter manually.');
+        setError('Could not extract receipt details. Please enter them manually.');
         return;
       }
+
       setExtractedData(parsed);
       setEditMode(true);
     } catch (err) {
@@ -185,6 +197,7 @@ const ReceiptScanner = () => {
     } finally {
       setScanning(false);
       setScanProgress(0);
+      setScanStatus('');
     }
   };
 
@@ -192,10 +205,12 @@ const ReceiptScanner = () => {
 
   const saveTransaction = async () => {
     if (!extractedData || !user) return;
-    if (extractedData.total <= 0) { setError('Enter a valid amount.'); return; }
+    if (extractedData.total <= 0) { setError('Enter a valid amount greater than 0.'); return; }
     try {
       const { error: insertError } = await supabase.from('transactions').insert({
-        user_id: user.id, type: 'expense', amount: extractedData.total,
+        user_id: user.id,
+        type: 'expense',
+        amount: extractedData.total,
         category: extractedData.category,
         description: `${extractedData.merchant}${extractedData.items.length > 0 ? ` (${extractedData.items.length} items)` : ''}`,
         date: extractedData.date,
@@ -208,11 +223,11 @@ const ReceiptScanner = () => {
 
   const resetScanner = () => {
     setSelectedFile(null); setPreview(null); setExtractedData(null);
-    setError(''); setSuccess(''); setEditMode(false); setScanProgress(0);
+    setError(''); setSuccess(''); setEditMode(false); setScanProgress(0); setScanStatus('');
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
-  const categories = ['Food & Dining','Shopping','Transportation','Entertainment','Healthcare','Education','Utilities','Other'];
+  const categories = ['Food & Dining', 'Shopping', 'Transportation', 'Entertainment', 'Healthcare', 'Education', 'Utilities', 'Other'];
 
   return (
     <div className="scanner-page">
@@ -248,12 +263,17 @@ const ReceiptScanner = () => {
             )}
           </div>
           <input ref={fileInputRef} type="file" accept="image/jpeg,image/png,image/webp" onChange={handleFileSelect} hidden />
+
           {preview && !extractedData && (
             <div className="scan-actions">
               <button className="scan-btn" onClick={scanReceipt} disabled={scanning || !tesseractReady}>
-                {scanning ? <><Loader size={18} className="spin" /> Scanning... {scanProgress}%</> : <><FileText size={18} /> Scan Receipt</>}
+                {scanning ? (
+                  <><Loader size={18} className="spin" /> {scanStatus || `Scanning... ${scanProgress}%`}</>
+                ) : (
+                  <><FileText size={18} /> Scan Receipt</>
+                )}
               </button>
-              {scanning && <div className="progress-bar"><div className="progress-fill" style={{ width: `${scanProgress}%` }} /></div>}
+              {scanning && <div className="progress-bar"><div className="progress-fill" style={{ width: `${Math.max(scanProgress, 5)}%` }} /></div>}
             </div>
           )}
         </div>
@@ -263,22 +283,46 @@ const ReceiptScanner = () => {
             <h3 className="extracted-title"><Check size={18} /> Receipt Data Extracted</h3>
             <p className="extracted-subtitle">Review and edit before saving</p>
             <div className="extracted-form">
-              <div className="form-group"><label><Tag size={14} /> Merchant</label><input type="text" value={extractedData.merchant} onChange={(e) => handleFieldChange('merchant', e.target.value)} /></div>
-              <div className="form-row">
-                <div className="form-group"><label><Calendar size={14} /> Date</label><input type="date" value={extractedData.date} onChange={(e) => handleFieldChange('date', e.target.value)} /></div>
-                <div className="form-group"><label><DollarSign size={14} /> Total (P)</label><input type="number" step="0.01" min="0" value={extractedData.total} onChange={(e) => handleFieldChange('total', parseFloat(e.target.value) || 0)} /></div>
+              <div className="form-group">
+                <label><Tag size={14} /> Merchant</label>
+                <input type="text" value={extractedData.merchant} onChange={(e) => handleFieldChange('merchant', e.target.value)} />
               </div>
-              <div className="form-group"><label><Tag size={14} /> Category</label><select value={extractedData.category} onChange={(e) => handleFieldChange('category', e.target.value)}>{categories.map(c => <option key={c} value={c}>{c}</option>)}</select></div>
+              <div className="form-row">
+                <div className="form-group">
+                  <label><Calendar size={14} /> Date</label>
+                  <input type="date" value={extractedData.date} onChange={(e) => handleFieldChange('date', e.target.value)} />
+                </div>
+                <div className="form-group">
+                  <label><DollarSign size={14} /> Total (P)</label>
+                  <input type="number" step="0.01" min="0" value={extractedData.total} onChange={(e) => handleFieldChange('total', parseFloat(e.target.value) || 0)} />
+                </div>
+              </div>
+              <div className="form-group">
+                <label><Tag size={14} /> Category</label>
+                <select value={extractedData.category} onChange={(e) => handleFieldChange('category', e.target.value)}>
+                  {categories.map(c => <option key={c} value={c}>{c}</option>)}
+                </select>
+              </div>
+
               {extractedData.items.length > 0 && (
                 <div className="items-breakdown">
                   <label><Receipt size={14} /> Detected Items ({extractedData.items.length})</label>
                   <div className="items-list">
-                    {extractedData.items.map((item, i) => <div key={i} className="item-row"><span className="item-desc">{item.description}</span><span className="item-amount">P{item.amount.toFixed(2)}</span></div>)}
-                    <div className="item-row item-total"><span>Items Total</span><span className="item-amount">P{extractedData.items.reduce((s,i) => s + i.amount, 0).toFixed(2)}</span></div>
+                    {extractedData.items.map((item, i) => (
+                      <div key={i} className="item-row">
+                        <span className="item-desc">{item.description}</span>
+                        <span className="item-amount">P{item.amount.toFixed(2)}</span>
+                      </div>
+                    ))}
                   </div>
                 </div>
               )}
-              <details className="raw-text-toggle"><summary>View raw OCR text</summary><pre className="raw-text">{extractedData.rawText}</pre></details>
+
+              <details className="raw-text-toggle">
+                <summary>View raw OCR text</summary>
+                <pre className="raw-text">{extractedData.rawText}</pre>
+              </details>
+
               <div className="form-actions">
                 <button className="save-btn" onClick={saveTransaction}><Plus size={16} /> Save as Expense</button>
                 <button className="cancel-btn" onClick={resetScanner}>Cancel</button>
@@ -293,16 +337,17 @@ const ReceiptScanner = () => {
           <h3>How It Works</h3>
           <div className="steps">
             <div className="step"><div className="step-num">1</div><div className="step-content"><h4>Upload</h4><p>Take a photo or upload an image of your receipt</p></div></div>
-            <div className="step"><div className="step-num">2</div><div className="step-content"><h4>OCR Scan</h4><p>Tesseract.js reads the text, then our algorithms extract merchant, items, and total</p></div></div>
+            <div className="step"><div className="step-num">2</div><div className="step-content"><h4>AI Scan</h4><p>Image is enhanced, then OCR reads text and our algorithms extract merchant, total, date, and category</p></div></div>
             <div className="step"><div className="step-num">3</div><div className="step-content"><h4>Review & Save</h4><p>Edit any details and save directly as a transaction</p></div></div>
           </div>
           <div className="scanner-tips">
             <h4><Edit3 size={14} /> Tips for Best Results</h4>
             <ul>
-              <li>Use good lighting and avoid shadows</li>
+              <li>Use good lighting — avoid shadows on the receipt</li>
               <li>Keep the receipt flat and capture the full image</li>
-              <li>Printed receipts work better than handwritten</li>
-              <li>You can always edit extracted data before saving</li>
+              <li>Printed receipts work best</li>
+              <li>Make sure the total amount is visible and clear</li>
+              <li>You can always edit the data before saving</li>
             </ul>
           </div>
         </div>
