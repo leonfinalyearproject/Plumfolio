@@ -1,18 +1,30 @@
+// src/App.js
 import React from 'react';
-import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
-import { AuthProvider } from './context/AuthContext';
+import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { AuthProvider, useAuth } from './context/AuthContext';
 import { SlideshowProvider } from './context/SlideshowContext';
+
 import Landing from './pages/Landing';
-import SignIn from './pages/SignIn';
 import SignUp from './pages/SignUp';
+import SignIn from './pages/SignIn';
 import EmailVerified from './pages/EmailVerified';
 import Dashboard from './pages/Dashboard';
 import Transactions from './pages/Transactions';
 import Budgets from './pages/Budgets';
 import Analytics from './pages/Analytics';
+import Insights from './pages/Insights';
+import ReceiptScanner from './pages/ReceiptScanner';
 import Settings from './pages/Settings';
 import DashboardLayout from './components/DashboardLayout';
+
 import './styles/globals.css';
+
+const ProtectedRoute = ({ children }) => {
+  const { user, loading } = useAuth();
+  if (loading) return null;
+  if (!user) return <Navigate to="/signin" />;
+  return <DashboardLayout>{children}</DashboardLayout>;
+};
 
 function App() {
   return (
@@ -21,14 +33,17 @@ function App() {
         <SlideshowProvider>
           <Routes>
             <Route path="/" element={<Landing />} />
-            <Route path="/signin" element={<SignIn />} />
             <Route path="/signup" element={<SignUp />} />
+            <Route path="/signin" element={<SignIn />} />
             <Route path="/verified" element={<EmailVerified />} />
-            <Route path="/dashboard" element={<DashboardLayout><Dashboard /></DashboardLayout>} />
-            <Route path="/transactions" element={<DashboardLayout><Transactions /></DashboardLayout>} />
-            <Route path="/budgets" element={<DashboardLayout><Budgets /></DashboardLayout>} />
-            <Route path="/analytics" element={<DashboardLayout><Analytics /></DashboardLayout>} />
-            <Route path="/settings" element={<DashboardLayout><Settings /></DashboardLayout>} />
+            <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
+            <Route path="/transactions" element={<ProtectedRoute><Transactions /></ProtectedRoute>} />
+            <Route path="/budgets" element={<ProtectedRoute><Budgets /></ProtectedRoute>} />
+            <Route path="/analytics" element={<ProtectedRoute><Analytics /></ProtectedRoute>} />
+            <Route path="/insights" element={<ProtectedRoute><Insights /></ProtectedRoute>} />
+            <Route path="/receipt-scanner" element={<ProtectedRoute><ReceiptScanner /></ProtectedRoute>} />
+            <Route path="/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
+            <Route path="*" element={<Navigate to="/" />} />
           </Routes>
         </SlideshowProvider>
       </AuthProvider>
