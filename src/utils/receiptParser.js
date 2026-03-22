@@ -361,7 +361,7 @@ function extractAmountsAndTotal(lines, rawText) {
   }
 
   // === STEP 6: Extract line items ===
-  const skipLinePatterns = /\b(total|subtotal|sub-total|change|cash\s*back|card\s*payment|visa|master|debit|credit\s*card|vat.?code|vat.?val|net.?val|tax\s*invoice|thank|welcome|receipt|invoice|terminal|cashier|attendant|pump\s*no|items?\s+\d|zero\s*rate|p\.?o\.?\s*box|monica|printed|duplicate)\b/i;
+  const skipLinePatterns = /\b(total|subtotal|sub-total|change|cash\s*back|card\s*payment|visa|master|debit|credit|vat.?code|vat.?val|net.?val|tax\s*invoice|thank|welcome|receipt|invoice|terminal|cashier|attendant|pump\s*no|items?\s+\d|zero\s*rate|p\.?o\.?\s*box|monica|printed|duplicate|ledit|lecit)\b/i;
 
   for (const line of lines) {
     if (skipLinePatterns.test(line)) continue;
@@ -372,12 +372,12 @@ function extractAmountsAndTotal(lines, rawText) {
     // Take the last (rightmost) amount as the item price
     const amount = lineAmounts[lineAmounts.length - 1];
     
-    // Skip if this amount equals the total (it's the total line, not an item)
-    if (Math.abs(amount - total) < 0.01) continue;
+    // Skip if this amount equals or is very close to the total (within 1%)
+    if (total > 0 && Math.abs(amount - total) / total < 0.01) continue;
     // Skip zero amounts
     if (amount <= 0) continue;
-    // Skip amounts that appear to be dates (like 22.03)
-    if (amount < 1 && amount > 0) continue;
+    // Skip very small amounts that are likely dates or codes
+    if (amount < 1) continue;
     
     // Get description - strip amounts, currency symbols, and clean up
     let desc = line;
@@ -394,7 +394,7 @@ function extractAmountsAndTotal(lines, rawText) {
     // Remove leading/trailing numbers that aren't part of the name
     desc = desc.replace(/^\d+\s+/, '').replace(/\s+\d+$/, '').trim();
 
-    if (desc.length >= 2 && amount > 0.50) {
+    if (desc.length >= 3 && amount > 0.50 && /[a-zA-Z]{2,}/.test(desc)) {
       items.push({
         description: desc.substring(0, 50),
         amount: Math.round(amount * 100) / 100,
