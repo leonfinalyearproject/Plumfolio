@@ -42,12 +42,14 @@ const AIInsightWidget = () => {
   const [minimised, setMinimised] = useState(false);
   const navigate = useNavigate();
 
-  // Don't render if no data
-  if (loading || !insights) return <AIToasts />;
+  // Don't render if still loading or user not logged in
+  if (loading && !insights) return <AIToasts />;
+  if (!insights) return <AIToasts />;
 
-  const urgentInsights = insights.insights.filter(i => i.severity === 'high' || i.severity === 'medium');
-  const positiveInsights = insights.insights.filter(i => i.severity === 'positive');
-  const topInsights = insights.insights.slice(0, 3);
+  const urgentInsights = insights.insights ? insights.insights.filter(i => i.severity === 'high' || i.severity === 'medium') : [];
+  const positiveInsights = insights.insights ? insights.insights.filter(i => i.severity === 'positive') : [];
+  const topInsights = insights.insights ? insights.insights.slice(0, 3) : [];
+  const totalCount = insights.insights ? insights.insights.length : 0;
   const hasUrgent = urgentInsights.length > 0;
 
   if (minimised) {
@@ -76,7 +78,7 @@ const AIInsightWidget = () => {
             <Brain size={16} />
             <span className="ai-widget-title">AI Insights</span>
             {!expanded && topInsights.length > 0 && (
-              <span className="ai-widget-count">{insights.insights.length}</span>
+              <span className="ai-widget-count">{totalCount}</span>
             )}
           </div>
           <div className="ai-widget-header-right">
@@ -103,7 +105,7 @@ const AIInsightWidget = () => {
             ) : (
               <span className="summary-neutral">
                 <Lightbulb size={12} />
-                {insights.insights.length} insight{insights.insights.length !== 1 ? 's' : ''} available
+                {totalCount} insight{totalCount !== 1 ? 's' : ''} available
               </span>
             )}
           </div>
@@ -154,9 +156,9 @@ const AIInsightWidget = () => {
             </div>
 
             {/* View All */}
-            {insights.insights.length > 3 && (
+            {totalCount > 3 && (
               <button className="ai-widget-viewall" onClick={() => { navigate('/insights'); setExpanded(false); }}>
-                View all {insights.insights.length} insights <ArrowRight size={14} />
+                View all {totalCount} insights <ArrowRight size={14} />
               </button>
             )}
           </div>
