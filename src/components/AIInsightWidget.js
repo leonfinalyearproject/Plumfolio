@@ -333,6 +333,10 @@ const AIInsightWidget = () => {
     return getPageInsights(location.pathname, insights, predictions);
   }, [location.pathname, insights, predictions]);
 
+  // Don't show widget on receipt scanner page
+  const page = location.pathname.replace(/^\/Plumfolio/i, '').replace(/^\//, '') || 'dashboard';
+  if (page === 'receipt-scanner') return <AIToasts />;
+
   if (loading && !insights) return <AIToasts />;
   if (!insights) return <AIToasts />;
 
