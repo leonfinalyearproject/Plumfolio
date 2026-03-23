@@ -78,8 +78,7 @@ export const InsightsProvider = ({ children }) => {
     } finally {
       setLoading(false);
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user?.id]);
+  }, [user?.id, detectNewInsights]);
 
   // Detect new insights that weren't there before and show as toasts
   const detectNewInsights = useCallback((oldInsights, newInsights) => {
