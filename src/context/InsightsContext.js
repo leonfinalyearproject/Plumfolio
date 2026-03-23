@@ -35,7 +35,12 @@ export const InsightsProvider = ({ children }) => {
 
   // Fetch all data
   const fetchData = useCallback(async () => {
-    if (!user) return;
+    if (!user) {
+      setLoading(false);
+      return;
+    }
+
+    setLoading(true);
 
     try {
       const [txnRes, budgetRes] = await Promise.all([
@@ -73,7 +78,8 @@ export const InsightsProvider = ({ children }) => {
     } finally {
       setLoading(false);
     }
-  }, [user]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id]);
 
   // Detect new insights that weren't there before and show as toasts
   const detectNewInsights = useCallback((oldInsights, newInsights) => {
@@ -135,11 +141,10 @@ export const InsightsProvider = ({ children }) => {
 
   // Manual refresh
   const refreshInsights = useCallback(() => {
-    setLoading(true);
     fetchData();
   }, [fetchData]);
 
-  // Initial load
+  // Initial load + re-load when user changes
   useEffect(() => {
     if (user) {
       fetchData();
@@ -149,51 +154,59 @@ export const InsightsProvider = ({ children }) => {
       setTransactions([]);
       setBudgets([]);
       setLoading(false);
+      prevInsightsRef.current = null;
     }
   }, [user, fetchData]);
 
   // Subscribe to real-time changes on transactions and budgets
+  // Also poll every 30 seconds as fallback in case realtime isn't enabled
   useEffect(() => {
     if (!user) return;
 
-    const txnChannel = supabase
-      .channel('insights-transactions')
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'transactions',
-          filter: `user_id=eq.${user.id}`,
-        },
-        (payload) => {
-          console.log('Real-time transaction change:', payload.eventType);
-          // Re-fetch and re-analyse on any transaction change
-          fetchData();
-        }
-      )
-      .subscribe();
+    // Polling fallback - refresh every 30 seconds
+    const pollInterval = setInterval(() => {
+      fetchData();
+    }, 30000);
 
-    const budgetChannel = supabase
-      .channel('insights-budgets')
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'budgets',
-          filter: `user_id=eq.${user.id}`,
-        },
-        (payload) => {
-          console.log('Real-time budget change:', payload.eventType);
-          fetchData();
-        }
-      )
-      .subscribe();
+    // Try Supabase realtime (requires realtime enabled on tables)
+    let txnChannel;
+    let budgetChannel;
+    try {
+      txnChannel = supabase
+        .channel('insights-transactions')
+        .on(
+          'postgres_changes',
+          {
+            event: '*',
+            schema: 'public',
+            table: 'transactions',
+            filter: `user_id=eq.${user.id}`,
+          },
+          () => fetchData()
+        )
+        .subscribe();
+
+      budgetChannel = supabase
+        .channel('insights-budgets')
+        .on(
+          'postgres_changes',
+          {
+            event: '*',
+            schema: 'public',
+            table: 'budgets',
+            filter: `user_id=eq.${user.id}`,
+          },
+          () => fetchData()
+        )
+        .subscribe();
+    } catch (err) {
+      console.log('Realtime not available, using polling only');
+    }
 
     return () => {
-      supabase.removeChannel(txnChannel);
-      supabase.removeChannel(budgetChannel);
+      clearInterval(pollInterval);
+      if (txnChannel) supabase.removeChannel(txnChannel);
+      if (budgetChannel) supabase.removeChannel(budgetChannel);
     };
   }, [user, fetchData]);
 
