@@ -28,9 +28,15 @@ const ProtectedRoute = ({ children }) => {
   return (
     <DashboardLayout>
       {children}
-      <AIInsightWidget />
     </DashboardLayout>
   );
+};
+
+// Global floating widget - only shows when user is logged in
+const GlobalAIWidget = () => {
+  const { user } = useAuth();
+  if (!user) return null;
+  return <AIInsightWidget />;
 };
 
 function App() {
@@ -53,6 +59,8 @@ function App() {
               <Route path="/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
               <Route path="*" element={<Navigate to="/" />} />
             </Routes>
+            {/* Floating AI widget - rendered at root level, outside all layouts */}
+            <GlobalAIWidget />
           </InsightsProvider>
         </SlideshowProvider>
       </AuthProvider>
