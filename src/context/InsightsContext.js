@@ -32,27 +32,39 @@ export const InsightsProvider = ({ children }) => {
   const [loading, setLoading] = useState(true);
   const prevInsightsRef = useRef(null);
   const toastIdRef = useRef(0);
+  const userIdRef = useRef(null);
 
-  // Fetch all data
-  const fetchData = useCallback(async () => {
-    if (!user) {
+  // Toast functions using refs to avoid dependency issues
+  const addToast = useCallback((toast) => {
+    const id = ++toastIdRef.current;
+    setToasts(prev => [...prev, { ...toast, id, timestamp: Date.now() }]);
+    setTimeout(() => {
+      setToasts(prev => prev.filter(t => t.id !== id));
+    }, 8000);
+  }, []);
+
+  const dismissToast = useCallback((id) => {
+    setToasts(prev => prev.filter(t => t.id !== id));
+  }, []);
+
+  // Main fetch + analyse function
+  const fetchAndAnalyse = useCallback(async (userId) => {
+    if (!userId) {
       setLoading(false);
       return;
     }
-
-    setLoading(true);
 
     try {
       const [txnRes, budgetRes] = await Promise.all([
         supabase
           .from('transactions')
           .select('*')
-          .eq('user_id', user.id)
+          .eq('user_id', userId)
           .order('date', { ascending: false }),
         supabase
           .from('budgets')
           .select('*')
-          .eq('user_id', user.id),
+          .eq('user_id', userId),
       ]);
 
       const txns = txnRes.data || [];
@@ -65,9 +77,29 @@ export const InsightsProvider = ({ children }) => {
       const newInsights = generateInsights(txns);
       const newPredictions = generatePredictions(txns, budgs);
 
-      // Check for new urgent insights to show as toasts
-      if (prevInsightsRef.current) {
-        detectNewInsights(prevInsightsRef.current, newInsights);
+      // Detect new urgent insights for toasts
+      const oldInsights = prevInsightsRef.current;
+      if (oldInsights && oldInsights.insights) {
+        const oldMessages = new Set(oldInsights.insights.map(i => i.message));
+        newInsights.insights.forEach(insight => {
+          if (!oldMessages.has(insight.message) && (insight.severity === 'high' || insight.severity === 'medium')) {
+            const id = ++toastIdRef.current;
+            setToasts(prev => [...prev, {
+              id,
+              timestamp: Date.now(),
+              type: insight.severity === 'high' ? 'warning' : 'info',
+              title: insight.type === 'anomaly' ? 'Unusual Transaction' :
+                     insight.type === 'spending_increase' ? 'Spending Alert' :
+                     insight.type === 'exceeded' ? 'Budget Exceeded' :
+                     'AI Insight',
+              message: insight.message,
+              severity: insight.severity,
+            }]);
+            setTimeout(() => {
+              setToasts(prev => prev.filter(t => t.id !== id));
+            }, 8000);
+          }
+        });
       }
 
       prevInsightsRef.current = newInsights;
@@ -78,75 +110,26 @@ export const InsightsProvider = ({ children }) => {
     } finally {
       setLoading(false);
     }
-  }, [user?.id, detectNewInsights]);
-
-  // Detect new insights that weren't there before and show as toasts
-  const detectNewInsights = useCallback((oldInsights, newInsights) => {
-    if (!oldInsights || !newInsights) return;
-
-    const oldMessages = new Set(oldInsights.insights.map(i => i.message));
-
-    newInsights.insights.forEach(insight => {
-      if (!oldMessages.has(insight.message)) {
-        // New insight detected - show toast if urgent
-        if (insight.severity === 'high' || insight.severity === 'medium') {
-          addToast({
-            type: insight.severity === 'high' ? 'warning' : 'info',
-            title: insight.type === 'anomaly' ? 'Unusual Transaction' :
-                   insight.type === 'spending_increase' ? 'Spending Alert' :
-                   insight.type === 'savings_rate' ? 'Savings Alert' :
-                   insight.type === 'exceeded' ? 'Budget Exceeded' :
-                   insight.type === 'projected_exceed' ? 'Budget Warning' :
-                   'AI Insight',
-            message: insight.message,
-            severity: insight.severity,
-          });
-        }
-      }
-    });
-
-    // Check for new budget warnings
-    if (newInsights.summary && oldInsights.summary) {
-      // New anomalies
-      if (newInsights.anomalies.length > oldInsights.anomalies.length) {
-        const newAnomaly = newInsights.anomalies[0];
-        if (newAnomaly) {
-          addToast({
-            type: 'warning',
-            title: 'Unusual Transaction Detected',
-            message: newAnomaly.message,
-            severity: 'high',
-          });
-        }
-      }
-    }
-  }, []);
-
-  // Add a toast notification
-  const addToast = useCallback((toast) => {
-    const id = ++toastIdRef.current;
-    setToasts(prev => [...prev, { ...toast, id, timestamp: Date.now() }]);
-
-    // Auto-dismiss after 8 seconds
-    setTimeout(() => {
-      setToasts(prev => prev.filter(t => t.id !== id));
-    }, 8000);
-  }, []);
-
-  // Dismiss a specific toast
-  const dismissToast = useCallback((id) => {
-    setToasts(prev => prev.filter(t => t.id !== id));
   }, []);
 
   // Manual refresh
   const refreshInsights = useCallback(() => {
-    fetchData();
-  }, [fetchData]);
+    if (userIdRef.current) {
+      setLoading(true);
+      fetchAndAnalyse(userIdRef.current);
+    }
+  }, [fetchAndAnalyse]);
+
+  // Track user ID in ref
+  useEffect(() => {
+    userIdRef.current = user?.id || null;
+  }, [user]);
 
   // Initial load + re-load when user changes
   useEffect(() => {
-    if (user) {
-      fetchData();
+    if (user?.id) {
+      setLoading(true);
+      fetchAndAnalyse(user.id);
     } else {
       setInsights(null);
       setPredictions(null);
@@ -155,51 +138,38 @@ export const InsightsProvider = ({ children }) => {
       setLoading(false);
       prevInsightsRef.current = null;
     }
-  }, [user, fetchData]);
+  }, [user?.id, fetchAndAnalyse]);
 
-  // Subscribe to real-time changes on transactions and budgets
-  // Also poll every 30 seconds as fallback in case realtime isn't enabled
+  // Real-time subscription + polling fallback
   useEffect(() => {
-    if (!user) return;
+    if (!user?.id) return;
 
-    // Polling fallback - refresh every 30 seconds
+    const userId = user.id;
+
+    // Poll every 30 seconds as fallback
     const pollInterval = setInterval(() => {
-      fetchData();
+      fetchAndAnalyse(userId);
     }, 30000);
 
-    // Try Supabase realtime (requires realtime enabled on tables)
+    // Try Supabase realtime
     let txnChannel;
     let budgetChannel;
     try {
       txnChannel = supabase
-        .channel('insights-transactions')
-        .on(
-          'postgres_changes',
-          {
-            event: '*',
-            schema: 'public',
-            table: 'transactions',
-            filter: `user_id=eq.${user.id}`,
-          },
-          () => fetchData()
+        .channel('insights-txn-' + userId.substring(0, 8))
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'transactions', filter: `user_id=eq.${userId}` },
+          () => fetchAndAnalyse(userId)
         )
         .subscribe();
 
       budgetChannel = supabase
-        .channel('insights-budgets')
-        .on(
-          'postgres_changes',
-          {
-            event: '*',
-            schema: 'public',
-            table: 'budgets',
-            filter: `user_id=eq.${user.id}`,
-          },
-          () => fetchData()
+        .channel('insights-bud-' + userId.substring(0, 8))
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'budgets', filter: `user_id=eq.${userId}` },
+          () => fetchAndAnalyse(userId)
         )
         .subscribe();
     } catch (err) {
-      console.log('Realtime not available, using polling only');
+      console.log('Realtime not available, using polling');
     }
 
     return () => {
@@ -207,7 +177,7 @@ export const InsightsProvider = ({ children }) => {
       if (txnChannel) supabase.removeChannel(txnChannel);
       if (budgetChannel) supabase.removeChannel(budgetChannel);
     };
-  }, [user, fetchData]);
+  }, [user?.id, fetchAndAnalyse]);
 
   const value = {
     insights,
