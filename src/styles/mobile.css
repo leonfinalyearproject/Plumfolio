@@ -64,15 +64,48 @@
     height: 20px;
   }
 
-  /* Remove sidebar margin from main content */
+  /* Remove sidebar margin from main content - exact DashboardLayout classes */
+  .dashboard-layout {
+    display: block !important;
+    flex-direction: column !important;
+  }
+
+  .dashboard-main {
+    margin-left: 0 !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    min-height: 100vh;
+  }
+
+  .dashboard-content {
+    padding: 0 12px 80px !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    overflow-x: hidden !important;
+  }
+
+  .dashboard-footer {
+    padding-bottom: 70px !important;
+  }
+
+  /* Also catch any other layout patterns */
   .dashboard-layout-content,
   .main-content,
   .content-area,
-  [class*="layout"] > div:last-child,
-  .dashboard-layout > div:not(.sidebar) {
+  .layout-content,
+  .page-content,
+  .content-wrapper,
+  .app-content {
     margin-left: 0 !important;
     padding-left: 0 !important;
     width: 100% !important;
+    max-width: 100% !important;
+  }
+
+  /* Target inline styles that React might set */
+  div[style*="margin-left"],
+  main[style*="margin-left"] {
+    margin-left: 0 !important;
   }
 
   /* Add bottom padding for bottom nav */
@@ -360,6 +393,10 @@
   .sidebar {
     width: 60px !important;
     min-width: 60px !important;
+  }
+
+  .dashboard-main {
+    margin-left: 60px !important;
   }
 
   .sidebar-logo-text,
