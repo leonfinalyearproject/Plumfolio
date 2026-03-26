@@ -5,13 +5,14 @@ import { supabase } from '../lib/supabase';
 import { parseReceiptText } from '../utils/receiptParser';
 import {
   Camera, FileText, Check, X, Loader, Receipt,
-  DollarSign, Tag, Calendar, AlertCircle, Plus, Edit3
+  DollarSign, Tag, Calendar, AlertCircle, Plus, Edit3, Upload
 } from 'lucide-react';
 import './ReceiptScanner.css';
 
 const ReceiptScanner = () => {
   const { user } = useAuth();
   const fileInputRef = useRef(null);
+  const cameraInputRef = useRef(null);
   const [selectedFile, setSelectedFile] = useState(null);
   const [preview, setPreview] = useState(null);
   const [scanning, setScanning] = useState(false);
@@ -22,6 +23,21 @@ const ReceiptScanner = () => {
   const [success, setSuccess] = useState('');
   const [editMode, setEditMode] = useState(false);
   const [tesseractReady, setTesseractReady] = useState(false);
+  const [isMobileOrPWA, setIsMobileOrPWA] = useState(false);
+
+  useEffect(() => {
+    // Detect mobile or PWA (installed app)
+    const checkMobileOrPWA = () => {
+      const isMobile = /Android|iPhone|iPad|iPod|webOS|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+      const isStandalone = window.matchMedia('(display-mode: standalone)').matches 
+        || window.navigator.standalone === true;
+      const isTouchDevice = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
+      setIsMobileOrPWA(isMobile || isStandalone || (isTouchDevice && window.innerWidth < 1024));
+    };
+    checkMobileOrPWA();
+    window.addEventListener('resize', checkMobileOrPWA);
+    return () => window.removeEventListener('resize', checkMobileOrPWA);
+  }, []);
 
   useEffect(() => {
     if (window.Tesseract) {
@@ -57,21 +73,12 @@ const ReceiptScanner = () => {
     reader.readAsDataURL(file);
   };
 
-  /**
-   * Preprocess image for much better OCR accuracy:
-   * 1. Scale up small images
-   * 2. Convert to grayscale
-   * 3. Boost contrast aggressively
-   * 4. Apply threshold to make text crisp black on white
-   */
   const preprocessImage = (imageDataUrl) => {
     return new Promise((resolve) => {
       const img = new Image();
       img.onload = () => {
         const canvas = document.createElement('canvas');
         const ctx = canvas.getContext('2d');
-
-        // Scale up small images - Tesseract works best with larger images
         let w = img.width;
         let h = img.height;
         const minDim = 1500;
@@ -80,22 +87,17 @@ const ReceiptScanner = () => {
           w = Math.round(w * scale);
           h = Math.round(h * scale);
         }
-        // Cap at reasonable size
         const maxDim = 3000;
         if (Math.max(w, h) > maxDim) {
           const scale = maxDim / Math.max(w, h);
           w = Math.round(w * scale);
           h = Math.round(h * scale);
         }
-
         canvas.width = w;
         canvas.height = h;
         ctx.drawImage(img, 0, 0, w, h);
-
         const imageData = ctx.getImageData(0, 0, w, h);
         const data = imageData.data;
-
-        // Pass 1: Convert to grayscale and find min/max for normalization
         const grayValues = new Uint8Array(data.length / 4);
         let minGray = 255, maxGray = 0;
         for (let i = 0; i < data.length; i += 4) {
@@ -104,28 +106,17 @@ const ReceiptScanner = () => {
           if (gray < minGray) minGray = gray;
           if (gray > maxGray) maxGray = gray;
         }
-
-        // Pass 2: Normalize + contrast stretch + threshold
         const range = maxGray - minGray || 1;
         for (let i = 0; i < data.length; i += 4) {
-          // Normalize to 0-255 range
           let val = ((grayValues[i / 4] - minGray) / range) * 255;
-          
-          // Aggressive contrast boost
           val = ((val - 128) * 2.0) + 128;
           val = Math.max(0, Math.min(255, val));
-
-          // Adaptive threshold for receipt text
-          // Receipt text is usually very dark on light background
-          if (val < 120) val = 0;       // Make text solid black
-          else if (val > 160) val = 255; // Make background solid white
-          // Leave middle values for edge anti-aliasing
-
+          if (val < 120) val = 0;
+          else if (val > 160) val = 255;
           data[i] = val;
           data[i + 1] = val;
           data[i + 2] = val;
         }
-
         ctx.putImageData(imageData, 0, 0);
         resolve(canvas.toDataURL('image/png'));
       };
@@ -139,56 +130,37 @@ const ReceiptScanner = () => {
     setError('');
     setScanProgress(0);
     setScanStatus('Preparing image...');
-
     try {
-      // Read file as data URL
       const imageDataUrl = await new Promise((resolve) => {
         const reader = new FileReader();
         reader.onload = (e) => resolve(e.target.result);
         reader.readAsDataURL(selectedFile);
       });
-
-      // Preprocess for better OCR
       setScanStatus('Enhancing image...');
       const processedImage = await preprocessImage(imageDataUrl);
-
-      // Run Tesseract OCR with optimized settings
       setScanStatus('Reading receipt text...');
-      const result = await window.Tesseract.recognize(
-        processedImage,
-        'eng',
-        {
-          logger: (m) => {
-            if (m.status === 'recognizing text') {
-              const pct = Math.round(m.progress * 100);
-              setScanProgress(pct);
-              setScanStatus(`Reading text... ${pct}%`);
-            } else if (m.status === 'loading language traineddata') {
-              setScanStatus('Loading OCR data...');
-            }
-          },
-        }
-      );
-
+      const result = await window.Tesseract.recognize(processedImage, 'eng', {
+        logger: (m) => {
+          if (m.status === 'recognizing text') {
+            const pct = Math.round(m.progress * 100);
+            setScanProgress(pct);
+            setScanStatus(`Reading text... ${pct}%`);
+          } else if (m.status === 'loading language traineddata') {
+            setScanStatus('Loading OCR data...');
+          }
+        },
+      });
       const rawText = result.data.text;
-      console.log('=== RAW OCR TEXT ===');
-      console.log(rawText);
-      console.log('===================');
-
       if (!rawText || rawText.trim().length < 5) {
-        setError('Could not read text from this image. Try a clearer, well-lit photo with the receipt flat.');
+        setError('Could not read text from this image. Try a clearer, well-lit photo.');
         return;
       }
-
-      // Parse with the robust parser
       setScanStatus('Extracting receipt data...');
       const parsed = parseReceiptText(rawText);
-
       if (!parsed) {
-        setError('Could not extract receipt details. Please enter them manually.');
+        setError('Could not extract receipt details. Please enter manually.');
         return;
       }
-
       setExtractedData(parsed);
       setEditMode(true);
     } catch (err) {
@@ -208,9 +180,7 @@ const ReceiptScanner = () => {
     if (extractedData.total <= 0) { setError('Enter a valid amount greater than 0.'); return; }
     try {
       const { error: insertError } = await supabase.from('transactions').insert({
-        user_id: user.id,
-        type: 'expense',
-        amount: extractedData.total,
+        user_id: user.id, type: 'expense', amount: extractedData.total,
         category: extractedData.category,
         description: `${extractedData.merchant}${extractedData.items.length > 0 ? ` (${extractedData.items.length} items)` : ''}`,
         date: extractedData.date,
@@ -225,6 +195,7 @@ const ReceiptScanner = () => {
     setSelectedFile(null); setPreview(null); setExtractedData(null);
     setError(''); setSuccess(''); setEditMode(false); setScanProgress(0); setScanStatus('');
     if (fileInputRef.current) fileInputRef.current.value = '';
+    if (cameraInputRef.current) cameraInputRef.current.value = '';
   };
 
   const categories = ['Food & Dining', 'Shopping', 'Transportation', 'Entertainment', 'Healthcare', 'Education', 'Utilities', 'Other'];
@@ -236,7 +207,7 @@ const ReceiptScanner = () => {
           <Receipt size={24} />
           <div>
             <h2>Receipt Scanner</h2>
-            <p>Upload a receipt and OCR extracts the details automatically</p>
+            <p>Upload or photograph a receipt — OCR extracts the details</p>
           </div>
         </div>
         {!tesseractReady && <span className="loading-badge"><Loader size={14} className="spin" /> Loading OCR...</span>}
@@ -247,6 +218,7 @@ const ReceiptScanner = () => {
 
       <div className="scanner-content">
         <div className="scanner-upload-section">
+          {/* Upload zone */}
           <div className={`upload-zone ${preview ? 'has-preview' : ''}`} onClick={() => !preview && fileInputRef.current?.click()}>
             {preview ? (
               <div className="preview-container">
@@ -255,15 +227,38 @@ const ReceiptScanner = () => {
               </div>
             ) : (
               <div className="upload-placeholder">
-                <div className="upload-icon"><Camera size={32} /></div>
+                <div className="upload-icon"><Upload size={32} /></div>
                 <h3>Upload Receipt</h3>
-                <p>Click to select or drag and drop</p>
+                <p>Click to select an image file</p>
                 <p className="upload-formats">JPEG, PNG, WebP (max 10MB)</p>
               </div>
             )}
           </div>
+
+          {/* File upload input (always available) */}
           <input ref={fileInputRef} type="file" accept="image/jpeg,image/png,image/webp" onChange={handleFileSelect} hidden />
 
+          {/* Camera input (only on mobile/PWA) */}
+          <input ref={cameraInputRef} type="file" accept="image/*" capture="environment" onChange={handleFileSelect} hidden />
+
+          {/* Action buttons */}
+          {!preview && (
+            <div className="scanner-buttons">
+              {/* Take Photo button - only on mobile/PWA */}
+              {isMobileOrPWA && (
+                <button className="scanner-action-btn camera-btn" onClick={() => cameraInputRef.current?.click()}>
+                  <Camera size={18} />
+                  Take Photo
+                </button>
+              )}
+              <button className="scanner-action-btn upload-btn" onClick={() => fileInputRef.current?.click()}>
+                <Upload size={18} />
+                Upload Image
+              </button>
+            </div>
+          )}
+
+          {/* Scan button */}
           {preview && !extractedData && (
             <div className="scan-actions">
               <button className="scan-btn" onClick={scanReceipt} disabled={scanning || !tesseractReady}>
@@ -278,6 +273,7 @@ const ReceiptScanner = () => {
           )}
         </div>
 
+        {/* Extracted data form */}
         {extractedData && editMode && (
           <div className="extracted-section">
             <h3 className="extracted-title"><Check size={18} /> Receipt Data Extracted</h3>
@@ -303,26 +299,17 @@ const ReceiptScanner = () => {
                   {categories.map(c => <option key={c} value={c}>{c}</option>)}
                 </select>
               </div>
-
               {extractedData.items.length > 0 && (
                 <div className="items-breakdown">
                   <label><Receipt size={14} /> Detected Items ({extractedData.items.length})</label>
                   <div className="items-list">
                     {extractedData.items.map((item, i) => (
-                      <div key={i} className="item-row">
-                        <span className="item-desc">{item.description}</span>
-                        <span className="item-amount">P{item.amount.toFixed(2)}</span>
-                      </div>
+                      <div key={i} className="item-row"><span className="item-desc">{item.description}</span><span className="item-amount">P{item.amount.toFixed(2)}</span></div>
                     ))}
                   </div>
                 </div>
               )}
-
-              <details className="raw-text-toggle">
-                <summary>View raw OCR text</summary>
-                <pre className="raw-text">{extractedData.rawText}</pre>
-              </details>
-
+              <details className="raw-text-toggle"><summary>View raw OCR text</summary><pre className="raw-text">{extractedData.rawText}</pre></details>
               <div className="form-actions">
                 <button className="save-btn" onClick={saveTransaction}><Plus size={16} /> Save as Expense</button>
                 <button className="cancel-btn" onClick={resetScanner}>Cancel</button>
@@ -332,12 +319,13 @@ const ReceiptScanner = () => {
         )}
       </div>
 
+      {/* How It Works */}
       {!preview && !extractedData && (
         <div className="how-it-works">
           <h3>How It Works</h3>
           <div className="steps">
-            <div className="step"><div className="step-num">1</div><div className="step-content"><h4>Upload</h4><p>Take a photo or upload an image of your receipt</p></div></div>
-            <div className="step"><div className="step-num">2</div><div className="step-content"><h4>AI Scan</h4><p>Image is enhanced, then OCR reads text and our algorithms extract merchant, total, date, and category</p></div></div>
+            <div className="step"><div className="step-num">1</div><div className="step-content"><h4>{isMobileOrPWA ? 'Capture' : 'Upload'}</h4><p>{isMobileOrPWA ? 'Take a photo of your receipt or upload from gallery' : 'Upload an image of your receipt'}</p></div></div>
+            <div className="step"><div className="step-num">2</div><div className="step-content"><h4>AI Scan</h4><p>Image is enhanced, then OCR reads text and extracts merchant, total, date, and category</p></div></div>
             <div className="step"><div className="step-num">3</div><div className="step-content"><h4>Review & Save</h4><p>Edit any details and save directly as a transaction</p></div></div>
           </div>
           <div className="scanner-tips">
@@ -347,7 +335,6 @@ const ReceiptScanner = () => {
               <li>Keep the receipt flat and capture the full image</li>
               <li>Printed receipts work best</li>
               <li>Make sure the total amount is visible and clear</li>
-              <li>You can always edit the data before saving</li>
             </ul>
           </div>
         </div>

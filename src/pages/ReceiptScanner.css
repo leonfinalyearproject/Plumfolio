@@ -18,7 +18,7 @@
 .scanner-content { display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; align-items: start; }
 
 /* Upload Zone */
-.upload-zone { border: 2px dashed rgba(255,255,255,0.1); border-radius: 16px; cursor: pointer; transition: all 0.3s; overflow: hidden; min-height: 350px; display: flex; align-items: center; justify-content: center; }
+.upload-zone { border: 2px dashed rgba(255,255,255,0.1); border-radius: 16px; cursor: pointer; transition: all 0.3s; overflow: hidden; min-height: 300px; display: flex; align-items: center; justify-content: center; }
 .upload-zone:hover { border-color: rgba(123,45,142,0.4); background: rgba(123,45,142,0.05); }
 .upload-zone.has-preview { cursor: default; border-style: solid; border-color: rgba(255,255,255,0.1); }
 
@@ -31,6 +31,50 @@
 .preview-container { position: relative; width: 100%; }
 .receipt-preview { width: 100%; max-height: 450px; object-fit: contain; border-radius: 12px; }
 .remove-preview { position: absolute; top: 8px; right: 8px; width: 28px; height: 28px; border-radius: 50%; background: rgba(0,0,0,0.6); border: none; color: white; cursor: pointer; display: flex; align-items: center; justify-content: center; }
+
+/* Scanner Action Buttons */
+.scanner-buttons {
+  display: flex;
+  gap: 0.75rem;
+  margin-top: 1rem;
+}
+
+.scanner-action-btn {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 0.85rem;
+  border-radius: 10px;
+  font-size: 0.95rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+  border: none;
+}
+
+.camera-btn {
+  background: linear-gradient(135deg, #e67e22, #d35400);
+  color: white;
+  box-shadow: 0 4px 15px rgba(230,126,34,0.3);
+}
+
+.camera-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(230,126,34,0.4);
+}
+
+.upload-btn {
+  background: rgba(255,255,255,0.05);
+  border: 1px solid rgba(255,255,255,0.1) !important;
+  color: rgba(255,255,255,0.7);
+}
+
+.upload-btn:hover {
+  background: rgba(255,255,255,0.08);
+  color: white;
+}
 
 /* Scan Button & Progress */
 .scan-actions { margin-top: 1rem; }
@@ -62,19 +106,15 @@
 .item-row:last-child { border-bottom: none; }
 .item-desc { color: rgba(255,255,255,0.6); }
 .item-amount { color: rgba(255,255,255,0.8); font-weight: 500; }
-.item-total { background: rgba(255,255,255,0.03); font-weight: 600; }
-.item-total .item-amount { color: #27ae60; }
 
 .raw-text-toggle { margin-top: 0.5rem; }
-.raw-text-toggle summary { font-size: 0.75rem; color: rgba(255,255,255,0.3); cursor: pointer; padding: 0.3rem 0; }
-.raw-text-toggle summary:hover { color: rgba(255,255,255,0.5); }
+.raw-text-toggle summary { font-size: 0.75rem; color: rgba(255,255,255,0.3); cursor: pointer; }
 .raw-text { background: rgba(0,0,0,0.3); padding: 0.75rem; border-radius: 8px; font-size: 0.7rem; color: rgba(255,255,255,0.4); max-height: 150px; overflow-y: auto; white-space: pre-wrap; word-break: break-word; margin-top: 0.5rem; }
 
 .form-actions { display: flex; gap: 0.75rem; margin-top: 0.5rem; }
-.save-btn { flex: 1; display: flex; align-items: center; justify-content: center; gap: 0.4rem; padding: 0.7rem; background: #27ae60; border: none; border-radius: 8px; color: white; font-size: 0.9rem; font-weight: 600; cursor: pointer; transition: background 0.2s; }
+.save-btn { flex: 1; display: flex; align-items: center; justify-content: center; gap: 0.4rem; padding: 0.7rem; background: #27ae60; border: none; border-radius: 8px; color: white; font-size: 0.9rem; font-weight: 600; cursor: pointer; }
 .save-btn:hover { background: #219a52; }
 .cancel-btn { padding: 0.7rem 1.5rem; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; color: rgba(255,255,255,0.5); font-size: 0.9rem; cursor: pointer; }
-.cancel-btn:hover { background: rgba(255,255,255,0.08); }
 
 /* How It Works */
 .how-it-works { margin-top: 2rem; padding: 1.5rem; background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.05); border-radius: 16px; }
@@ -94,4 +134,5 @@
   .scanner-content { grid-template-columns: 1fr; }
   .steps { grid-template-columns: 1fr; }
   .form-row { grid-template-columns: 1fr; }
+  .scanner-buttons { flex-direction: column; }
 }
