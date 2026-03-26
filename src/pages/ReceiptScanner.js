@@ -3,6 +3,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { supabase } from '../lib/supabase';
 import { parseReceiptText } from '../utils/receiptParser';
+import processReceiptImage from '../utils/imageProcessor';
 import {
   Camera, FileText, Check, X, Loader, Receipt,
   DollarSign, Tag, Calendar, AlertCircle, Plus, Edit3, Upload, Image
@@ -65,142 +66,31 @@ const ReceiptScanner = () => {
     e.target.value = '';
   };
 
-  /**
-   * Preprocess with configurable intensity
-   * mode: 'gentle' (light cleanup) or 'strong' (aggressive threshold)
-   */
-  const preprocessImage = (imageDataUrl, mode = 'gentle') => {
-    return new Promise((resolve) => {
-      const img = new window.Image();
-      img.onload = () => {
-        const canvas = document.createElement('canvas');
-        const ctx = canvas.getContext('2d');
-
-        let w = img.width;
-        let h = img.height;
-
-        // Scale to good OCR size
-        const targetSize = 2000;
-        if (Math.max(w, h) < targetSize) {
-          const scale = targetSize / Math.max(w, h);
-          w = Math.round(w * scale);
-          h = Math.round(h * scale);
-        }
-        if (Math.max(w, h) > 3500) {
-          const scale = 3500 / Math.max(w, h);
-          w = Math.round(w * scale);
-          h = Math.round(h * scale);
-        }
-
-        canvas.width = w;
-        canvas.height = h;
-        ctx.imageSmoothingEnabled = true;
-        ctx.imageSmoothingQuality = 'high';
-        ctx.drawImage(img, 0, 0, w, h);
-
-        const imageData = ctx.getImageData(0, 0, w, h);
-        const data = imageData.data;
-        const total = w * h;
-
-        // Grayscale
-        const gray = new Uint8Array(total);
-        let minG = 255, maxG = 0;
-        for (let i = 0; i < total; i++) {
-          const idx = i * 4;
-          const g = Math.round(0.299 * data[idx] + 0.587 * data[idx + 1] + 0.114 * data[idx + 2]);
-          gray[i] = g;
-          if (g < minG) minG = g;
-          if (g > maxG) maxG = g;
-        }
-
-        const range = maxG - minG || 1;
-
-        if (mode === 'gentle') {
-          // Gentle: just normalize + mild contrast (good for clear photos)
-          for (let i = 0; i < total; i++) {
-            const idx = i * 4;
-            let val = ((gray[i] - minG) / range) * 255;
-            // Mild contrast boost (1.5x)
-            val = ((val - 128) * 1.5) + 128;
-            val = Math.max(0, Math.min(255, val));
-            data[idx] = val;
-            data[idx + 1] = val;
-            data[idx + 2] = val;
-          }
-        } else {
-          // Strong: normalize + heavy contrast + threshold (for blurry/dark photos)
-          for (let i = 0; i < total; i++) {
-            const idx = i * 4;
-            let val = ((gray[i] - minG) / range) * 255;
-            val = ((val - 128) * 2.0) + 128;
-            val = Math.max(0, Math.min(255, val));
-            if (val < 128) val = 0;
-            else val = 255;
-            data[idx] = val;
-            data[idx + 1] = val;
-            data[idx + 2] = val;
-          }
-        }
-
-        ctx.putImageData(imageData, 0, 0);
-        resolve(canvas.toDataURL('image/png'));
-      };
-      img.onerror = () => resolve(imageDataUrl);
-      img.src = imageDataUrl;
-    });
-  };
-
-  /**
-   * Run OCR on an image and return the text
-   */
-  const runOCR = async (imageData, label) => {
-    setScanStatus(`${label}...`);
-    const result = await window.Tesseract.recognize(imageData, 'eng', {
-      logger: (m) => {
-        if (m.status === 'recognizing text') {
-          setScanProgress(Math.round(m.progress * 100));
-        }
-      },
-    });
-    return result.data.text || '';
-  };
-
-  /**
-   * Score how good an OCR result is — more amounts and keywords = better
-   */
-  const scoreOCRResult = (text) => {
-    let score = 0;
+  // Score OCR quality - higher = better readable receipt
+  const scoreOCR = (text) => {
     if (!text || text.length < 10) return -10;
-    
-    // Heavily weight finding decimal amounts (the most important thing)
+    let score = 0;
+
+    // Finding real amounts is the most important
     const amounts = text.match(/\d+\.\d{2}/g);
-    const amountCount = amounts ? amounts.length : 0;
-    score += amountCount * 15;
-    
-    // Big bonus if we find amounts > 10 (real transaction amounts, not 0.00)
     if (amounts) {
-      const realAmounts = amounts.filter(a => parseFloat(a) > 1);
-      score += realAmounts.length * 20;
+      score += amounts.length * 15;
+      amounts.forEach(a => { if (parseFloat(a) > 1) score += 25; });
     }
-    
-    // Keywords that prove this is a readable receipt
-    if (/total/i.test(text)) score += 25;
-    if (/P\s*\d+\.\d{2}/i.test(text)) score += 20; // Pula amount with P prefix
-    if (/\d{1,2}[\/\-.]\d{1,2}[\/\-.]\d{2,4}/.test(text)) score += 15; // date found
-    if (/change/i.test(text)) score += 5;
+
+    // Key receipt words
+    if (/total/i.test(text)) score += 30;
+    if (/P\s*\d+\.\d{2}/i.test(text)) score += 25;
+    if (/\d{1,2}[\/\-.]\d{1,2}[\/\-.]\d{2,4}/.test(text)) score += 15;
     if (/card|cash|visa|master|credit|debit/i.test(text)) score += 10;
-    if (/vat|tax/i.test(text)) score += 5;
-    if (/item/i.test(text)) score += 5;
-    
-    // Bonus for finding known store names
+    if (/vat|tax|item/i.test(text)) score += 5;
     if (/engen|shell|shoprite|choppies|spar|pick.*pay|kfc|woolworths/i.test(text)) score += 15;
-    
-    // Penalize very short or garbage results
+
+    // Penalize garbage
     if (text.length < 50) score -= 15;
     const readable = text.replace(/[^a-zA-Z0-9\s.,]/g, '').length;
-    const total = text.length;
-    if (total > 0 && readable / total < 0.5) score -= 10;
-    
+    if (text.length > 0 && readable / text.length < 0.4) score -= 15;
+
     return score;
   };
 
@@ -210,6 +100,7 @@ const ReceiptScanner = () => {
     setError(''); setScanProgress(0);
 
     try {
+      // Read file
       setScanStatus('Reading image...');
       const imageDataUrl = await new Promise((resolve, reject) => {
         const reader = new FileReader();
@@ -218,41 +109,43 @@ const ReceiptScanner = () => {
         reader.readAsDataURL(selectedFile);
       });
 
-      // Try 4 approaches and pick the best result
-      const attempts = [];
+      // Generate 4 preprocessed versions
+      setScanStatus('Enhancing image (4 methods)...');
+      const versions = await processReceiptImage(imageDataUrl);
 
-      // Attempt 1: Raw image (no processing - sometimes best)
-      setScanStatus('Pass 1: Direct read...');
-      const rawText = await runOCR(imageDataUrl, 'Reading (direct)');
-      attempts.push({ text: rawText, score: scoreOCRResult(rawText), label: 'raw' });
-      console.log('Raw score:', attempts[0].score, '\n', rawText.substring(0, 200));
+      // Run OCR on each version and score
+      const results = [];
+      for (let i = 0; i < versions.length; i++) {
+        const v = versions[i];
+        setScanStatus(`Scanning ${v.label} (${i + 1}/${versions.length})...`);
+        
+        const ocrResult = await window.Tesseract.recognize(v.data, 'eng', {
+          logger: (m) => {
+            if (m.status === 'recognizing text') {
+              setScanProgress(Math.round(((i + m.progress) / versions.length) * 100));
+            }
+          },
+        });
 
-      // Attempt 2: Gentle preprocessing
-      setScanStatus('Pass 2: Light enhancement...');
-      const gentle = await preprocessImage(imageDataUrl, 'gentle');
-      const gentleText = await runOCR(gentle, 'Reading (light)');
-      attempts.push({ text: gentleText, score: scoreOCRResult(gentleText), label: 'gentle' });
-      console.log('Gentle score:', attempts[1].score, '\n', gentleText.substring(0, 200));
-
-      // If we already have a good result (found total keyword + amounts), skip heavy passes
-      const bestSoFar = Math.max(attempts[0].score, attempts[1].score);
-      
-      if (bestSoFar < 30) {
-        // Attempt 3: Strong preprocessing (only if first 2 weren't good enough)
-        setScanStatus('Pass 3: Deep enhancement...');
-        const strong = await preprocessImage(imageDataUrl, 'strong');
-        const strongText = await runOCR(strong, 'Reading (deep)');
-        attempts.push({ text: strongText, score: scoreOCRResult(strongText), label: 'strong' });
-        console.log('Strong score:', attempts[2].score, '\n', strongText.substring(0, 200));
+        const text = ocrResult.data.text || '';
+        const score = scoreOCR(text);
+        results.push({ text, score, label: v.label });
+        console.log(`[${v.label}] score: ${score}\n${text.substring(0, 150)}`);
+        
+        // If we found a great result, stop early
+        if (score >= 80) {
+          console.log(`Early exit: ${v.label} scored ${score}`);
+          break;
+        }
       }
 
-      // Pick the best result
-      attempts.sort((a, b) => b.score - a.score);
-      const best = attempts[0];
-      console.log('Best:', best.label, 'score:', best.score);
+      // Pick best result
+      results.sort((a, b) => b.score - a.score);
+      const best = results[0];
+      console.log(`Winner: ${best.label} (score: ${best.score})`);
 
-      if (!best.text || best.text.trim().length < 5 || best.score < 5) {
-        setError('Could not read text. Try a clearer photo with good lighting.');
+      if (!best.text || best.text.trim().length < 5 || best.score < 0) {
+        setError('Could not read this receipt. Try a clearer photo with good lighting and the receipt flat.');
         return;
       }
 
@@ -357,7 +250,7 @@ const ReceiptScanner = () => {
                   <><FileText size={18} /> Scan Receipt</>
                 )}
               </button>
-              {scanning && <div className="progress-bar"><div className="progress-fill" style={{ width: `${Math.max(scanProgress, 5)}%` }} /></div>}
+              {scanning && <div className="progress-bar"><div className="progress-fill" style={{ width: `${Math.max(scanProgress, 3)}%` }} /></div>}
             </div>
           )}
         </div>
@@ -391,7 +284,7 @@ const ReceiptScanner = () => {
           <h3>How It Works</h3>
           <div className="steps">
             <div className="step"><div className="step-num">1</div><div className="step-content"><h4>{isMobile ? 'Capture' : 'Upload'}</h4><p>{isMobile ? 'Photo or gallery' : 'Upload receipt image'}</p></div></div>
-            <div className="step"><div className="step-num">2</div><div className="step-content"><h4>AI Scan</h4><p>3-pass OCR with auto-enhancement</p></div></div>
+            <div className="step"><div className="step-num">2</div><div className="step-content"><h4>AI Scan</h4><p>4-pass adaptive OCR with image enhancement</p></div></div>
             <div className="step"><div className="step-num">3</div><div className="step-content"><h4>Save</h4><p>Review, edit, save as transaction</p></div></div>
           </div>
           <div className="scanner-tips">
@@ -399,7 +292,7 @@ const ReceiptScanner = () => {
             <ul>
               <li>Good lighting, no shadows</li>
               <li>Receipt flat, fully visible</li>
-              <li>Printed receipts work best</li>
+              <li>Straight-on angle works best</li>
             </ul>
           </div>
         </div>
