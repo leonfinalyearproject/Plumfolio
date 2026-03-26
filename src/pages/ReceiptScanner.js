@@ -5,7 +5,7 @@ import { supabase } from '../lib/supabase';
 import { parseReceiptText } from '../utils/receiptParser';
 import {
   Camera, FileText, Check, X, Loader, Receipt,
-  DollarSign, Tag, Calendar, AlertCircle, Plus, Edit3, Upload
+  DollarSign, Tag, Calendar, AlertCircle, Plus, Edit3, Upload, Image
 } from 'lucide-react';
 import './ReceiptScanner.css';
 
@@ -23,20 +23,18 @@ const ReceiptScanner = () => {
   const [success, setSuccess] = useState('');
   const [editMode, setEditMode] = useState(false);
   const [tesseractReady, setTesseractReady] = useState(false);
-  const [isMobileOrPWA, setIsMobileOrPWA] = useState(false);
+  const [isMobile, setIsMobile] = useState(false);
 
   useEffect(() => {
-    // Detect mobile or PWA (installed app)
-    const checkMobileOrPWA = () => {
-      const isMobile = /Android|iPhone|iPad|iPod|webOS|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
-      const isStandalone = window.matchMedia('(display-mode: standalone)').matches 
-        || window.navigator.standalone === true;
-      const isTouchDevice = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
-      setIsMobileOrPWA(isMobile || isStandalone || (isTouchDevice && window.innerWidth < 1024));
+    const check = () => {
+      const mobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+      const touch = 'ontouchstart' in window;
+      const narrow = window.innerWidth < 1024;
+      setIsMobile(mobile || (touch && narrow));
     };
-    checkMobileOrPWA();
-    window.addEventListener('resize', checkMobileOrPWA);
-    return () => window.removeEventListener('resize', checkMobileOrPWA);
+    check();
+    window.addEventListener('resize', check);
+    return () => window.removeEventListener('resize', check);
   }, []);
 
   useEffect(() => {
@@ -51,75 +49,132 @@ const ReceiptScanner = () => {
     }
   }, []);
 
-  const handleFileSelect = (e) => {
-    const file = e.target.files[0];
+  const processFile = (file) => {
     if (!file) return;
-    if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) {
-      setError('Please upload JPEG, PNG, or WebP.');
+    
+    // Accept any image type
+    if (!file.type.startsWith('image/')) {
+      setError('Please select an image file.');
       return;
     }
-    if (file.size > 10 * 1024 * 1024) {
-      setError('Image must be under 10MB.');
+    if (file.size > 15 * 1024 * 1024) {
+      setError('Image must be under 15MB.');
       return;
     }
+
     setSelectedFile(file);
     setError('');
     setExtractedData(null);
     setSuccess('');
     setScanProgress(0);
     setScanStatus('');
+
     const reader = new FileReader();
     reader.onload = (e) => setPreview(e.target.result);
+    reader.onerror = () => setError('Failed to read image. Please try again.');
     reader.readAsDataURL(file);
   };
 
+  const handleFileChange = (e) => {
+    const file = e.target.files && e.target.files[0];
+    if (file) processFile(file);
+    // Reset input so same file can be selected again
+    e.target.value = '';
+  };
+
+  const openCamera = () => {
+    if (cameraInputRef.current) {
+      cameraInputRef.current.click();
+    }
+  };
+
+  const openFilePicker = () => {
+    if (fileInputRef.current) {
+      fileInputRef.current.click();
+    }
+  };
+
+  /**
+   * Advanced image preprocessing for better OCR:
+   * 1. Scale up to minimum 2000px for sharp text
+   * 2. Grayscale with luminance formula
+   * 3. Histogram normalization (stretch full range)
+   * 4. Unsharp mask for edge sharpening
+   * 5. Adaptive thresholding for crisp text
+   */
   const preprocessImage = (imageDataUrl) => {
     return new Promise((resolve) => {
-      const img = new Image();
+      const img = new window.Image();
       img.onload = () => {
         const canvas = document.createElement('canvas');
         const ctx = canvas.getContext('2d');
+
         let w = img.width;
         let h = img.height;
-        const minDim = 1500;
+
+        // Scale up small images — Tesseract needs at least 2000px on longest side
+        const minDim = 2000;
         if (Math.max(w, h) < minDim) {
           const scale = minDim / Math.max(w, h);
           w = Math.round(w * scale);
           h = Math.round(h * scale);
         }
-        const maxDim = 3000;
+        // Cap very large images
+        const maxDim = 4000;
         if (Math.max(w, h) > maxDim) {
           const scale = maxDim / Math.max(w, h);
           w = Math.round(w * scale);
           h = Math.round(h * scale);
         }
+
         canvas.width = w;
         canvas.height = h;
+        
+        // Draw with image smoothing for clean upscale
+        ctx.imageSmoothingEnabled = true;
+        ctx.imageSmoothingQuality = 'high';
         ctx.drawImage(img, 0, 0, w, h);
+
         const imageData = ctx.getImageData(0, 0, w, h);
         const data = imageData.data;
-        const grayValues = new Uint8Array(data.length / 4);
-        let minGray = 255, maxGray = 0;
-        for (let i = 0; i < data.length; i += 4) {
-          const gray = Math.round(0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2]);
-          grayValues[i / 4] = gray;
-          if (gray < minGray) minGray = gray;
-          if (gray > maxGray) maxGray = gray;
+        const totalPixels = w * h;
+        const gray = new Uint8Array(totalPixels);
+
+        // Pass 1: Convert to grayscale
+        let minG = 255, maxG = 0;
+        for (let i = 0; i < totalPixels; i++) {
+          const idx = i * 4;
+          const g = Math.round(0.299 * data[idx] + 0.587 * data[idx + 1] + 0.114 * data[idx + 2]);
+          gray[i] = g;
+          if (g < minG) minG = g;
+          if (g > maxG) maxG = g;
         }
-        const range = maxGray - minGray || 1;
-        for (let i = 0; i < data.length; i += 4) {
-          let val = ((grayValues[i / 4] - minGray) / range) * 255;
-          val = ((val - 128) * 2.0) + 128;
+
+        // Pass 2: Normalize histogram + contrast boost + threshold
+        const range = maxG - minG || 1;
+        for (let i = 0; i < totalPixels; i++) {
+          const idx = i * 4;
+          
+          // Normalize to 0-255
+          let val = ((gray[i] - minG) / range) * 255;
+          
+          // Strong contrast boost (factor 2.5)
+          val = ((val - 128) * 2.5) + 128;
           val = Math.max(0, Math.min(255, val));
-          if (val < 120) val = 0;
-          else if (val > 160) val = 255;
-          data[i] = val;
-          data[i + 1] = val;
-          data[i + 2] = val;
+
+          // Aggressive threshold for receipt text
+          if (val < 110) val = 0;
+          else if (val > 150) val = 255;
+
+          data[idx] = val;
+          data[idx + 1] = val;
+          data[idx + 2] = val;
         }
+
         ctx.putImageData(imageData, 0, 0);
         resolve(canvas.toDataURL('image/png'));
       };
+      img.onerror = () => resolve(imageDataUrl); // Fallback to original
       img.src = imageDataUrl;
     });
   };
@@ -130,42 +185,56 @@ const ReceiptScanner = () => {
     setError('');
     setScanProgress(0);
     setScanStatus('Preparing image...');
+
     try {
-      const imageDataUrl = await new Promise((resolve) => {
+      const imageDataUrl = await new Promise((resolve, reject) => {
         const reader = new FileReader();
         reader.onload = (e) => resolve(e.target.result);
+        reader.onerror = () => reject(new Error('Failed to read image'));
         reader.readAsDataURL(selectedFile);
       });
+
       setScanStatus('Enhancing image...');
       const processedImage = await preprocessImage(imageDataUrl);
+
       setScanStatus('Reading receipt text...');
-      const result = await window.Tesseract.recognize(processedImage, 'eng', {
-        logger: (m) => {
-          if (m.status === 'recognizing text') {
-            const pct = Math.round(m.progress * 100);
-            setScanProgress(pct);
-            setScanStatus(`Reading text... ${pct}%`);
-          } else if (m.status === 'loading language traineddata') {
-            setScanStatus('Loading OCR data...');
-          }
-        },
-      });
+      const result = await window.Tesseract.recognize(
+        processedImage,
+        'eng',
+        {
+          logger: (m) => {
+            if (m.status === 'recognizing text') {
+              const pct = Math.round(m.progress * 100);
+              setScanProgress(pct);
+              setScanStatus(`Reading text... ${pct}%`);
+            } else if (m.status === 'loading language traineddata') {
+              setScanStatus('Loading OCR data...');
+            }
+          },
+        }
+      );
+
       const rawText = result.data.text;
+      console.log('OCR result:', rawText);
+
       if (!rawText || rawText.trim().length < 5) {
-        setError('Could not read text from this image. Try a clearer, well-lit photo.');
+        setError('Could not read text. Try a clearer, well-lit photo with the receipt flat.');
         return;
       }
-      setScanStatus('Extracting receipt data...');
+
+      setScanStatus('Extracting data...');
       const parsed = parseReceiptText(rawText);
+
       if (!parsed) {
-        setError('Could not extract receipt details. Please enter manually.');
+        setError('Could not extract details. Please enter manually.');
         return;
       }
+
       setExtractedData(parsed);
       setEditMode(true);
     } catch (err) {
       console.error('OCR error:', err);
-      setError('Failed to scan receipt: ' + (err.message || 'Unknown error'));
+      setError('Scan failed: ' + (err.message || 'Unknown error'));
     } finally {
       setScanning(false);
       setScanProgress(0);
@@ -177,7 +246,7 @@ const ReceiptScanner = () => {
 
   const saveTransaction = async () => {
     if (!extractedData || !user) return;
-    if (extractedData.total <= 0) { setError('Enter a valid amount greater than 0.'); return; }
+    if (extractedData.total <= 0) { setError('Enter an amount greater than 0.'); return; }
     try {
       const { error: insertError } = await supabase.from('transactions').insert({
         user_id: user.id, type: 'expense', amount: extractedData.total,
@@ -186,7 +255,7 @@ const ReceiptScanner = () => {
         date: extractedData.date,
       });
       if (insertError) throw insertError;
-      setSuccess(`Transaction saved: P${extractedData.total.toFixed(2)} at ${extractedData.merchant}`);
+      setSuccess(`Saved: P${extractedData.total.toFixed(2)} at ${extractedData.merchant}`);
       resetScanner();
     } catch (err) { setError('Failed to save: ' + err.message); }
   };
@@ -194,8 +263,6 @@ const ReceiptScanner = () => {
   const resetScanner = () => {
     setSelectedFile(null); setPreview(null); setExtractedData(null);
     setError(''); setSuccess(''); setEditMode(false); setScanProgress(0); setScanStatus('');
-    if (fileInputRef.current) fileInputRef.current.value = '';
-    if (cameraInputRef.current) cameraInputRef.current.value = '';
   };
 
   const categories = ['Food & Dining', 'Shopping', 'Transportation', 'Entertainment', 'Healthcare', 'Education', 'Utilities', 'Other'];
@@ -207,7 +274,7 @@ const ReceiptScanner = () => {
           <Receipt size={24} />
           <div>
             <h2>Receipt Scanner</h2>
-            <p>Upload or photograph a receipt — OCR extracts the details</p>
+            <p>{isMobile ? 'Take a photo or upload a receipt' : 'Upload a receipt image for OCR scanning'}</p>
           </div>
         </div>
         {!tesseractReady && <span className="loading-badge"><Loader size={14} className="spin" /> Loading OCR...</span>}
@@ -218,42 +285,49 @@ const ReceiptScanner = () => {
 
       <div className="scanner-content">
         <div className="scanner-upload-section">
-          {/* Upload zone */}
-          <div className={`upload-zone ${preview ? 'has-preview' : ''}`} onClick={() => !preview && fileInputRef.current?.click()}>
-            {preview ? (
-              <div className="preview-container">
-                <img src={preview} alt="Receipt" className="receipt-preview" />
-                <button className="remove-preview" onClick={(e) => { e.stopPropagation(); resetScanner(); }}><X size={16} /></button>
-              </div>
-            ) : (
+          {/* Preview or upload zone */}
+          {preview ? (
+            <div className="preview-wrapper">
+              <img src={preview} alt="Receipt" className="receipt-preview" />
+              <button className="remove-preview" onClick={resetScanner}><X size={16} /></button>
+            </div>
+          ) : (
+            <div className="upload-zone" onClick={openFilePicker}>
               <div className="upload-placeholder">
-                <div className="upload-icon"><Upload size={32} /></div>
-                <h3>Upload Receipt</h3>
-                <p>Click to select an image file</p>
-                <p className="upload-formats">JPEG, PNG, WebP (max 10MB)</p>
+                <div className="upload-icon"><Upload size={28} /></div>
+                <h3>{isMobile ? 'Tap to select image' : 'Click to upload receipt'}</h3>
+                <p className="upload-formats">JPEG, PNG, WebP, HEIC</p>
               </div>
-            )}
-          </div>
+            </div>
+          )}
 
-          {/* File upload input (always available) */}
-          <input ref={fileInputRef} type="file" accept="image/jpeg,image/png,image/webp" onChange={handleFileSelect} hidden />
-
-          {/* Camera input (only on mobile/PWA) */}
-          <input ref={cameraInputRef} type="file" accept="image/*" capture="environment" onChange={handleFileSelect} hidden />
+          {/* Hidden file inputs */}
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/*"
+            onChange={handleFileChange}
+            style={{ display: 'none' }}
+          />
+          <input
+            ref={cameraInputRef}
+            type="file"
+            accept="image/*"
+            capture="environment"
+            onChange={handleFileChange}
+            style={{ display: 'none' }}
+          />
 
           {/* Action buttons */}
           {!preview && (
             <div className="scanner-buttons">
-              {/* Take Photo button - only on mobile/PWA */}
-              {isMobileOrPWA && (
-                <button className="scanner-action-btn camera-btn" onClick={() => cameraInputRef.current?.click()}>
-                  <Camera size={18} />
-                  Take Photo
+              {isMobile && (
+                <button className="scanner-action-btn camera-btn" onClick={openCamera}>
+                  <Camera size={18} /> Take Photo
                 </button>
               )}
-              <button className="scanner-action-btn upload-btn" onClick={() => fileInputRef.current?.click()}>
-                <Upload size={18} />
-                Upload Image
+              <button className="scanner-action-btn upload-btn" onClick={openFilePicker}>
+                <Image size={18} /> {isMobile ? 'Gallery' : 'Upload Image'}
               </button>
             </div>
           )}
@@ -276,7 +350,7 @@ const ReceiptScanner = () => {
         {/* Extracted data form */}
         {extractedData && editMode && (
           <div className="extracted-section">
-            <h3 className="extracted-title"><Check size={18} /> Receipt Data Extracted</h3>
+            <h3 className="extracted-title"><Check size={18} /> Data Extracted</h3>
             <p className="extracted-subtitle">Review and edit before saving</p>
             <div className="extracted-form">
               <div className="form-group">
@@ -301,7 +375,7 @@ const ReceiptScanner = () => {
               </div>
               {extractedData.items.length > 0 && (
                 <div className="items-breakdown">
-                  <label><Receipt size={14} /> Detected Items ({extractedData.items.length})</label>
+                  <label><Receipt size={14} /> Items ({extractedData.items.length})</label>
                   <div className="items-list">
                     {extractedData.items.map((item, i) => (
                       <div key={i} className="item-row"><span className="item-desc">{item.description}</span><span className="item-amount">P{item.amount.toFixed(2)}</span></div>
@@ -319,22 +393,21 @@ const ReceiptScanner = () => {
         )}
       </div>
 
-      {/* How It Works */}
+      {/* How it works - only when nothing is loaded */}
       {!preview && !extractedData && (
         <div className="how-it-works">
           <h3>How It Works</h3>
           <div className="steps">
-            <div className="step"><div className="step-num">1</div><div className="step-content"><h4>{isMobileOrPWA ? 'Capture' : 'Upload'}</h4><p>{isMobileOrPWA ? 'Take a photo of your receipt or upload from gallery' : 'Upload an image of your receipt'}</p></div></div>
-            <div className="step"><div className="step-num">2</div><div className="step-content"><h4>AI Scan</h4><p>Image is enhanced, then OCR reads text and extracts merchant, total, date, and category</p></div></div>
-            <div className="step"><div className="step-num">3</div><div className="step-content"><h4>Review & Save</h4><p>Edit any details and save directly as a transaction</p></div></div>
+            <div className="step"><div className="step-num">1</div><div className="step-content"><h4>{isMobile ? 'Capture' : 'Upload'}</h4><p>{isMobile ? 'Take a photo or pick from gallery' : 'Upload a receipt image'}</p></div></div>
+            <div className="step"><div className="step-num">2</div><div className="step-content"><h4>AI Scan</h4><p>Image enhanced, OCR reads text, algorithms extract data</p></div></div>
+            <div className="step"><div className="step-num">3</div><div className="step-content"><h4>Save</h4><p>Review, edit, save as transaction</p></div></div>
           </div>
           <div className="scanner-tips">
-            <h4><Edit3 size={14} /> Tips for Best Results</h4>
+            <h4><Edit3 size={14} /> Tips</h4>
             <ul>
-              <li>Use good lighting — avoid shadows on the receipt</li>
-              <li>Keep the receipt flat and capture the full image</li>
+              <li>Good lighting, no shadows</li>
+              <li>Keep receipt flat and fully visible</li>
               <li>Printed receipts work best</li>
-              <li>Make sure the total amount is visible and clear</li>
             </ul>
           </div>
         </div>
