@@ -170,21 +170,37 @@ const ReceiptScanner = () => {
    */
   const scoreOCRResult = (text) => {
     let score = 0;
-    // Count decimal numbers (amounts)
+    if (!text || text.length < 10) return -10;
+    
+    // Heavily weight finding decimal amounts (the most important thing)
     const amounts = text.match(/\d+\.\d{2}/g);
-    score += (amounts ? amounts.length : 0) * 10;
-    // Keywords
-    if (/total/i.test(text)) score += 20;
+    const amountCount = amounts ? amounts.length : 0;
+    score += amountCount * 15;
+    
+    // Big bonus if we find amounts > 10 (real transaction amounts, not 0.00)
+    if (amounts) {
+      const realAmounts = amounts.filter(a => parseFloat(a) > 1);
+      score += realAmounts.length * 20;
+    }
+    
+    // Keywords that prove this is a readable receipt
+    if (/total/i.test(text)) score += 25;
+    if (/P\s*\d+\.\d{2}/i.test(text)) score += 20; // Pula amount with P prefix
+    if (/\d{1,2}[\/\-.]\d{1,2}[\/\-.]\d{2,4}/.test(text)) score += 15; // date found
     if (/change/i.test(text)) score += 5;
-    if (/card|cash|visa|master/i.test(text)) score += 5;
+    if (/card|cash|visa|master|credit|debit/i.test(text)) score += 10;
     if (/vat|tax/i.test(text)) score += 5;
-    if (/\d{1,2}[\/\-.]\d{1,2}[\/\-.]\d{4}/.test(text)) score += 15; // date
-    // Penalize very short results
-    if (text.length < 30) score -= 20;
-    // Penalize too much garbage
-    const letters = text.replace(/[^a-zA-Z]/g, '').length;
-    const total = text.replace(/\s/g, '').length;
-    if (total > 0 && letters / total < 0.3) score -= 10; // too few real letters
+    if (/item/i.test(text)) score += 5;
+    
+    // Bonus for finding known store names
+    if (/engen|shell|shoprite|choppies|spar|pick.*pay|kfc|woolworths/i.test(text)) score += 15;
+    
+    // Penalize very short or garbage results
+    if (text.length < 50) score -= 15;
+    const readable = text.replace(/[^a-zA-Z0-9\s.,]/g, '').length;
+    const total = text.length;
+    if (total > 0 && readable / total < 0.5) score -= 10;
+    
     return score;
   };
 
@@ -202,28 +218,33 @@ const ReceiptScanner = () => {
         reader.readAsDataURL(selectedFile);
       });
 
-      // Try 3 approaches and pick the best result
+      // Try 4 approaches and pick the best result
       const attempts = [];
 
-      // Attempt 1: Gentle preprocessing (best for clear, well-lit photos)
-      setScanStatus('Pass 1: Light enhancement...');
+      // Attempt 1: Raw image (no processing - sometimes best)
+      setScanStatus('Pass 1: Direct read...');
+      const rawText = await runOCR(imageDataUrl, 'Reading (direct)');
+      attempts.push({ text: rawText, score: scoreOCRResult(rawText), label: 'raw' });
+      console.log('Raw score:', attempts[0].score, '\n', rawText.substring(0, 200));
+
+      // Attempt 2: Gentle preprocessing
+      setScanStatus('Pass 2: Light enhancement...');
       const gentle = await preprocessImage(imageDataUrl, 'gentle');
       const gentleText = await runOCR(gentle, 'Reading (light)');
       attempts.push({ text: gentleText, score: scoreOCRResult(gentleText), label: 'gentle' });
-      console.log('Gentle score:', attempts[0].score, gentleText.substring(0, 100));
+      console.log('Gentle score:', attempts[1].score, '\n', gentleText.substring(0, 200));
 
-      // Attempt 2: Strong preprocessing (best for dark/blurry photos)
-      setScanStatus('Pass 2: Deep enhancement...');
-      const strong = await preprocessImage(imageDataUrl, 'strong');
-      const strongText = await runOCR(strong, 'Reading (deep)');
-      attempts.push({ text: strongText, score: scoreOCRResult(strongText), label: 'strong' });
-      console.log('Strong score:', attempts[1].score, strongText.substring(0, 100));
-
-      // Attempt 3: Raw image (sometimes original is better than processed)
-      setScanStatus('Pass 3: Direct read...');
-      const rawText = await runOCR(imageDataUrl, 'Reading (direct)');
-      attempts.push({ text: rawText, score: scoreOCRResult(rawText), label: 'raw' });
-      console.log('Raw score:', attempts[2].score, rawText.substring(0, 100));
+      // If we already have a good result (found total keyword + amounts), skip heavy passes
+      const bestSoFar = Math.max(attempts[0].score, attempts[1].score);
+      
+      if (bestSoFar < 30) {
+        // Attempt 3: Strong preprocessing (only if first 2 weren't good enough)
+        setScanStatus('Pass 3: Deep enhancement...');
+        const strong = await preprocessImage(imageDataUrl, 'strong');
+        const strongText = await runOCR(strong, 'Reading (deep)');
+        attempts.push({ text: strongText, score: scoreOCRResult(strongText), label: 'strong' });
+        console.log('Strong score:', attempts[2].score, '\n', strongText.substring(0, 200));
+      }
 
       // Pick the best result
       attempts.sort((a, b) => b.score - a.score);
