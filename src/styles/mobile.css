@@ -1,0 +1,395 @@
+/* src/styles/mobile.css */
+/* Complete mobile responsive overrides for Plumfolio */
+
+/* ======================================== */
+/* MOBILE BOTTOM NAVIGATION BAR            */
+/* Replaces sidebar on screens < 768px      */
+/* ======================================== */
+
+.mobile-nav {
+  display: none;
+}
+
+@media (max-width: 768px) {
+  /* Hide the sidebar completely on mobile */
+  .sidebar {
+    display: none !important;
+  }
+
+  /* Show bottom navigation */
+  .mobile-nav {
+    display: flex !important;
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 60px;
+    background: #0d0d15;
+    border-top: 1px solid rgba(255, 255, 255, 0.08);
+    z-index: 1000;
+    padding: 0 4px;
+    padding-bottom: env(safe-area-inset-bottom, 0);
+  }
+
+  .mobile-nav-inner {
+    display: flex;
+    align-items: center;
+    justify-content: space-around;
+    width: 100%;
+    height: 100%;
+  }
+
+  .mobile-nav-link {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 2px;
+    padding: 6px 8px;
+    color: rgba(255, 255, 255, 0.35);
+    text-decoration: none;
+    font-size: 0.6rem;
+    font-weight: 400;
+    border-radius: 8px;
+    transition: all 0.2s;
+    min-width: 48px;
+  }
+
+  .mobile-nav-link.active {
+    color: #7B2D8E;
+  }
+
+  .mobile-nav-link svg {
+    width: 20px;
+    height: 20px;
+  }
+
+  /* Remove sidebar margin from main content */
+  .dashboard-layout-content,
+  .main-content,
+  .content-area,
+  [class*="layout"] > div:last-child,
+  .dashboard-layout > div:not(.sidebar) {
+    margin-left: 0 !important;
+    padding-left: 0 !important;
+    width: 100% !important;
+  }
+
+  /* Add bottom padding for bottom nav */
+  .dashboard-layout-content,
+  .main-content,
+  .content-area {
+    padding-bottom: 80px !important;
+  }
+
+  /* Top header adjustments */
+  .top-header,
+  .dashboard-header,
+  header {
+    padding-left: 16px !important;
+    padding-right: 16px !important;
+  }
+
+  /* ======================================== */
+  /* DASHBOARD PAGE                           */
+  /* ======================================== */
+
+  .dashboard-page,
+  .transactions-page,
+  .budgets-page,
+  .analytics-page,
+  .insights-page,
+  .scanner-page,
+  .settings-page {
+    padding: 0.5rem 12px 1.5rem !important;
+  }
+
+  /* Dashboard greeting */
+  .greeting h1,
+  .greeting h2 {
+    font-size: 1.3rem !important;
+  }
+
+  /* Summary cards - stack vertically */
+  .summary-cards,
+  .metric-cards,
+  .stats-grid,
+  .budget-summary,
+  .insights-summary-cards {
+    grid-template-columns: 1fr !important;
+    gap: 10px !important;
+  }
+
+  /* Summary card compact */
+  .summary-card,
+  .metric-card,
+  .stat-card {
+    padding: 14px !important;
+  }
+
+  .summary-value,
+  .metric-value {
+    font-size: 1.4rem !important;
+  }
+
+  /* ======================================== */
+  /* TRANSACTIONS PAGE                        */
+  /* ======================================== */
+
+  .actions-bar {
+    flex-direction: column !important;
+    gap: 10px !important;
+  }
+
+  .filter-tabs {
+    width: 100% !important;
+    justify-content: center !important;
+  }
+
+  .filter-tab {
+    padding: 8px 14px !important;
+    font-size: 0.8rem !important;
+  }
+
+  .action-buttons {
+    width: 100% !important;
+    justify-content: center !important;
+  }
+
+  /* Transaction table - hide less important columns */
+  .transactions-table th:nth-child(3),
+  .transactions-table td:nth-child(3),
+  .transactions-table th:nth-child(4),
+  .transactions-table td:nth-child(4),
+  .transactions-table th:nth-child(6),
+  .transactions-table td:nth-child(6) {
+    display: none !important;
+  }
+
+  .transactions-table th,
+  .transactions-table td {
+    padding: 10px 8px !important;
+    font-size: 0.8rem !important;
+  }
+
+  /* ======================================== */
+  /* BUDGETS PAGE                             */
+  /* ======================================== */
+
+  .budgets-header {
+    flex-direction: column !important;
+    gap: 10px !important;
+    text-align: center !important;
+  }
+
+  .budget-grid {
+    grid-template-columns: 1fr !important;
+  }
+
+  .budget-card {
+    padding: 14px !important;
+  }
+
+  /* ======================================== */
+  /* ANALYTICS PAGE                           */
+  /* ======================================== */
+
+  .analytics-summary,
+  .analytics-cards {
+    grid-template-columns: 1fr !important;
+  }
+
+  .chart-container,
+  .chart-card {
+    padding: 12px !important;
+  }
+
+  .charts-grid {
+    grid-template-columns: 1fr !important;
+  }
+
+  /* ======================================== */
+  /* AI INSIGHTS PAGE                         */
+  /* ======================================== */
+
+  .insights-header {
+    flex-direction: column !important;
+    align-items: flex-start !important;
+    gap: 10px !important;
+  }
+
+  .insights-tabs {
+    overflow-x: auto !important;
+    flex-wrap: nowrap !important;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .tab-btn {
+    white-space: nowrap !important;
+    font-size: 0.8rem !important;
+    padding: 8px 12px !important;
+  }
+
+  .category-forecasts {
+    grid-template-columns: 1fr !important;
+  }
+
+  .forecast-value {
+    font-size: 1.6rem !important;
+  }
+
+  /* ======================================== */
+  /* RECEIPT SCANNER                          */
+  /* ======================================== */
+
+  .scanner-content {
+    grid-template-columns: 1fr !important;
+  }
+
+  .upload-zone {
+    min-height: 250px !important;
+  }
+
+  .scanner-buttons {
+    flex-direction: column !important;
+  }
+
+  .steps {
+    grid-template-columns: 1fr !important;
+  }
+
+  .form-row {
+    grid-template-columns: 1fr !important;
+  }
+
+  /* ======================================== */
+  /* SETTINGS PAGE                            */
+  /* ======================================== */
+
+  .settings-tabs,
+  .settings-nav {
+    flex-direction: row !important;
+    overflow-x: auto !important;
+  }
+
+  /* ======================================== */
+  /* MODALS                                   */
+  /* ======================================== */
+
+  .modal-overlay {
+    padding: 10px !important;
+  }
+
+  .modal {
+    max-width: 100% !important;
+    max-height: calc(100vh - 20px) !important;
+    border-radius: 12px !important;
+  }
+
+  .modal-form {
+    padding: 14px 16px !important;
+    gap: 10px !important;
+  }
+
+  .type-selector {
+    gap: 6px !important;
+  }
+
+  .type-btn {
+    padding: 8px !important;
+    font-size: 0.85rem !important;
+  }
+
+  /* ======================================== */
+  /* AI WIDGET - Adjust for mobile            */
+  /* ======================================== */
+
+  .ai-widget {
+    width: calc(100vw - 20px) !important;
+    right: 10px !important;
+    bottom: 70px !important; /* Above bottom nav */
+    max-width: 340px !important;
+  }
+
+  .ai-widget-expanded {
+    width: calc(100vw - 20px) !important;
+    max-width: 360px !important;
+  }
+
+  .ai-widget-fab {
+    bottom: 70px !important; /* Above bottom nav */
+    right: 12px !important;
+  }
+
+  .ai-toasts-container {
+    right: 10px !important;
+    left: 10px !important;
+    max-width: none !important;
+  }
+
+  /* ======================================== */
+  /* GENERAL TEXT & SPACING                   */
+  /* ======================================== */
+
+  h1 { font-size: 1.4rem !important; }
+  h2 { font-size: 1.2rem !important; }
+  h3 { font-size: 1rem !important; }
+
+  /* Hide desktop-only elements */
+  .desktop-only {
+    display: none !important;
+  }
+
+  /* Prevent horizontal scroll */
+  body {
+    overflow-x: hidden !important;
+  }
+
+  .dashboard-layout,
+  .app-layout,
+  #root {
+    overflow-x: hidden !important;
+  }
+}
+
+/* ======================================== */
+/* TABLET (768px - 1024px)                  */
+/* ======================================== */
+
+@media (min-width: 769px) and (max-width: 1024px) {
+  .sidebar {
+    width: 60px !important;
+    min-width: 60px !important;
+  }
+
+  .sidebar-logo-text,
+  .sidebar-link span,
+  .sidebar-logout span {
+    display: none !important;
+  }
+
+  .sidebar-logo {
+    justify-content: center !important;
+    padding: 16px 8px 20px !important;
+  }
+
+  .sidebar-link {
+    justify-content: center !important;
+    padding: 10px 8px !important;
+  }
+
+  .sidebar-logout {
+    justify-content: center !important;
+    padding: 10px 8px !important;
+  }
+
+  .sidebar-link svg,
+  .sidebar-logout svg {
+    width: 20px !important;
+    height: 20px !important;
+  }
+
+  .mobile-nav {
+    display: none !important;
+  }
+}
