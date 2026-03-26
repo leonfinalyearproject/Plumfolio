@@ -18,8 +18,10 @@ import ReceiptScanner from './pages/ReceiptScanner';
 import Settings from './pages/Settings';
 import DashboardLayout from './components/DashboardLayout';
 import AIInsightWidget from './components/AIInsightWidget';
+import MobileNav from './components/MobileNav';
 
 import './styles/globals.css';
+import './styles/mobile.css';
 
 const ProtectedRoute = ({ children }) => {
   const { user, loading } = useAuth();
@@ -32,11 +34,16 @@ const ProtectedRoute = ({ children }) => {
   );
 };
 
-// Global floating widget - only shows when user is logged in
 const GlobalAIWidget = () => {
   const { user } = useAuth();
   if (!user) return null;
   return <AIInsightWidget />;
+};
+
+const GlobalMobileNav = () => {
+  const { user } = useAuth();
+  if (!user) return null;
+  return <MobileNav />;
 };
 
 function App() {
@@ -59,8 +66,8 @@ function App() {
               <Route path="/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
               <Route path="*" element={<Navigate to="/" />} />
             </Routes>
-            {/* Floating AI widget - rendered at root level, outside all layouts */}
             <GlobalAIWidget />
+            <GlobalMobileNav />
           </InsightsProvider>
         </SlideshowProvider>
       </AuthProvider>
