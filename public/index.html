@@ -44,6 +44,13 @@
   </head>
   <body>
     <noscript>You need to enable JavaScript to run this app.</noscript>
-    <div id="root"></div>
+    <div id="root">
+      <!-- Instant loading screen - shows before React JS loads -->
+      <div style="display:flex;align-items:center;justify-content:center;min-height:100vh;background:#0a0a0f;flex-direction:column;gap:16px">
+        <img src="%PUBLIC_URL%/logo192.png" alt="" width="56" height="56" style="border-radius:12px;animation:pulse 1.5s ease-in-out infinite" />
+        <div style="color:rgba(255,255,255,0.3);font-size:13px;font-family:'DM Sans',sans-serif;letter-spacing:1px">PLUMFOLIO</div>
+        <style>@keyframes pulse{0%,100%{opacity:.5;transform:scale(1)}50%{opacity:1;transform:scale(1.05)}}</style>
+      </div>
+    </div>
   </body>
 </html>
