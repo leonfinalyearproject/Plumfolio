@@ -14,7 +14,6 @@ import Transactions from './pages/Transactions';
 import Budgets from './pages/Budgets';
 import Analytics from './pages/Analytics';
 import Insights from './pages/Insights';
-import ReceiptScanner from './pages/ReceiptScanner';
 import Settings from './pages/Settings';
 import DashboardLayout from './components/DashboardLayout';
 import AIInsightWidget from './components/AIInsightWidget';
@@ -62,7 +61,6 @@ function App() {
               <Route path="/budgets" element={<ProtectedRoute><Budgets /></ProtectedRoute>} />
               <Route path="/analytics" element={<ProtectedRoute><Analytics /></ProtectedRoute>} />
               <Route path="/insights" element={<ProtectedRoute><Insights /></ProtectedRoute>} />
-              <Route path="/receipt-scanner" element={<ProtectedRoute><ReceiptScanner /></ProtectedRoute>} />
               <Route path="/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
               <Route path="*" element={<Navigate to="/" />} />
             </Routes>
