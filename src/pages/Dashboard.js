@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { useCurrency } from '../context/CurrencyContext';
 import { supabase } from '../lib/supabase';
 import { 
   Wallet, 
@@ -24,6 +25,7 @@ import './Dashboard.css';
 ChartJS.register(ArcElement, Tooltip, Legend);
 
 const Dashboard = () => {
+  const { formatCurrency } = useCurrency();
   const { user } = useAuth();
   const [stats, setStats] = useState({
     balance: 0,
@@ -128,9 +130,6 @@ const Dashboard = () => {
     return icons[category] || ShoppingBag;
   };
 
-  const formatCurrency = (amount) => {
-    return 'P' + amount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-  };
 
   // Generate chart data from real expenses
   const generateChartData = () => {

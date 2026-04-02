@@ -1,10 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { supabase } from '../lib/supabase';
+import { useCurrency } from '../context/CurrencyContext';
 import { Plus, Edit, Trash2, X, AlertTriangle, CheckCircle, Target } from 'lucide-react';
 import './Budgets.css';
 
 const Budgets = () => {
+  const { formatCurrency } = useCurrency();
   const { user } = useAuth();
   const [budgets, setBudgets] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -138,13 +140,6 @@ const Budgets = () => {
     setModalOpen(true);
   };
 
-  const formatCurrency = (amount) => {
-    return new Intl.NumberFormat('en-BW', {
-      style: 'currency',
-      currency: 'BWP',
-      minimumFractionDigits: 2,
-    }).format(amount).replace('BWP', 'P');
-  };
 
   const getProgress = (spent, allocated) => {
     return Math.min((spent / allocated) * 100, 100);

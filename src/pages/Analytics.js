@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { useCurrency } from '../context/CurrencyContext';
 import { supabase } from '../lib/supabase';
 import { TrendingUp, TrendingDown, Calendar, BarChart3, Plus } from 'lucide-react';
 import { Line, Doughnut, Bar } from 'react-chartjs-2';
@@ -33,6 +34,7 @@ ChartJS.register(
 );
 
 const Analytics = () => {
+  const { formatCurrency, symbol } = useCurrency();
   const { user } = useAuth();
   const [transactions, setTransactions] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -60,13 +62,6 @@ const Analytics = () => {
     }
   };
 
-  const formatCurrency = (amount) => {
-    return new Intl.NumberFormat('en-BW', {
-      style: 'currency',
-      currency: 'BWP',
-      minimumFractionDigits: 0,
-    }).format(amount).replace('BWP', 'P');
-  };
 
   // Get last 6 months dynamically
   const getLastSixMonths = () => {
@@ -172,7 +167,7 @@ const Analytics = () => {
         grid: { color: 'rgba(255, 255, 255, 0.05)' },
         ticks: { 
           color: '#71717A',
-          callback: (value) => 'P' + value.toLocaleString(),
+          callback: (value) => symbol + value.toLocaleString(),
         },
       },
     },
@@ -237,7 +232,7 @@ const Analytics = () => {
         grid: { color: 'rgba(255, 255, 255, 0.05)' },
         ticks: { 
           color: '#71717A',
-          callback: (value) => 'P' + value.toLocaleString(),
+          callback: (value) => symbol + value.toLocaleString(),
         },
       },
     },
