@@ -1,8 +1,27 @@
 // src/context/CurrencyContext.js
-import React, { createContext, useContext, useMemo } from 'react';
+import React, { createContext, useContext, useMemo, useCallback } from 'react';
 import { useAuth } from './AuthContext';
 
-const CurrencyContext = createContext({});
+// Default BWP formatter — always works, never undefined
+const defaultFormat = (amount) => {
+  if (amount === null || amount === undefined || isNaN(amount)) return 'P0.00';
+  try {
+    return new Intl.NumberFormat('en-BW', {
+      style: 'currency', currency: 'BWP',
+      minimumFractionDigits: 2, maximumFractionDigits: 2,
+    }).format(parseFloat(amount)).replace('BWP', 'P').replace(/\s+/g, '');
+  } catch {
+    return 'P' + Math.abs(parseFloat(amount)).toFixed(2);
+  }
+};
+
+// Context with safe defaults so useCurrency() never returns undefined functions
+const CurrencyContext = createContext({
+  currencyCode: 'BWP',
+  currencyInfo: { code: 'BWP', symbol: 'P', name: 'Botswana Pula', locale: 'en-BW', flag: '🇧🇼' },
+  formatCurrency: defaultFormat,
+  symbol: 'P',
+});
 
 export const useCurrency = () => useContext(CurrencyContext);
 
@@ -41,37 +60,39 @@ export const CurrencyProvider = ({ children }) => {
   const currencyCode = profile?.currency || 'BWP';
   const currencyInfo = useMemo(() => getCurrencyInfo(currencyCode), [currencyCode]);
 
-  const formatCurrency = useMemo(() => {
-    return (amount) => {
-      if (amount === null || amount === undefined || isNaN(amount)) return `${currencyInfo.symbol}0.00`;
-      const num = parseFloat(amount);
-      const noDecimals = ['JPY', 'UGX'].includes(currencyInfo.code);
-      try {
-        const formatted = new Intl.NumberFormat(currencyInfo.locale, {
-          style: 'currency',
-          currency: currencyInfo.code,
-          minimumFractionDigits: noDecimals ? 0 : 2,
-          maximumFractionDigits: noDecimals ? 0 : 2,
-        }).format(num);
-        if (currencyInfo.code === 'BWP') {
-          return formatted.replace('BWP', 'P').replace(/\s+/g, '');
-        }
-        return formatted;
-      } catch {
-        const abs = Math.abs(num);
-        const sign = num < 0 ? '-' : '';
-        const f = noDecimals ? abs.toLocaleString() : abs.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-        return `${sign}${currencyInfo.symbol}${f}`;
+  const formatCurrency = useCallback((amount) => {
+    if (amount === null || amount === undefined || isNaN(amount)) return currencyInfo.symbol + '0.00';
+    const num = parseFloat(amount);
+    const noDecimals = ['JPY', 'UGX'].includes(currencyInfo.code);
+
+    try {
+      const formatted = new Intl.NumberFormat(currencyInfo.locale, {
+        style: 'currency',
+        currency: currencyInfo.code,
+        minimumFractionDigits: noDecimals ? 0 : 2,
+        maximumFractionDigits: noDecimals ? 0 : 2,
+      }).format(num);
+
+      if (currencyInfo.code === 'BWP') {
+        return formatted.replace('BWP', 'P').replace(/\s+/g, '');
       }
-    };
+      return formatted;
+    } catch (e) {
+      const abs = Math.abs(num);
+      const sign = num < 0 ? '-' : '';
+      const f = noDecimals
+        ? abs.toLocaleString()
+        : abs.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+      return sign + currencyInfo.symbol + f;
+    }
   }, [currencyInfo]);
 
-  const value = {
+  const value = useMemo(() => ({
     currencyCode,
     currencyInfo,
     formatCurrency,
     symbol: currencyInfo.symbol,
-  };
+  }), [currencyCode, currencyInfo, formatCurrency]);
 
   return (
     <CurrencyContext.Provider value={value}>
