@@ -1,8 +1,7 @@
 /* ================================================
-   MOBILE RESPONSIVE — Plumfolio
+   MOBILE v2 — Plumfolio Lusion
    ================================================ */
 
-/* ---- Mobile Bottom Nav ---- */
 .mobile-nav {
   display: none;
   position: fixed;
@@ -10,19 +9,19 @@
   left: 0;
   right: 0;
   z-index: 1000;
-  background: rgba(12, 12, 20, 0.85);
+  background: rgba(5, 5, 5, 0.9);
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
-  border-top: 1px solid var(--border-subtle);
-  padding: 6px 4px;
-  padding-bottom: max(6px, env(safe-area-inset-bottom));
+  border-top: 1px solid var(--border-color);
+  padding: 4px 4px;
+  padding-bottom: max(4px, env(safe-area-inset-bottom));
 }
 
 .mobile-nav-inner {
   display: flex;
   justify-content: space-around;
   align-items: center;
-  max-width: 500px;
+  max-width: 480px;
   margin: 0 auto;
 }
 
@@ -30,49 +29,32 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 2px;
-  padding: 6px 8px;
+  gap: 1px;
+  padding: 6px 6px;
   border-radius: var(--radius-md);
-  color: var(--text-muted);
+  color: var(--text-dim);
   text-decoration: none;
-  font-size: 0.62rem;
+  font-size: 0.58rem;
   font-weight: 500;
-  letter-spacing: 0.02em;
-  transition: all var(--duration-base) var(--ease-smooth);
-  min-width: 44px;
+  transition: all 0.25s var(--ease-out);
+  min-width: 40px;
 }
 
 .mobile-nav-link svg {
-  width: 20px;
-  height: 20px;
-  transition: transform var(--duration-base) var(--ease-out-expo);
+  width: 19px;
+  height: 19px;
 }
 
 .mobile-nav-link.active {
   color: var(--plum-glow);
 }
 
-.mobile-nav-link.active svg {
-  transform: scale(1.1);
-}
-
-/* ---- Mobile (< 768px) ---- */
+/* ---- Mobile ---- */
 @media (max-width: 768px) {
-  .sidebar {
-    display: none !important;
-  }
-
-  .mobile-nav {
-    display: block;
-  }
-
-  .dashboard-layout {
-    display: block;
-  }
-
-  .dashboard-main {
-    margin-left: 0 !important;
-  }
+  .sidebar { display: none !important; }
+  .mobile-nav { display: block; }
+  .dashboard-layout { display: block; }
+  .dashboard-main { margin-left: 0 !important; }
 
   .dashboard-content {
     width: 100%;
@@ -82,36 +64,24 @@
     padding-bottom: 90px;
   }
 
-  .dashboard-footer {
-    padding-bottom: 80px;
-  }
+  .dashboard-footer { padding-bottom: 80px; }
 
-  /* Grid adjustments */
   .stats-row,
-  .dashboard-grid {
-    grid-template-columns: 1fr !important;
-  }
+  .dashboard-grid,
+  .analytics-summary,
+  .charts-grid,
+  .budgets-summary { grid-template-columns: 1fr !important; }
 
-  .stat-card.main {
-    grid-column: 1 !important;
-  }
+  .stat-card.main,
+  .card.wide,
+  .chart-card.wide { grid-column: 1 !important; }
 
-  .card.wide {
-    grid-column: 1 !important;
-  }
-
-  /* Table adjustments */
   .transactions-table th:nth-child(3),
   .transactions-table td:nth-child(3),
   .transactions-table th:nth-child(4),
-  .transactions-table td:nth-child(4) {
-    display: none;
-  }
+  .transactions-table td:nth-child(4) { display: none; }
 
-  /* Modal adjustments */
-  .modal-overlay {
-    padding: 10px !important;
-  }
+  .modal-overlay { padding: 10px !important; }
 
   .modal {
     max-width: 100% !important;
@@ -119,45 +89,24 @@
     max-height: calc(100vh - 20px) !important;
   }
 
-  /* AI Widget above nav */
-  .ai-widget {
-    bottom: 80px !important;
-  }
+  .ai-widget { bottom: 80px !important; }
 }
 
-/* ---- Tablet (769px - 1024px) ---- */
+/* ---- Tablet ---- */
 @media (min-width: 769px) and (max-width: 1024px) {
   .sidebar {
-    width: 60px !important;
-    min-width: 60px !important;
+    width: 56px !important;
+    min-width: 56px !important;
   }
 
   .sidebar-logo-text,
   .sidebar-link span,
-  .sidebar-logout span {
-    display: none;
-  }
+  .sidebar-logout span { display: none; }
 
-  .sidebar-logo {
-    justify-content: center;
-    padding: 16px 8px 20px;
-  }
+  .sidebar-logo { justify-content: center; padding: 16px 8px 20px; }
+  .sidebar-link { justify-content: center; padding: 11px; }
+  .sidebar-logout { justify-content: center; padding: 11px; }
 
-  .sidebar-link {
-    justify-content: center;
-    padding: 12px;
-  }
-
-  .sidebar-logout {
-    justify-content: center;
-    padding: 12px;
-  }
-
-  .dashboard-main {
-    margin-left: 60px;
-  }
-
-  .mobile-nav {
-    display: none;
-  }
+  .dashboard-main { margin-left: 56px; }
+  .mobile-nav { display: none; }
 }
