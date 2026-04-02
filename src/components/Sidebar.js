@@ -4,7 +4,7 @@ import { NavLink, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import {
   LayoutDashboard, ArrowLeftRight, Target, BarChart3,
-  Brain, Receipt, Settings, LogOut
+  Brain, Settings, LogOut
 } from 'lucide-react';
 import './Sidebar.css';
 
@@ -23,7 +23,6 @@ const Sidebar = () => {
     { path: '/budgets', label: 'Budgets', icon: Target },
     { path: '/analytics', label: 'Analytics', icon: BarChart3 },
     { path: '/insights', label: 'AI Insights', icon: Brain },
-    { path: '/receipt-scanner', label: 'Scan Receipt', icon: Receipt },
     { path: '/settings', label: 'Settings', icon: Settings },
   ];
 

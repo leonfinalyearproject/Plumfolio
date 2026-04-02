@@ -4,7 +4,7 @@ import { NavLink, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import {
   LayoutDashboard, ArrowLeftRight, Target, BarChart3,
-  Brain, Receipt, Settings, LogOut, X
+  Brain, Settings, LogOut
 } from 'lucide-react';
 
 const MobileNav = () => {
@@ -15,14 +15,11 @@ const MobileNav = () => {
   const handleSignOut = async () => {
     try {
       await signOut();
-      // Clear any cached data
       sessionStorage.clear();
       localStorage.clear();
-      // Force redirect
       window.location.href = window.location.origin + '/Plumfolio/signin';
     } catch (err) {
       console.error('Sign out error:', err);
-      // Force redirect anyway
       window.location.href = window.location.origin + '/Plumfolio/signin';
     }
   };
@@ -33,7 +30,7 @@ const MobileNav = () => {
     { path: '/budgets', label: 'Budgets', icon: Target },
     { path: '/analytics', label: 'Stats', icon: BarChart3 },
     { path: '/insights', label: 'AI', icon: Brain },
-    { path: '/receipt-scanner', label: 'Scan', icon: Receipt },
+    { path: '/settings', label: 'Settings', icon: Settings },
   ];
 
   return (
