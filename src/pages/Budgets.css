@@ -1,11 +1,9 @@
 /* ================================================
-   BUDGETS v2 — Lusion aesthetic
+   BUDGETS — Lusion
    ================================================ */
-
 .budgets-page {
   max-width: 1400px;
   margin: 0 auto;
-  animation: fadeInUp 0.5s var(--ease-out) forwards;
 }
 
 .budgets-loading {
@@ -15,79 +13,135 @@
   min-height: 400px;
 }
 
-/* ---- Summary Cards ---- */
-.budgets-summary {
+/* ================================================
+   SUMMARY CARDS
+   ================================================ */
+.budget-summary {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
-  gap: 14px;
-  margin-bottom: var(--spacing-xl);
+  gap: 16px;
+  margin-bottom: 32px;
 }
 
 .summary-card {
-  background: var(--bg-card);
-  border: 1px solid var(--border-color);
-  border-radius: var(--radius-xl);
-  padding: 18px 22px;
-  transition: all 0.35s var(--ease-out);
-  animation: fadeInUp 0.4s var(--ease-out) forwards;
+  background: #0F0F16;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 20px;
+  padding: 22px 26px;
+  transition: all 500ms cubic-bezier(0.16, 1, 0.3, 1);
+  animation: fadeInUp 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards;
   opacity: 0;
+  position: relative;
+  overflow: hidden;
 }
 
 .summary-card:nth-child(1) { animation-delay: 0.05s; }
-.summary-card:nth-child(2) { animation-delay: 0.1s; }
-.summary-card:nth-child(3) { animation-delay: 0.15s; }
+.summary-card:nth-child(2) { animation-delay: 0.12s; }
+.summary-card:nth-child(3) { animation-delay: 0.19s; }
 
-.summary-card:hover {
-  border-color: var(--border-hover);
-  transform: translateY(-2px);
+.summary-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: linear-gradient(90deg, rgba(168, 85, 247, 0.4), transparent);
+  opacity: 0;
+  transition: opacity 300ms;
 }
 
-.summary-card .summary-label {
-  font-size: 0.72rem;
+.summary-card:hover {
+  transform: translateY(-3px);
+  border-color: rgba(255, 255, 255, 0.1);
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.3);
+}
+
+.summary-card:hover::before { opacity: 1; }
+
+.summary-label {
+  display: block;
+  font-size: 0.68rem;
   font-weight: 600;
-  color: var(--text-muted);
+  color: #4A4A55;
   text-transform: uppercase;
-  letter-spacing: 0.08em;
+  letter-spacing: 0.12em;
   margin-bottom: 8px;
 }
 
-.summary-card .summary-value {
-  font-family: var(--font-display);
-  font-size: 1.4rem;
+.summary-value {
+  font-family: 'Clash Display', system-ui, sans-serif;
+  font-size: 1.5rem;
   font-weight: 700;
+  color: #F0EFF4;
   letter-spacing: -0.03em;
+  display: block;
 }
 
-/* ---- Actions ---- */
-.budgets-actions {
+.summary-value.spent { color: #C084FC; }
+.summary-value.positive { color: #10B981; }
+.summary-value.negative { color: #F43F5E; }
+
+/* ================================================
+   HEADER
+   ================================================ */
+.budgets-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: var(--spacing-lg);
+  margin-bottom: 24px;
+  animation: fadeInUp 0.4s cubic-bezier(0.16, 1, 0.3, 1) 0.2s forwards;
+  opacity: 0;
 }
 
-.budgets-actions h2 {
-  font-size: 1rem;
+.budgets-header h2 {
+  font-family: 'Clash Display', system-ui, sans-serif;
+  font-size: 1.15rem;
   font-weight: 600;
   letter-spacing: -0.02em;
+  color: #F0EFF4;
 }
 
-/* ---- Budget Cards ---- */
-.budgets-grid {
+.add-budget-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 20px;
+  background: rgba(168, 85, 247, 0.08);
+  color: #C084FC;
+  border: 1px solid rgba(168, 85, 247, 0.15);
+  border-radius: 9999px;
+  font-size: 0.82rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 300ms cubic-bezier(0.16, 1, 0.3, 1);
+  font-family: 'General Sans', sans-serif;
+}
+
+.add-budget-btn:hover {
+  background: rgba(168, 85, 247, 0.14);
+  border-color: rgba(168, 85, 247, 0.3);
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px rgba(168, 85, 247, 0.12);
+}
+
+/* ================================================
+   BUDGET CARDS GRID
+   ================================================ */
+.budget-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
-  gap: 14px;
+  gap: 16px;
 }
 
 .budget-card {
-  background: var(--bg-card);
-  border: 1px solid var(--border-color);
-  border-radius: var(--radius-xl);
-  padding: 20px 22px;
-  transition: all 0.35s var(--ease-out);
-  animation: fadeInUp 0.4s var(--ease-out) forwards;
+  background: #0F0F16;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 20px;
+  padding: 24px;
+  transition: all 500ms cubic-bezier(0.16, 1, 0.3, 1);
+  animation: fadeInUp 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards;
   opacity: 0;
-  animation-delay: 0.2s;
   position: relative;
   overflow: hidden;
 }
@@ -96,257 +150,369 @@
   content: '';
   position: absolute;
   left: 0;
-  top: 0;
-  bottom: 0;
+  top: 16px;
+  bottom: 16px;
   width: 3px;
-  background: var(--plum-light);
-  opacity: 0.4;
-  transition: opacity 0.3s var(--ease-out);
+  border-radius: 0 3px 3px 0;
+  background: #A855F7;
+  transition: all 300ms;
 }
 
-.budget-card:hover::before { opacity: 0.8; }
+.budget-card.good::before { background: #10B981; }
+.budget-card.warning::before { background: #F59E0B; }
+.budget-card.exceeded::before { background: #F43F5E; }
 
 .budget-card:hover {
-  border-color: var(--border-hover);
+  border-color: rgba(255, 255, 255, 0.1);
+  box-shadow: 0 12px 36px rgba(0, 0, 0, 0.25);
   transform: translateY(-2px);
-}
-
-.budget-card.over-budget::before {
-  background: var(--error);
 }
 
 .budget-card-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 14px;
+  margin-bottom: 16px;
 }
 
-.budget-card-title {
-  font-size: 0.9rem;
+.budget-card-header h3 {
+  font-family: 'Clash Display', system-ui, sans-serif;
+  font-size: 1rem;
   font-weight: 600;
   letter-spacing: -0.01em;
+  color: #F0EFF4;
 }
 
-.budget-card-badge {
-  font-size: 0.68rem;
-  font-weight: 600;
-  padding: 3px 8px;
-  border-radius: var(--radius-full);
-  letter-spacing: 0.02em;
+.budget-actions {
+  display: flex;
+  gap: 4px;
+  opacity: 0.3;
+  transition: opacity 200ms;
 }
 
-.budget-card-badge.on-track {
-  background: rgba(34, 197, 94, 0.08);
-  color: var(--green-medium);
+.budget-card:hover .budget-actions { opacity: 1; }
+
+.budget-actions button {
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  color: #7C7C8A;
+  cursor: pointer;
+  transition: all 150ms;
+  background: none;
+  border: none;
 }
 
-.budget-card-badge.warning {
-  background: rgba(245, 158, 11, 0.08);
-  color: var(--gold);
+.budget-actions button:first-child:hover {
+  background: rgba(56, 189, 248, 0.1);
+  color: #38BDF8;
 }
 
-.budget-card-badge.over {
-  background: rgba(239, 68, 68, 0.08);
-  color: var(--error);
+.budget-actions button:last-child:hover {
+  background: rgba(244, 63, 94, 0.1);
+  color: #F43F5E;
 }
 
-.budget-card-progress {
-  margin-bottom: 10px;
+.budget-amounts {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  margin-bottom: 16px;
 }
 
+.budget-amounts .spent {
+  font-family: 'Clash Display', system-ui, sans-serif;
+  font-size: 1.35rem;
+  font-weight: 700;
+  color: #F0EFF4;
+  letter-spacing: -0.03em;
+}
+
+.budget-amounts .separator {
+  color: #2A2A33;
+  font-size: 1rem;
+  font-weight: 300;
+}
+
+.budget-amounts .allocated {
+  font-family: 'Clash Display', system-ui, sans-serif;
+  font-size: 0.9rem;
+  font-weight: 500;
+  color: #4A4A55;
+  letter-spacing: -0.02em;
+}
+
+/* ---- Progress Bar ---- */
 .budget-progress-bar {
-  height: 5px;
+  height: 6px;
   background: rgba(255, 255, 255, 0.04);
   border-radius: 3px;
   overflow: hidden;
-  margin-bottom: 8px;
+  margin-bottom: 14px;
+  position: relative;
 }
 
-.budget-progress-fill {
+.budget-progress-bar .progress-fill {
   height: 100%;
   border-radius: 3px;
-  background: linear-gradient(90deg, var(--plum-medium), var(--plum-glow));
-  animation: progressFill 1s var(--ease-out) forwards;
+  background: linear-gradient(90deg, #7C3AED, #A855F7);
+  transition: width 1.2s cubic-bezier(0.16, 1, 0.3, 1);
+  position: relative;
+  min-width: 2px;
 }
 
-.budget-progress-fill.over {
-  background: linear-gradient(90deg, var(--error), #F87171);
+.budget-progress-bar .progress-fill::after {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.15) 50%, transparent 100%);
+  background-size: 200% 100%;
+  animation: shimmer 2.5s ease-in-out infinite;
 }
 
-.budget-card-amounts {
-  display: flex;
-  justify-content: space-between;
-  font-size: 0.78rem;
+.budget-card.good .budget-progress-bar .progress-fill {
+  background: linear-gradient(90deg, #059669, #10B981);
 }
 
-.budget-spent {
-  color: var(--text-secondary);
-  font-family: var(--font-display);
-  font-weight: 500;
+.budget-card.warning .budget-progress-bar .progress-fill {
+  background: linear-gradient(90deg, #D97706, #F59E0B);
 }
 
-.budget-allocated {
-  color: var(--text-dim);
-  font-family: var(--font-display);
+.budget-card.exceeded .budget-progress-bar .progress-fill {
+  background: linear-gradient(90deg, #E11D48, #F43F5E);
 }
 
-.budget-card-actions {
-  display: flex;
-  gap: 4px;
-  margin-top: 12px;
-  padding-top: 12px;
-  border-top: 1px solid var(--border-color);
-  opacity: 0;
-  transition: opacity 0.2s;
-}
-
-.budget-card:hover .budget-card-actions { opacity: 1; }
-
-.budget-action-btn {
-  padding: 6px 10px;
-  font-size: 0.75rem;
-  font-weight: 500;
-  color: var(--text-muted);
-  border-radius: var(--radius-sm);
-  transition: all 0.2s;
+.budget-footer {
   display: flex;
   align-items: center;
-  gap: 4px;
+  justify-content: space-between;
 }
 
-.budget-action-btn:hover {
-  background: rgba(255, 255, 255, 0.04);
-  color: var(--text-secondary);
+.percentage {
+  font-size: 0.75rem;
+  color: #4A4A55;
+  font-weight: 500;
 }
 
-.budget-action-btn.delete:hover {
-  color: var(--error);
-  background: rgba(239, 68, 68, 0.06);
+.status-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 0.7rem;
+  font-weight: 600;
+  padding: 4px 12px;
+  border-radius: 9999px;
+  letter-spacing: 0.02em;
 }
 
-/* ---- Modal (reuses Transactions modal styles) ---- */
+.status-badge.good { background: rgba(16, 185, 129, 0.1); color: #10B981; }
+.status-badge.warning { background: rgba(245, 158, 11, 0.1); color: #F59E0B; }
+.status-badge.exceeded { background: rgba(244, 63, 94, 0.1); color: #F43F5E; }
+
+/* ================================================
+   MODAL
+   ================================================ */
 .modal-overlay {
   position: fixed !important;
   inset: 0 !important;
-  background: rgba(0, 0, 0, 0.8);
-  backdrop-filter: blur(8px);
+  background: rgba(3, 3, 5, 0.82);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
   display: flex !important;
   align-items: center !important;
   justify-content: center !important;
   z-index: 1000;
   padding: 20px !important;
-  animation: fadeIn 0.15s var(--ease-out) forwards;
+  animation: fadeIn 0.15s ease;
+  overflow-y: auto !important;
 }
 
 .modal {
-  background: var(--bg-elevated);
-  border: 1px solid var(--border-color);
-  border-radius: var(--radius-xl);
+  background: #14141D;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 24px;
   width: 100%;
-  max-width: 460px;
+  max-width: 440px;
   max-height: calc(100vh - 40px) !important;
   overflow-y: auto !important;
-  margin: auto !important;
-  animation: fadeInUp 0.25s var(--ease-out) forwards;
+  animation: fadeInUp 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.5);
 }
 
 .modal-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 14px 20px;
-  border-bottom: 1px solid var(--border-color);
+  padding: 20px 24px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
 }
 
 .modal-header h2 {
-  font-size: 1rem;
+  font-family: 'Clash Display', system-ui, sans-serif;
+  font-size: 1.05rem;
   font-weight: 600;
-  letter-spacing: -0.02em;
+  color: #F0EFF4;
 }
 
 .modal-close {
-  width: 30px;
-  height: 30px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: var(--radius-md);
-  color: var(--text-dim);
-  transition: all 0.2s;
+  width: 32px; height: 32px;
+  display: flex; align-items: center; justify-content: center;
+  border-radius: 10px;
+  color: #4A4A55;
+  cursor: pointer;
+  transition: all 150ms;
+  background: none; border: none;
 }
 
-.modal-close:hover {
-  background: rgba(255, 255, 255, 0.05);
-  color: var(--text-secondary);
-}
+.modal-close:hover { background: rgba(255,255,255,0.05); color: #F0EFF4; }
 
 .modal-form {
-  padding: 16px 20px;
+  padding: 20px 24px;
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 16px;
 }
 
 .form-group {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 6px;
 }
 
 .form-group label {
-  font-size: 0.75rem;
-  font-weight: 500;
-  color: var(--text-muted);
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: #4A4A55;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
 }
 
 .form-group input,
 .form-group select {
-  padding: 9px 12px;
-  background: var(--bg-secondary);
-  border: 1px solid var(--border-color);
-  border-radius: var(--radius-md);
-  color: var(--text-primary);
+  padding: 11px 14px;
+  background: #0A0A0F;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 12px;
+  color: #F0EFF4;
   font-size: 0.9rem;
-  transition: all 0.2s;
+  transition: all 150ms;
+  outline: none;
 }
 
 .form-group input:focus,
 .form-group select:focus {
-  outline: none;
-  border-color: rgba(168, 85, 247, 0.4);
-  box-shadow: 0 0 0 3px rgba(168, 85, 247, 0.08);
+  border-color: #A855F7;
+  box-shadow: 0 0 0 3px rgba(168, 85, 247, 0.1);
 }
 
+.form-group input::placeholder { color: #2A2A33; }
+.form-group select option { background: #14141D; color: #F0EFF4; }
+
 .submit-btn {
-  padding: 10px 20px;
-  background: rgba(168, 85, 247, 0.1);
-  color: var(--plum-glow);
-  border: 1px solid rgba(168, 85, 247, 0.15);
-  border-radius: var(--radius-md);
+  padding: 12px 20px;
+  background: linear-gradient(135deg, #3D1A6E, #7B2D8E);
+  color: white;
+  border-radius: 12px;
   font-size: 0.88rem;
   font-weight: 600;
-  transition: all 0.3s var(--ease-out);
+  border: 1px solid rgba(168, 85, 247, 0.2);
+  cursor: pointer;
+  transition: all 300ms cubic-bezier(0.16, 1, 0.3, 1);
   margin-top: 4px;
 }
 
 .submit-btn:hover {
-  background: rgba(168, 85, 247, 0.15);
-  border-color: rgba(168, 85, 247, 0.25);
-  transform: translateY(-1px);
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px rgba(168, 85, 247, 0.2);
 }
 
-/* ---- Empty ---- */
+/* ================================================
+   EMPTY STATE
+   ================================================ */
 .empty-state-container {
   display: flex;
   align-items: center;
   justify-content: center;
   min-height: 400px;
+  padding: 2rem;
 }
 
-/* ---- Responsive ---- */
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  animation: fadeIn 0.5s ease forwards;
+}
+
+.empty-state svg {
+  color: #2A2A33;
+  margin-bottom: 1.5rem;
+  opacity: 0.6;
+}
+
+.empty-state h3 {
+  margin: 0 0 0.5rem 0;
+  font-family: 'Clash Display', system-ui, sans-serif;
+  font-size: 1.3rem;
+  color: #F0EFF4;
+  font-weight: 600;
+}
+
+.empty-state p {
+  margin: 0 0 1.5rem 0;
+  font-size: 0.9rem;
+  max-width: 340px;
+  color: #7C7C8A;
+  line-height: 1.6;
+}
+
+.empty-action-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 10px 22px;
+  background: rgba(168, 85, 247, 0.08);
+  color: #C084FC;
+  border: 1px solid rgba(168, 85, 247, 0.15);
+  border-radius: 9999px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 300ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.empty-action-btn:hover {
+  background: rgba(168, 85, 247, 0.14);
+  border-color: rgba(168, 85, 247, 0.3);
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px rgba(168, 85, 247, 0.1);
+}
+
+/* ================================================
+   RESPONSIVE
+   ================================================ */
 @media (max-width: 768px) {
-  .budgets-summary { grid-template-columns: 1fr; }
-  .budgets-grid { grid-template-columns: 1fr; }
-  .budget-card-actions { opacity: 1; }
+  .budget-summary { grid-template-columns: 1fr; }
+  .budget-grid { grid-template-columns: 1fr; }
+  .budgets-header { flex-wrap: wrap; gap: 12px; }
+  .modal { max-width: 100% !important; margin: 10px !important; border-radius: 20px; }
+}
+
+@keyframes fadeInUp {
+  from { opacity: 0; transform: translateY(20px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes shimmer {
+  0% { background-position: -200% center; }
+  100% { background-position: 200% center; }
 }
