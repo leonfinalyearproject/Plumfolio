@@ -1,7 +1,3 @@
-// src/context/CurrencyContext.js
-// All data in Supabase is stored in BWP (base currency).
-// When user selects a different display currency, we convert using live exchange rates.
-
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { useAuth } from './AuthContext';
 
@@ -32,170 +28,126 @@ export const CURRENCIES = [
 ];
 
 export const getCurrencyInfo = (code) => {
-  return CURRENCIES.find(function(c) { return c.code === code; }) || CURRENCIES[0];
+  return CURRENCIES.find(c => c.code === code) || CURRENCIES[0];
 };
 
-// ---- Exchange Rate Cache ----
-var ratesCache = { rates: null, timestamp: 0, base: '' };
-var CACHE_DURATION = 60 * 60 * 1000; // 1 hour
+// Exchange rate cache
+let ratesCache = { rates: null, timestamp: 0 };
+const CACHE_TTL = 60 * 60 * 1000; // 1 hour
 
-async function fetchExchangeRates(baseCurrency) {
-  var now = Date.now();
-  // Return cached if fresh and same base
-  if (ratesCache.rates && ratesCache.base === baseCurrency && (now - ratesCache.timestamp) < CACHE_DURATION) {
+const fetchRates = async () => {
+  const now = Date.now();
+  if (ratesCache.rates && (now - ratesCache.timestamp) < CACHE_TTL) {
     return ratesCache.rates;
   }
-
-  var base = baseCurrency.toLowerCase();
-  
-  // Try primary CDN
   try {
-    var url = 'https://cdn.jsdelivr.net/npm/@fawazahmed0/currency-api@latest/v1/currencies/' + base + '.min.json';
-    var response = await fetch(url);
-    if (response.ok) {
-      var data = await response.json();
-      if (data && data[base]) {
-        ratesCache = { rates: data[base], timestamp: now, base: baseCurrency };
-        return data[base];
+    const res = await fetch('https://cdn.jsdelivr.net/npm/@fawazahmed0/currency-api@latest/v1/currencies/bwp.min.json');
+    if (res.ok) {
+      const data = await res.json();
+      if (data && data.bwp) {
+        ratesCache = { rates: data.bwp, timestamp: now };
+        return data.bwp;
       }
     }
   } catch (e) {
-    console.warn('Primary exchange rate fetch failed:', e);
+    // silent fail
   }
-
-  // Try fallback CDN
   try {
-    var fallbackUrl = 'https://latest.currency-api.pages.dev/v1/currencies/' + base + '.min.json';
-    var fallbackResponse = await fetch(fallbackUrl);
-    if (fallbackResponse.ok) {
-      var fallbackData = await fallbackResponse.json();
-      if (fallbackData && fallbackData[base]) {
-        ratesCache = { rates: fallbackData[base], timestamp: now, base: baseCurrency };
-        return fallbackData[base];
+    const res2 = await fetch('https://latest.currency-api.pages.dev/v1/currencies/bwp.min.json');
+    if (res2.ok) {
+      const data2 = await res2.json();
+      if (data2 && data2.bwp) {
+        ratesCache = { rates: data2.bwp, timestamp: now };
+        return data2.bwp;
       }
     }
-  } catch (e) {
-    console.warn('Fallback exchange rate fetch failed:', e);
+  } catch (e2) {
+    // silent fail
   }
-
   return null;
-}
+};
 
-// ---- Format amount with proper locale ----
-function formatWithLocale(amount, info) {
-  var noDecimals = info.code === 'JPY' || info.code === 'UGX';
+const formatNum = (amount, info) => {
+  const noDecimals = info.code === 'JPY' || info.code === 'UGX';
   try {
-    var formatted = new Intl.NumberFormat(info.locale, {
-      style: 'currency',
-      currency: info.code,
+    const formatted = new Intl.NumberFormat(info.locale, {
+      style: 'currency', currency: info.code,
       minimumFractionDigits: noDecimals ? 0 : 2,
       maximumFractionDigits: noDecimals ? 0 : 2,
     }).format(amount);
-    if (info.code === 'BWP') {
-      return formatted.replace('BWP', 'P').replace(/\s+/g, '');
-    }
+    if (info.code === 'BWP') return formatted.replace('BWP', 'P').replace(/\s+/g, '');
     return formatted;
-  } catch (err) {
-    var abs = Math.abs(amount);
-    var sign = amount < 0 ? '-' : '';
-    if (noDecimals) return sign + info.symbol + Math.round(abs).toLocaleString();
-    return sign + info.symbol + abs.toFixed(2);
+  } catch (e) {
+    const sign = amount < 0 ? '-' : '';
+    const abs = Math.abs(amount);
+    return sign + info.symbol + (noDecimals ? Math.round(abs).toLocaleString() : abs.toFixed(2));
   }
-}
-
-// ---- Default BWP formatter ----
-var defaultFormat = function(amount) {
-  if (amount === null || amount === undefined || isNaN(amount)) return 'P0.00';
-  return formatWithLocale(parseFloat(amount), CURRENCIES[0]);
 };
 
-var CurrencyContext = createContext({
+const defaultFmt = (amt) => {
+  if (amt === null || amt === undefined || isNaN(amt)) return 'P0.00';
+  return formatNum(parseFloat(amt), CURRENCIES[0]);
+};
+
+const CurrencyContext = createContext({
   currencyCode: 'BWP',
   currencyInfo: CURRENCIES[0],
-  formatCurrency: defaultFormat,
-  convertFromBWP: function(amount) { return amount; },
+  formatCurrency: defaultFmt,
   symbol: 'P',
   rate: 1,
   ratesLoaded: false,
 });
 
-export var useCurrency = function() { return useContext(CurrencyContext); };
+export const useCurrency = () => useContext(CurrencyContext);
 
-export var CurrencyProvider = function(props) {
-  var auth = useAuth();
-  var profile = auth.profile;
-  var code = (profile && profile.currency) || 'BWP';
-  var info = getCurrencyInfo(code);
+export const CurrencyProvider = ({ children }) => {
+  const { profile } = useAuth();
+  const code = (profile && profile.currency) || 'BWP';
+  const info = getCurrencyInfo(code);
+  const [rate, setRate] = useState(1);
+  const [ratesLoaded, setRatesLoaded] = useState(code === 'BWP');
 
-  var stateArr = useState(1);
-  var rate = stateArr[0];
-  var setRate = stateArr[1];
-
-  var loadedArr = useState(false);
-  var ratesLoaded = loadedArr[0];
-  var setRatesLoaded = loadedArr[1];
-
-  // Fetch exchange rate when currency changes
-  useEffect(function() {
+  useEffect(() => {
     if (code === 'BWP') {
       setRate(1);
       setRatesLoaded(true);
       return;
     }
 
-    var cancelled = false;
+    let cancelled = false;
+    setRatesLoaded(false);
 
-    fetchExchangeRates('bwp').then(function(rates) {
+    fetchRates().then((rates) => {
       if (cancelled) return;
-      if (rates) {
-        var targetCode = code.toLowerCase();
-        if (rates[targetCode]) {
-          console.log('Exchange rate BWP->' + code + ':', rates[targetCode]);
-          setRate(rates[targetCode]);
-          setRatesLoaded(true);
-        } else {
-          console.warn('No rate found for', code);
-          setRate(1);
-          setRatesLoaded(true);
-        }
+      if (rates && rates[code.toLowerCase()]) {
+        setRate(rates[code.toLowerCase()]);
       } else {
-        console.warn('Could not fetch exchange rates');
-        setRate(1);
-        setRatesLoaded(true);
+        setRate(1); // fallback: no conversion
       }
+      setRatesLoaded(true);
     });
 
-    return function() { cancelled = true; };
+    return () => { cancelled = true; };
   }, [code]);
 
-  // Convert BWP amount to display currency
-  var convertFromBWP = useCallback(function(bwpAmount) {
-    if (bwpAmount === null || bwpAmount === undefined || isNaN(bwpAmount)) return 0;
-    return parseFloat(bwpAmount) * rate;
-  }, [rate]);
-
-  // Format: convert from BWP then format with locale
-  var formatCurrency = useCallback(function(bwpAmount) {
+  const formatCurrency = useCallback((bwpAmount) => {
     if (bwpAmount === null || bwpAmount === undefined || isNaN(bwpAmount)) {
       return info.symbol + '0.00';
     }
-    var converted = parseFloat(bwpAmount) * rate;
-    return formatWithLocale(converted, info);
+    const converted = parseFloat(bwpAmount) * rate;
+    return formatNum(converted, info);
   }, [rate, info]);
 
-  var value = {
-    currencyCode: code,
-    currencyInfo: info,
-    formatCurrency: formatCurrency,
-    convertFromBWP: convertFromBWP,
-    symbol: info.symbol,
-    rate: rate,
-    ratesLoaded: ratesLoaded,
-  };
-
-  return React.createElement(
-    CurrencyContext.Provider,
-    { value: value },
-    props.children
+  return (
+    <CurrencyContext.Provider value={{
+      currencyCode: code,
+      currencyInfo: info,
+      formatCurrency,
+      symbol: info.symbol,
+      rate,
+      ratesLoaded,
+    }}>
+      {children}
+    </CurrencyContext.Provider>
   );
 };
