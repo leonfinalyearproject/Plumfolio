@@ -68,58 +68,167 @@ const Reports = () => {
 
   // PDF Export
   const exportPDF = () => {
-    const content = reportRef.current;
-    if (!content) return;
-    const printWindow = window.open('', '_blank');
-    printWindow.document.write(`
-      <html><head><title>Plumfolio Report - ${periodLabel}</title>
-      <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { font-family: 'Segoe UI', sans-serif; padding: 40px; color: #1a1a2e; background: white; }
-        h1 { font-size: 24px; margin-bottom: 4px; }
-        h2 { font-size: 16px; margin: 24px 0 12px; color: #6b21a8; border-bottom: 2px solid #6b21a8; padding-bottom: 4px; }
-        .subtitle { color: #666; font-size: 14px; margin-bottom: 24px; }
-        .stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 24px; }
-        .stat { padding: 16px; border: 1px solid #e5e7eb; border-radius: 8px; }
-        .stat-label { font-size: 11px; color: #888; text-transform: uppercase; letter-spacing: 0.05em; }
-        .stat-value { font-size: 20px; font-weight: 700; margin-top: 4px; }
-        .green { color: #16a34a; } .red { color: #dc2626; } .purple { color: #6b21a8; }
-        table { width: 100%; border-collapse: collapse; font-size: 13px; }
-        th { text-align: left; padding: 8px 12px; background: #f9fafb; border-bottom: 2px solid #e5e7eb; font-size: 11px; text-transform: uppercase; color: #888; }
-        td { padding: 8px 12px; border-bottom: 1px solid #f3f4f6; }
-        .right { text-align: right; }
-        .bar-container { height: 8px; background: #f3f4f6; border-radius: 4px; margin-top: 4px; }
-        .bar-fill { height: 100%; border-radius: 4px; background: #6b21a8; }
-        .footer { margin-top: 40px; text-align: center; font-size: 11px; color: #aaa; }
-      </style></head><body>
-        <h1>Plumfolio Financial Report</h1>
-        <p class="subtitle">${periodLabel} • Generated ${new Date().toLocaleDateString()}</p>
-        <div class="stats">
-          <div class="stat"><div class="stat-label">Income</div><div class="stat-value green">${formatCurrency(income)}</div></div>
-          <div class="stat"><div class="stat-label">Expenses</div><div class="stat-value red">${formatCurrency(expenses)}</div></div>
-          <div class="stat"><div class="stat-label">Net Savings</div><div class="stat-value ${net >= 0 ? 'green' : 'red'}">${formatCurrency(net)}</div></div>
-          <div class="stat"><div class="stat-label">Savings Rate</div><div class="stat-value purple">${savingsRate}%</div></div>
+    const allTxns = filtered.map(t => `
+      <tr>
+        <td>${new Date(t.date).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}</td>
+        <td>${t.description}</td>
+        <td><span class="cat-pill">${t.category}</span></td>
+        <td class="r ${t.type === 'income' ? 'green' : ''}">${t.type === 'income' ? '+' : '-'}${formatCurrency(t.amount)}</td>
+      </tr>`).join('');
+
+    const catRows = sortedCategories.map(([cat, amt], i) => {
+      const pct = expenses > 0 ? (amt / expenses * 100) : 0;
+      const colors = ['#7B2D8E', '#2563EB', '#D97706', '#059669', '#DC2626', '#8B5CF6', '#EC4899', '#14B8A6'];
+      return `<tr>
+        <td><span class="cat-dot" style="background:${colors[i % colors.length]}"></span>${cat}</td>
+        <td><div class="pbar"><div class="pfill" style="width:${pct}%;background:${colors[i % colors.length]}"></div></div></td>
+        <td class="r">${pct.toFixed(1)}%</td>
+        <td class="r b">${formatCurrency(amt)}</td>
+      </tr>`;
+    }).join('');
+
+    const incRows = sortedIncome.map(([desc, amt]) =>
+      `<tr><td>${desc}</td><td class="r b green">${formatCurrency(amt)}</td></tr>`
+    ).join('');
+
+    const w = window.open('', '_blank');
+    w.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8">
+<title>Plumfolio Report — ${periodLabel}</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'Inter',sans-serif;color:#1e1b2e;background:#fff;padding:0}
+.page{max-width:800px;margin:0 auto;padding:48px 40px}
+
+/* Header */
+.hdr{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:32px;padding-bottom:24px;border-bottom:3px solid #7B2D8E}
+.hdr-left h1{font-size:22px;font-weight:800;color:#7B2D8E;letter-spacing:-0.5px}
+.hdr-left p{font-size:12px;color:#888;margin-top:3px}
+.hdr-right{text-align:right}
+.hdr-right .period{font-size:16px;font-weight:700;color:#1e1b2e}
+.hdr-right .date{font-size:11px;color:#aaa;margin-top:2px}
+
+/* Summary strip */
+.strip{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:28px}
+.sbox{padding:16px;border-radius:10px;text-align:center}
+.sbox.inc{background:#f0fdf4;border:1px solid #bbf7d0}
+.sbox.exp{background:#fef2f2;border:1px solid #fecaca}
+.sbox.sav{background:#eff6ff;border:1px solid #bfdbfe}
+.sbox.rate{background:#faf5ff;border:1px solid #e9d5ff}
+.sbox .sl{font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.08em;color:#888;margin-bottom:4px}
+.sbox .sv{font-size:19px;font-weight:800}
+.sbox.inc .sv{color:#16a34a}.sbox.exp .sv{color:#dc2626}
+.sbox.sav .sv{color:#2563eb}.sbox.rate .sv{color:#7B2D8E}
+
+/* Section */
+.sec{margin-bottom:24px}
+.sec-title{font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:0.1em;color:#7B2D8E;margin-bottom:10px;display:flex;align-items:center;gap:8px}
+.sec-title:before{content:'';display:inline-block;width:4px;height:16px;background:#7B2D8E;border-radius:2px}
+
+/* Tables */
+table{width:100%;border-collapse:collapse;font-size:12px;margin-bottom:4px}
+th{text-align:left;padding:8px 10px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:#999;border-bottom:2px solid #eee}
+td{padding:8px 10px;border-bottom:1px solid #f5f5f5;vertical-align:middle}
+tr:last-child td{border-bottom:none}
+.r{text-align:right}.b{font-weight:700}
+.green{color:#16a34a}.red{color:#dc2626}
+
+/* Category pills & dots */
+.cat-pill{display:inline-block;padding:2px 8px;background:#f3f0ff;color:#7B2D8E;border-radius:10px;font-size:10px;font-weight:600}
+.cat-dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:6px;vertical-align:middle}
+
+/* Progress bars */
+.pbar{height:6px;background:#f3f3f3;border-radius:3px;overflow:hidden;min-width:120px}
+.pfill{height:100%;border-radius:3px;transition:width 0.3s}
+
+/* Two column layout */
+.cols{display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-bottom:24px}
+.col{background:#fafafa;border:1px solid #eee;border-radius:10px;padding:16px}
+.col h3{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:#666;margin-bottom:10px}
+
+/* Stats grid */
+.sgrid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.sitem{padding:10px;background:#fff;border:1px solid #eee;border-radius:8px}
+.sitem .sl2{font-size:10px;color:#999;text-transform:uppercase;letter-spacing:0.05em}
+.sitem .sv2{font-size:14px;font-weight:700;color:#1e1b2e;margin-top:2px}
+
+/* Footer */
+.ftr{margin-top:32px;padding-top:16px;border-top:2px solid #f3f3f3;display:flex;justify-content:space-between;align-items:center}
+.ftr-left{font-size:10px;color:#bbb}
+.ftr-right{font-size:10px;color:#bbb}
+.ftr-logo{font-weight:800;color:#7B2D8E;font-size:12px}
+
+@media print{
+  body{padding:0}
+  .page{padding:24px 20px}
+  .strip{gap:8px}
+  .sbox .sv{font-size:16px}
+}
+</style></head><body>
+<div class="page">
+  <div class="hdr">
+    <div class="hdr-left">
+      <h1>Plumfolio</h1>
+      <p>Personal Finance Report</p>
+    </div>
+    <div class="hdr-right">
+      <div class="period">${periodLabel}</div>
+      <div class="date">Generated ${new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}</div>
+    </div>
+  </div>
+
+  <div class="strip">
+    <div class="sbox inc"><div class="sl">Total Income</div><div class="sv">${formatCurrency(income)}</div></div>
+    <div class="sbox exp"><div class="sl">Total Expenses</div><div class="sv">${formatCurrency(expenses)}</div></div>
+    <div class="sbox sav"><div class="sl">Net Savings</div><div class="sv">${formatCurrency(net)}</div></div>
+    <div class="sbox rate"><div class="sl">Savings Rate</div><div class="sv">${savingsRate}%</div></div>
+  </div>
+
+  <div class="cols">
+    <div class="col">
+      <h3>Expense Breakdown</h3>
+      <table>${catRows || '<tr><td colspan="4" style="color:#ccc;text-align:center">No expenses</td></tr>'}</table>
+    </div>
+    <div class="col">
+      <h3>Income Sources</h3>
+      ${incRows ? `<table>${incRows}</table>` : '<p style="color:#ccc;text-align:center;font-size:12px">No income</p>'}
+      <div style="margin-top:16px">
+        <h3>Quick Stats</h3>
+        <div class="sgrid">
+          <div class="sitem"><div class="sl2">Transactions</div><div class="sv2">${filtered.length}</div></div>
+          <div class="sitem"><div class="sl2">Daily Average</div><div class="sv2">${formatCurrency(dailyAvg)}</div></div>
+          <div class="sitem"><div class="sl2">Largest Expense</div><div class="sv2">${topExpenses.length > 0 ? formatCurrency(topExpenses[0].amount) : 'N/A'}</div></div>
+          <div class="sitem"><div class="sl2">Top Category</div><div class="sv2">${topCategory ? topCategory[0] : 'N/A'}</div></div>
         </div>
-        <h2>Expense Breakdown by Category</h2>
-        <table>
-          <thead><tr><th>Category</th><th class="right">Amount</th><th class="right">% of Total</th></tr></thead>
-          <tbody>
-            ${sortedCategories.map(([cat, amt]) => `<tr><td>${cat}<div class="bar-container"><div class="bar-fill" style="width:${(amt/expenses*100).toFixed(0)}%"></div></div></td><td class="right">${formatCurrency(amt)}</td><td class="right">${(amt/expenses*100).toFixed(1)}%</td></tr>`).join('')}
-          </tbody>
-        </table>
-        ${sortedIncome.length > 0 ? `
-          <h2>Income Sources</h2>
-          <table><thead><tr><th>Source</th><th class="right">Amount</th></tr></thead>
-          <tbody>${sortedIncome.map(([desc, amt]) => `<tr><td>${desc}</td><td class="right">${formatCurrency(amt)}</td></tr>`).join('')}</tbody></table>
-        ` : ''}
-        <h2>Top 5 Expenses</h2>
-        <table><thead><tr><th>Date</th><th>Description</th><th>Category</th><th class="right">Amount</th></tr></thead>
-        <tbody>${topExpenses.map(t => `<tr><td>${t.date}</td><td>${t.description}</td><td>${t.category}</td><td class="right">${formatCurrency(t.amount)}</td></tr>`).join('')}</tbody></table>
-        <div class="footer">Generated by Plumfolio • ${new Date().toLocaleDateString()}</div>
-      </body></html>
-    `);
-    printWindow.document.close();
-    setTimeout(() => { printWindow.print(); }, 500);
+      </div>
+    </div>
+  </div>
+
+  ${topExpenses.length > 0 ? `
+  <div class="sec">
+    <div class="sec-title">Top 5 Largest Expenses</div>
+    <table>
+      <thead><tr><th>Date</th><th>Description</th><th>Category</th><th class="r">Amount</th></tr></thead>
+      <tbody>${topExpenses.map(t => `<tr><td>${new Date(t.date).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' })}</td><td>${t.description}</td><td><span class="cat-pill">${t.category}</span></td><td class="r b">${formatCurrency(t.amount)}</td></tr>`).join('')}</tbody>
+    </table>
+  </div>` : ''}
+
+  <div class="sec">
+    <div class="sec-title">All Transactions (${filtered.length})</div>
+    <table>
+      <thead><tr><th>Date</th><th>Description</th><th>Category</th><th class="r">Amount</th></tr></thead>
+      <tbody>${allTxns}</tbody>
+    </table>
+  </div>
+
+  <div class="ftr">
+    <div class="ftr-left"><span class="ftr-logo">Plumfolio</span> — AI-Powered Personal Finance</div>
+    <div class="ftr-right">Report generated ${new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })} at ${new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}</div>
+  </div>
+</div>
+</body></html>`);
+    w.document.close();
+    setTimeout(() => w.print(), 600);
   };
 
   if (loading) return <div className="reports-loading"><div className="spinner" /></div>;
