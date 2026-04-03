@@ -17,6 +17,8 @@ import Budgets from './pages/Budgets';
 import Analytics from './pages/Analytics';
 import Insights from './pages/Insights';
 import Settings from './pages/Settings';
+import Reports from './pages/Reports';
+import Reports from './pages/Reports';
 import DashboardLayout from './components/DashboardLayout';
 import AIInsightWidget from './components/AIInsightWidget';
 import MobileNav from './components/MobileNav';
@@ -87,7 +89,9 @@ function App() {
                 <Route path="/budgets" element={<ProtectedRoute><Budgets /></ProtectedRoute>} />
                 <Route path="/analytics" element={<ProtectedRoute><Analytics /></ProtectedRoute>} />
                 <Route path="/insights" element={<ProtectedRoute><Insights /></ProtectedRoute>} />
+                <Route path="/reports" element={<ProtectedRoute><Reports /></ProtectedRoute>} />
                 <Route path="/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
+                <Route path="/reports" element={<ProtectedRoute><Reports /></ProtectedRoute>} />
                 <Route path="*" element={<Navigate to="/" />} />
               </Routes>
               <GlobalAIWidget />
