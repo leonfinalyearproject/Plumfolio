@@ -25,7 +25,7 @@ import './Dashboard.css';
 ChartJS.register(ArcElement, Tooltip, Legend);
 
 const Dashboard = () => {
-  const { formatCurrency } = useCurrency();
+  const { formatCurrency, symbol } = useCurrency();
   const { user } = useAuth();
   const [stats, setStats] = useState({
     balance: 0,
@@ -177,7 +177,7 @@ const Dashboard = () => {
             const value = context.parsed;
             const total = context.dataset.data.reduce((a, b) => a + b, 0);
             const percentage = ((value / total) * 100).toFixed(1);
-            return `P${value.toFixed(2)} (${percentage}%)`;
+            return `${symbol}${value.toFixed(2)} (${percentage}%)`;
           }
         }
       },
