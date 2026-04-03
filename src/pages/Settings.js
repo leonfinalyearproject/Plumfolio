@@ -24,7 +24,7 @@ const Settings = () => {
   });
   const [currencySearch, setCurrencySearch] = useState('');
   const [saving, setSaving] = useState(false);
-  const [savingCurrency, setSavingCurrency] = useState(false);
+  const [switchingTo, setSwitchingTo] = useState(null);
   const [message, setMessage] = useState({ type: '', text: '' });
 
   const showMessage = (type, text) => {
@@ -37,9 +37,9 @@ const Settings = () => {
     try {
       const { error } = await updateProfile({ full_name: profileData.fullName });
       if (error) throw error;
-      showMessage('success', 'Profile updated successfully');
+      showMessage('success', 'Profile updated');
     } catch (error) {
-      showMessage('error', 'Failed to update profile: ' + error.message);
+      showMessage('error', 'Failed: ' + error.message);
     } finally {
       setSaving(false);
     }
@@ -57,26 +57,35 @@ const Settings = () => {
       const { error } = await updatePassword(passwordData.newPassword);
       if (error) throw error;
       setPasswordData({ currentPassword: '', newPassword: '', confirmPassword: '' });
-      showMessage('success', 'Password changed successfully');
+      showMessage('success', 'Password changed');
     } catch (error) {
-      showMessage('error', 'Failed to change password: ' + error.message);
+      showMessage('error', 'Failed: ' + error.message);
     } finally {
       setSaving(false);
     }
   };
 
-  // Auto-save currency on click — instant switch
   const handleCurrencySelect = async (code) => {
-    if (code === currencyCode || savingCurrency) return;
-    setSavingCurrency(true);
+    if (code === currencyCode || switchingTo) return;
+    
+    console.log('Switching currency from', currencyCode, 'to', code);
+    setSwitchingTo(code);
+    
     try {
-      const { error } = await updateProfile({ currency: code });
-      if (error) throw error;
-      showMessage('success', `Currency switched to ${code}`);
-    } catch (error) {
-      showMessage('error', 'Failed to update currency');
+      const result = await updateProfile({ currency: code });
+      console.log('Currency update result:', result);
+      
+      if (result.error) {
+        console.error('Currency update error:', result.error);
+        showMessage('error', 'Failed to switch currency');
+      } else {
+        showMessage('success', 'Switched to ' + code);
+      }
+    } catch (err) {
+      console.error('Currency switch exception:', err);
+      showMessage('error', 'Failed to switch currency');
     } finally {
-      setSavingCurrency(false);
+      setSwitchingTo(null);
     }
   };
 
@@ -86,11 +95,10 @@ const Settings = () => {
     c.symbol.toLowerCase().includes(currencySearch.toLowerCase())
   );
 
-  // Group currencies: active first, then African, then international
   const africanCodes = ['BWP', 'ZAR', 'NGN', 'KES', 'GHS', 'TZS', 'UGX', 'ZMW', 'NAD', 'MWK', 'LSL', 'SZL', 'EGP'];
-  const activeCurrency = filteredCurrencies.find(c => c.code === currencyCode);
-  const africanCurrencies = filteredCurrencies.filter(c => africanCodes.includes(c.code) && c.code !== currencyCode);
-  const internationalCurrencies = filteredCurrencies.filter(c => !africanCodes.includes(c.code) && c.code !== currencyCode);
+  const activeCurrency = CURRENCIES.find(c => c.code === currencyCode);
+  const africanList = filteredCurrencies.filter(c => africanCodes.includes(c.code) && c.code !== currencyCode);
+  const internationalList = filteredCurrencies.filter(c => !africanCodes.includes(c.code) && c.code !== currencyCode);
 
   const tabs = [
     { id: 'profile', label: 'Profile', icon: User },
@@ -99,27 +107,42 @@ const Settings = () => {
     { id: 'notifications', label: 'Notifications', icon: Bell },
   ];
 
+  const renderCurrencyItem = (c) => {
+    const isActive = c.code === currencyCode;
+    const isSwitching = c.code === switchingTo;
+    return (
+      <button
+        key={c.code}
+        className={`currency-item ${isActive ? 'active' : ''} ${isSwitching ? 'switching' : ''}`}
+        onClick={() => handleCurrencySelect(c.code)}
+        disabled={isActive || !!switchingTo}
+      >
+        <span className="currency-item-flag">{c.flag}</span>
+        <div className="currency-item-info">
+          <span className="currency-item-code">{c.code}</span>
+          <span className="currency-item-name">{c.name}</span>
+        </div>
+        <span className="currency-item-symbol">{c.symbol}</span>
+        {isActive && <Check size={16} className="currency-item-check" />}
+        {isSwitching && <span className="spinner" style={{ width: 16, height: 16 }} />}
+      </button>
+    );
+  };
+
   return (
     <div className="settings-page">
       <div className="settings-tabs">
         {tabs.map((tab) => (
-          <button
-            key={tab.id}
-            className={`settings-tab ${activeTab === tab.id ? 'active' : ''}`}
-            onClick={() => setActiveTab(tab.id)}
-          >
+          <button key={tab.id} className={`settings-tab ${activeTab === tab.id ? 'active' : ''}`} onClick={() => setActiveTab(tab.id)}>
             <tab.icon size={18} />
             <span>{tab.label}</span>
           </button>
         ))}
       </div>
 
-      {message.text && (
-        <div className={`settings-message ${message.type}`}>{message.text}</div>
-      )}
+      {message.text && <div className={`settings-message ${message.type}`}>{message.text}</div>}
 
       <div className="settings-content">
-        {/* ==================== PROFILE ==================== */}
         {activeTab === 'profile' && (
           <div className="settings-section">
             <div className="section-header">
@@ -136,115 +159,54 @@ const Settings = () => {
                 <input type="email" value={profileData.email} disabled />
               </div>
               <button className="save-btn" onClick={handleProfileSave} disabled={saving}>
-                {saving ? <span className="spinner" /> : <Save size={16} />}
-                Save Changes
+                {saving ? <span className="spinner" /> : <Save size={16} />} Save Changes
               </button>
             </div>
           </div>
         )}
 
-        {/* ==================== CURRENCY ==================== */}
         {activeTab === 'currency' && (
           <div className="settings-section">
             <div className="section-header">
               <h2>Currency</h2>
-              <p>Select your currency — changes apply instantly across all pages.</p>
+              <p>Tap a currency to switch — changes apply instantly everywhere.</p>
             </div>
 
-            {/* Preview */}
             <div className="currency-preview">
               <div className="currency-preview-amount">{formatCurrency(12345.67)}</div>
-              <div className="currency-preview-label">Preview with current currency</div>
+              <div className="currency-preview-label">
+                {activeCurrency ? `${activeCurrency.flag} ${activeCurrency.code} — ${activeCurrency.name}` : 'Botswana Pula'}
+              </div>
             </div>
 
-            {/* Search */}
             <div className="currency-search-box">
               <Search size={15} />
-              <input
-                type="text"
-                placeholder="Search by name, code, or symbol..."
-                value={currencySearch}
-                onChange={(e) => setCurrencySearch(e.target.value)}
-              />
+              <input type="text" placeholder="Search currencies..." value={currencySearch} onChange={(e) => setCurrencySearch(e.target.value)} />
             </div>
 
-            {savingCurrency && (
-              <div className="currency-saving">
-                <span className="spinner" /> Switching currency...
-              </div>
-            )}
-
-            {/* Active currency */}
-            {activeCurrency && !currencySearch && (
+            {!currencySearch && activeCurrency && (
               <div className="currency-group">
-                <div className="currency-group-label">Active</div>
-                <div className="currency-list">
-                  <div className="currency-item active">
-                    <span className="currency-item-flag">{activeCurrency.flag}</span>
-                    <div className="currency-item-info">
-                      <span className="currency-item-code">{activeCurrency.code}</span>
-                      <span className="currency-item-name">{activeCurrency.name}</span>
-                    </div>
-                    <span className="currency-item-symbol">{activeCurrency.symbol}</span>
-                    <Check size={16} className="currency-item-check" />
-                  </div>
-                </div>
+                <div className="currency-group-label">Current</div>
+                <div className="currency-list">{renderCurrencyItem(activeCurrency)}</div>
               </div>
             )}
 
-            {/* African currencies */}
-            {africanCurrencies.length > 0 && (
+            {africanList.length > 0 && (
               <div className="currency-group">
-                {!currencySearch && <div className="currency-group-label">African Currencies</div>}
-                <div className="currency-list">
-                  {africanCurrencies.map((c) => (
-                    <button
-                      key={c.code}
-                      className={`currency-item ${currencyCode === c.code ? 'active' : ''}`}
-                      onClick={() => handleCurrencySelect(c.code)}
-                      disabled={savingCurrency}
-                    >
-                      <span className="currency-item-flag">{c.flag}</span>
-                      <div className="currency-item-info">
-                        <span className="currency-item-code">{c.code}</span>
-                        <span className="currency-item-name">{c.name}</span>
-                      </div>
-                      <span className="currency-item-symbol">{c.symbol}</span>
-                      {currencyCode === c.code && <Check size={16} className="currency-item-check" />}
-                    </button>
-                  ))}
-                </div>
+                {!currencySearch && <div className="currency-group-label">African</div>}
+                <div className="currency-list">{africanList.map(renderCurrencyItem)}</div>
               </div>
             )}
 
-            {/* International currencies */}
-            {internationalCurrencies.length > 0 && (
+            {internationalList.length > 0 && (
               <div className="currency-group">
                 {!currencySearch && <div className="currency-group-label">International</div>}
-                <div className="currency-list">
-                  {internationalCurrencies.map((c) => (
-                    <button
-                      key={c.code}
-                      className={`currency-item ${currencyCode === c.code ? 'active' : ''}`}
-                      onClick={() => handleCurrencySelect(c.code)}
-                      disabled={savingCurrency}
-                    >
-                      <span className="currency-item-flag">{c.flag}</span>
-                      <div className="currency-item-info">
-                        <span className="currency-item-code">{c.code}</span>
-                        <span className="currency-item-name">{c.name}</span>
-                      </div>
-                      <span className="currency-item-symbol">{c.symbol}</span>
-                      {currencyCode === c.code && <Check size={16} className="currency-item-check" />}
-                    </button>
-                  ))}
-                </div>
+                <div className="currency-list">{internationalList.map(renderCurrencyItem)}</div>
               </div>
             )}
           </div>
         )}
 
-        {/* ==================== SECURITY ==================== */}
         {activeTab === 'security' && (
           <div className="settings-section">
             <div className="section-header">
@@ -254,43 +216,38 @@ const Settings = () => {
             <div className="settings-form">
               <div className="form-group">
                 <label><Lock size={14} /> Current Password</label>
-                <input type="password" value={passwordData.currentPassword} onChange={(e) => setPasswordData({ ...passwordData, currentPassword: e.target.value })} placeholder="Enter current password" />
+                <input type="password" value={passwordData.currentPassword} onChange={(e) => setPasswordData({ ...passwordData, currentPassword: e.target.value })} placeholder="Current password" />
               </div>
               <div className="form-group">
                 <label><Lock size={14} /> New Password</label>
-                <input type="password" value={passwordData.newPassword} onChange={(e) => setPasswordData({ ...passwordData, newPassword: e.target.value })} placeholder="Enter new password" />
+                <input type="password" value={passwordData.newPassword} onChange={(e) => setPasswordData({ ...passwordData, newPassword: e.target.value })} placeholder="New password" />
               </div>
               <div className="form-group">
                 <label><Lock size={14} /> Confirm Password</label>
-                <input type="password" value={passwordData.confirmPassword} onChange={(e) => setPasswordData({ ...passwordData, confirmPassword: e.target.value })} placeholder="Confirm new password" />
+                <input type="password" value={passwordData.confirmPassword} onChange={(e) => setPasswordData({ ...passwordData, confirmPassword: e.target.value })} placeholder="Confirm password" />
               </div>
               <button className="save-btn" onClick={handlePasswordChange} disabled={saving}>
-                {saving ? <span className="spinner" /> : <Shield size={16} />}
-                Update Password
+                {saving ? <span className="spinner" /> : <Shield size={16} />} Update Password
               </button>
             </div>
             <div className="danger-zone">
-              <div className="section-header">
-                <h2>Danger Zone</h2>
-                <p>Permanently delete your account and all data.</p>
-              </div>
+              <div className="section-header"><h2>Danger Zone</h2><p>Permanently delete your account.</p></div>
               <button className="delete-btn"><Trash2 size={16} /> Delete Account</button>
             </div>
           </div>
         )}
 
-        {/* ==================== NOTIFICATIONS ==================== */}
         {activeTab === 'notifications' && (
           <div className="settings-section">
             <div className="section-header">
               <h2>Notifications</h2>
-              <p>Control what notifications you receive.</p>
+              <p>Control what you receive.</p>
             </div>
             <div className="notification-options">
               {[
-                { key: 'budgetAlerts', title: 'Budget Alerts', desc: 'Notified when approaching budget limits' },
-                { key: 'weeklyReport', title: 'Weekly Summary', desc: 'Weekly spending summary' },
-                { key: 'monthlyReport', title: 'Monthly Report', desc: 'Detailed monthly financial report' },
+                { key: 'budgetAlerts', title: 'Budget Alerts', desc: 'When approaching budget limits' },
+                { key: 'weeklyReport', title: 'Weekly Summary', desc: 'Weekly spending overview' },
+                { key: 'monthlyReport', title: 'Monthly Report', desc: 'Detailed monthly report' },
               ].map(({ key, title, desc }) => (
                 <div key={key} className="notification-item">
                   <div className="notification-info">
