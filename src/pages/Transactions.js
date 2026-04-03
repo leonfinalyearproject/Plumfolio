@@ -112,7 +112,7 @@ const Transactions = () => {
   useEffect(() => {
     const t = setTimeout(() => setLoading(false), 6000);
     if (user) {
-      fetchTransactions().catch(() => setLoading(false));
+      setTimeout(() => { fetchTransactions().catch(() => setLoading(false)); }, 500);
     } else {
       setLoading(false);
     }

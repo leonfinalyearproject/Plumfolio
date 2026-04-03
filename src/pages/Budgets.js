@@ -33,7 +33,7 @@ const Budgets = () => {
   useEffect(() => {
     const t = setTimeout(() => setLoading(false), 6000);
     if (user) {
-      fetchBudgets().catch(() => setLoading(false));
+      setTimeout(() => { fetchBudgets().catch(() => setLoading(false)); }, 500);
     } else {
       setLoading(false);
     }

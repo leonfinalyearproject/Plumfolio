@@ -42,7 +42,7 @@ const Dashboard = () => {
   useEffect(() => {
     const t = setTimeout(() => setLoading(false), 6000);
     if (user) {
-      fetchData().catch(() => setLoading(false));
+      setTimeout(() => { fetchData().catch(() => setLoading(false)); }, 500);
     } else {
       setLoading(false);
     }
