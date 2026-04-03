@@ -1,5 +1,5 @@
 import React from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { SlideshowProvider } from './context/SlideshowContext';
 import { InsightsProvider } from './context/InsightsContext';
@@ -54,13 +54,17 @@ const ProtectedRoute = ({ children }) => {
 
 const GlobalAIWidget = () => {
   const { user } = useAuth();
-  if (!user) return null;
+  const location = useLocation();
+  const authPages = ['/', '/signin', '/signup', '/verified', '/forgot-password', '/reset-password'];
+  if (!user || authPages.includes(location.pathname)) return null;
   return <AIInsightWidget />;
 };
 
 const GlobalMobileNav = () => {
   const { user } = useAuth();
-  if (!user) return null;
+  const location = useLocation();
+  const authPages = ['/', '/signin', '/signup', '/verified', '/forgot-password', '/reset-password'];
+  if (!user || authPages.includes(location.pathname)) return null;
   return <MobileNav />;
 };
 
