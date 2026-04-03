@@ -9,6 +9,8 @@ import Landing from './pages/Landing';
 import SignUp from './pages/SignUp';
 import SignIn from './pages/SignIn';
 import EmailVerified from './pages/EmailVerified';
+import ForgotPassword from './pages/ForgotPassword';
+import ResetPassword from './pages/ResetPassword';
 import Dashboard from './pages/Dashboard';
 import Transactions from './pages/Transactions';
 import Budgets from './pages/Budgets';
@@ -74,6 +76,8 @@ function App() {
                 <Route path="/signup" element={<SignUp />} />
                 <Route path="/signin" element={<SignIn />} />
                 <Route path="/verified" element={<EmailVerified />} />
+                <Route path="/forgot-password" element={<ForgotPassword />} />
+                <Route path="/reset-password" element={<ResetPassword />} />
                 <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
                 <Route path="/transactions" element={<ProtectedRoute><Transactions /></ProtectedRoute>} />
                 <Route path="/budgets" element={<ProtectedRoute><Budgets /></ProtectedRoute>} />
