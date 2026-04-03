@@ -1,9 +1,9 @@
-// src/App.js
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { SlideshowProvider } from './context/SlideshowContext';
 import { InsightsProvider } from './context/InsightsContext';
+import { CurrencyProvider } from './context/CurrencyContext';
 
 import Landing from './pages/Landing';
 import SignUp from './pages/SignUp';
@@ -24,8 +24,31 @@ import './styles/mobile.css';
 
 const ProtectedRoute = ({ children }) => {
   const { user, loading } = useAuth();
-  if (loading) return null;
+
+  if (loading) {
+    return (
+      <div style={{
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        minHeight: '100vh',
+        background: '#030305',
+      }}>
+        <div style={{
+          width: 28,
+          height: 28,
+          border: '2px solid rgba(168,85,247,0.15)',
+          borderTopColor: '#A855F7',
+          borderRadius: '50%',
+          animation: 'spin 0.6s linear infinite',
+        }} />
+        <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
+      </div>
+    );
+  }
+
   if (!user) return <Navigate to="/signin" />;
+
   return (
     <DashboardLayout>
       {children}
@@ -49,25 +72,27 @@ function App() {
   return (
     <Router basename="/Plumfolio">
       <AuthProvider>
-        <SlideshowProvider>
-          <InsightsProvider>
-            <Routes>
-              <Route path="/" element={<Landing />} />
-              <Route path="/signup" element={<SignUp />} />
-              <Route path="/signin" element={<SignIn />} />
-              <Route path="/verified" element={<EmailVerified />} />
-              <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
-              <Route path="/transactions" element={<ProtectedRoute><Transactions /></ProtectedRoute>} />
-              <Route path="/budgets" element={<ProtectedRoute><Budgets /></ProtectedRoute>} />
-              <Route path="/analytics" element={<ProtectedRoute><Analytics /></ProtectedRoute>} />
-              <Route path="/insights" element={<ProtectedRoute><Insights /></ProtectedRoute>} />
-              <Route path="/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
-              <Route path="*" element={<Navigate to="/" />} />
-            </Routes>
-            <GlobalAIWidget />
-            <GlobalMobileNav />
-          </InsightsProvider>
-        </SlideshowProvider>
+        <CurrencyProvider>
+          <SlideshowProvider>
+            <InsightsProvider>
+              <Routes>
+                <Route path="/" element={<Landing />} />
+                <Route path="/signup" element={<SignUp />} />
+                <Route path="/signin" element={<SignIn />} />
+                <Route path="/verified" element={<EmailVerified />} />
+                <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
+                <Route path="/transactions" element={<ProtectedRoute><Transactions /></ProtectedRoute>} />
+                <Route path="/budgets" element={<ProtectedRoute><Budgets /></ProtectedRoute>} />
+                <Route path="/analytics" element={<ProtectedRoute><Analytics /></ProtectedRoute>} />
+                <Route path="/insights" element={<ProtectedRoute><Insights /></ProtectedRoute>} />
+                <Route path="/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
+                <Route path="*" element={<Navigate to="/" />} />
+              </Routes>
+              <GlobalAIWidget />
+              <GlobalMobileNav />
+            </InsightsProvider>
+          </SlideshowProvider>
+        </CurrencyProvider>
       </AuthProvider>
     </Router>
   );
