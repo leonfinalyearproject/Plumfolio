@@ -2,6 +2,7 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 import { useAuth } from './AuthContext';
 import { supabase } from '../lib/supabase';
+import { getAuthUserId } from '../lib/supabaseHelper';
 import { generateInsights } from '../utils/insightsEngine';
 import { generatePredictions } from '../utils/predictionsEngine';
 
@@ -48,13 +49,16 @@ export const InsightsProvider = ({ children }) => {
   }, []);
 
   // Main fetch + analyse function
-  const fetchAndAnalyse = useCallback(async (userId) => {
-    if (!userId) {
+  const fetchAndAnalyse = useCallback(async (passedUserId) => {
+    if (!passedUserId) {
       setLoading(false);
       return;
     }
 
     try {
+      // Get fresh auth token before querying
+      const userId = await getAuthUserId() || passedUserId;
+
       const [txnRes, budgetRes] = await Promise.all([
         supabase
           .from('transactions')
@@ -127,7 +131,6 @@ export const InsightsProvider = ({ children }) => {
 
   // Initial load + re-load when user changes
   useEffect(() => {
-    const loadTimeout = setTimeout(() => setLoading(false), 10000);
     if (user?.id) {
       setLoading(true);
       fetchAndAnalyse(user.id);
@@ -139,7 +142,6 @@ export const InsightsProvider = ({ children }) => {
       setLoading(false);
       prevInsightsRef.current = null;
     }
-    return () => clearTimeout(loadTimeout);
   }, [user?.id, fetchAndAnalyse]);
 
   // Real-time subscription + polling fallback
