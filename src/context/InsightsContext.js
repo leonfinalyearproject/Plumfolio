@@ -56,8 +56,9 @@ export const InsightsProvider = ({ children }) => {
 
     try {
       // Get fresh auth token before querying
-      const { data: { session: _s } } = await supabase.auth.getSession();
-      const userId = _s ? _s.user.id : passedUserId;
+      const { data: { session: _s2 } } = await supabase.auth.getSession();
+      const userId = _s2 ? _s2.user.id : passedUserId;
+      console.log('[INSIGHTS] userId:', userId);
 
       const [txnRes, budgetRes] = await Promise.all([
         supabase
@@ -127,7 +128,7 @@ export const InsightsProvider = ({ children }) => {
   // Track user ID in ref
   useEffect(() => {
     userIdRef.current = user?.id || null;
-  }, [user]);
+  }, [user?.id]);
 
   // Initial load + re-load when user changes
   useEffect(() => {

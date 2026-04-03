@@ -6,6 +6,7 @@ export const useAuth = () => useContext(AuthContext);
 
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
+  console.log("[AUTH] Provider rendered, loading:", true);
   const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState(true);
 
@@ -28,7 +29,7 @@ export const AuthProvider = ({ children }) => {
         // Force token refresh
         const { data: { user: freshUser } } = await supabase.auth.getUser();
         if (mounted && freshUser) {
-          setUser(freshUser);
+          setUser(freshUser); console.log("[AUTH] User set from getUser:", freshUser.id);
           await fetchProfileById(freshUser.id);
         }
       } catch (e) { console.error('Auth init:', e); }
