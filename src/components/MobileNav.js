@@ -4,7 +4,7 @@ import { NavLink, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import {
   LayoutDashboard, ArrowLeftRight, Target, BarChart3,
-  Brain, Settings, LogOut
+  Brain, Settings, LogOut, FileText
 } from 'lucide-react';
 
 const MobileNav = () => {
@@ -30,7 +30,8 @@ const MobileNav = () => {
     { path: '/budgets', label: 'Budgets', icon: Target },
     { path: '/analytics', label: 'Stats', icon: BarChart3 },
     { path: '/insights', label: 'AI', icon: Brain },
-    { path: '/settings', label: 'Settings', icon: Settings },
+    { path: '/reports', label: 'Reports', icon: FileText },
+    { path: '/settings', label: 'More', icon: Settings },
   ];
 
   return (
