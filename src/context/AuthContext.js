@@ -11,7 +11,6 @@ export const AuthProvider = ({ children }) => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Clear any existing session on app load - require fresh sign in
     const clearSessionOnLoad = async () => {
       try {
         await supabase.auth.signOut();
@@ -26,7 +25,6 @@ export const AuthProvider = ({ children }) => {
 
     clearSessionOnLoad();
 
-    // Listen for auth changes during this session
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       console.log('Auth event:', event);
 
@@ -44,17 +42,28 @@ export const AuthProvider = ({ children }) => {
     return () => subscription.unsubscribe();
   }, []);
 
-  // Fetch user profile from profiles table
+  // Fetch user profile — fixed to handle 406 errors
   const fetchProfile = async (userId) => {
     try {
+      // Use maybeSingle() instead of single() to avoid 406 when no row exists
       const { data, error } = await supabase
         .from('profiles')
         .select('*')
         .eq('id', userId)
-        .single();
+        .maybeSingle();
 
-      if (error && error.code !== 'PGRST116') {
+      if (error) {
         console.error('Error fetching profile:', error);
+        // Fallback: try without maybeSingle
+        const { data: fallbackData } = await supabase
+          .from('profiles')
+          .select('*')
+          .eq('id', userId);
+        
+        if (fallbackData && fallbackData.length > 0) {
+          setProfile(fallbackData[0]);
+          return;
+        }
       }
       
       setProfile(data || null);
@@ -109,10 +118,8 @@ export const AuthProvider = ({ children }) => {
   const signOut = async () => {
     try {
       const { error } = await supabase.auth.signOut();
-      
       setUser(null);
       setProfile(null);
-      
       if (error) throw error;
       return { error: null };
     } catch (error) {
@@ -120,19 +127,41 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  // Update profile
+  // Update profile — optimistically updates state, then syncs with DB
   const updateProfile = async (updates) => {
     try {
+      // Optimistically update local state immediately for instant UI feedback
+      setProfile(prev => prev ? { ...prev, ...updates } : updates);
+
       const { data, error } = await supabase
         .from('profiles')
         .update(updates)
         .eq('id', user.id)
         .select()
-        .single();
+        .maybeSingle();
 
-      if (error) throw error;
-      setProfile(data);
-      return { data, error: null };
+      if (error) {
+        // If select fails but update succeeded, try fetching fresh
+        console.error('Profile update select error:', error);
+        // Try update without select
+        const { error: updateError } = await supabase
+          .from('profiles')
+          .update(updates)
+          .eq('id', user.id);
+        
+        if (updateError) {
+          // Revert optimistic update
+          await fetchProfile(user.id);
+          throw updateError;
+        }
+        // Update succeeded, keep optimistic state
+        return { data: { ...profile, ...updates }, error: null };
+      }
+
+      if (data) {
+        setProfile(data);
+      }
+      return { data: data || { ...profile, ...updates }, error: null };
     } catch (error) {
       return { data: null, error };
     }
