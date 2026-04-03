@@ -6,7 +6,6 @@ export const useAuth = () => useContext(AuthContext);
 
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
-  console.log("[AUTH] Provider rendered, loading:", true);
   const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState(true);
 
@@ -18,40 +17,35 @@ export const AuthProvider = ({ children }) => {
   };
 
   useEffect(() => {
-    let mounted = true;
-    const timeout = setTimeout(() => { if (mounted) setLoading(false); }, 5000);
+    // Get session from localStorage — instant, no network call
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session?.user) {
+        console.log('[AUTH] Session found:', session.user.id);
+        setUser(session.user);
+        fetchProfileById(session.user.id);
+      } else {
+        console.log('[AUTH] No session');
+      }
+      setLoading(false);
+    });
 
-    const init = async () => {
-      try {
-        const { data: { session } } = await supabase.auth.getSession();
-        if (!session) { if (mounted) setLoading(false); return; }
-
-        // Force token refresh
-        const { data: { user: freshUser } } = await supabase.auth.getUser();
-        if (mounted && freshUser) {
-          setUser(freshUser); console.log("[AUTH] User set from getUser:", freshUser.id);
-          await fetchProfileById(freshUser.id);
+    // Listen for auth changes
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      console.log('[AUTH]', event);
+      if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
+        if (session?.user) {
+          setUser(session.user);
+          fetchProfileById(session.user.id);
         }
-      } catch (e) { console.error('Auth init:', e); }
-      if (mounted) setLoading(false);
-    };
-
-    init();
-
-    const { data: listener } = supabase.auth.onAuthStateChange(async (event, session) => {
-      if (!mounted) return;
-      console.log('Auth:', event);
-      if (event === 'SIGNED_IN') {
-        if (session?.user) { setUser(session.user); await fetchProfileById(session.user.id); }
         setLoading(false);
-      } else if (event === 'TOKEN_REFRESHED') {
-        if (session?.user) setUser(session.user);
       } else if (event === 'SIGNED_OUT') {
-        setUser(null); setProfile(null); setLoading(false);
+        setUser(null);
+        setProfile(null);
+        setLoading(false);
       }
     });
 
-    return () => { mounted = false; clearTimeout(timeout); listener?.subscription?.unsubscribe(); };
+    return () => subscription.unsubscribe();
   }, []);
 
   const fetchProfile = useCallback(async (id) => { await fetchProfileById(id); }, []);
@@ -59,7 +53,8 @@ export const AuthProvider = ({ children }) => {
   const signUp = async (email, password, fullName) => {
     try {
       const { data, error } = await supabase.auth.signUp({ email, password, options: { data: { full_name: fullName } } });
-      if (error) throw error; return { data, error: null };
+      if (error) throw error;
+      return { data, error: null };
     } catch (error) { return { data: null, error }; }
   };
 
@@ -74,7 +69,8 @@ export const AuthProvider = ({ children }) => {
 
   const signOut = async () => {
     try { await supabase.auth.signOut(); } catch (e) {}
-    setUser(null); setProfile(null); return { error: null };
+    setUser(null); setProfile(null);
+    return { error: null };
   };
 
   const updateProfile = async (updates) => {
@@ -93,7 +89,8 @@ export const AuthProvider = ({ children }) => {
   const updatePassword = async (pw) => {
     try {
       const { data, error } = await supabase.auth.updateUser({ password: pw });
-      if (error) throw error; return { data, error: null };
+      if (error) throw error;
+      return { data, error: null };
     } catch (error) { return { data: null, error }; }
   };
 
