@@ -127,6 +127,7 @@ export const InsightsProvider = ({ children }) => {
 
   // Initial load + re-load when user changes
   useEffect(() => {
+    const loadTimeout = setTimeout(() => setLoading(false), 10000);
     if (user?.id) {
       setLoading(true);
       fetchAndAnalyse(user.id);
@@ -138,6 +139,7 @@ export const InsightsProvider = ({ children }) => {
       setLoading(false);
       prevInsightsRef.current = null;
     }
+    return () => clearTimeout(loadTimeout);
   }, [user?.id, fetchAndAnalyse]);
 
   // Real-time subscription + polling fallback
