@@ -48,11 +48,8 @@ const Dashboard = () => {
 
   const fetchData = async () => {
     try {
-      // v2 fix: use getSession directly
-      const { data: { session: _s } } = await supabase.auth.getSession();
-      const userId = _s ? _s.user.id : user?.id;
-      console.log('[FETCH] userId:', userId, 'session:', !!_s);
-      if (!userId) { console.log('[FETCH] No userId, stopping'); setLoading(false); return; }
+      const userId = user.id;
+      console.log('[FETCH] using user.id:', userId);
       // Fetch recent transactions
       const { data: recentTransactions } = await supabase
         .from('transactions')
