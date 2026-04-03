@@ -1,29 +1,6 @@
 // src/context/CurrencyContext.js
-import React, { createContext, useContext, useMemo, useCallback } from 'react';
+import React, { createContext, useContext } from 'react';
 import { useAuth } from './AuthContext';
-
-// Default BWP formatter — always works, never undefined
-const defaultFormat = (amount) => {
-  if (amount === null || amount === undefined || isNaN(amount)) return 'P0.00';
-  try {
-    return new Intl.NumberFormat('en-BW', {
-      style: 'currency', currency: 'BWP',
-      minimumFractionDigits: 2, maximumFractionDigits: 2,
-    }).format(parseFloat(amount)).replace('BWP', 'P').replace(/\s+/g, '');
-  } catch {
-    return 'P' + Math.abs(parseFloat(amount)).toFixed(2);
-  }
-};
-
-// Context with safe defaults so useCurrency() never returns undefined functions
-const CurrencyContext = createContext({
-  currencyCode: 'BWP',
-  currencyInfo: { code: 'BWP', symbol: 'P', name: 'Botswana Pula', locale: 'en-BW', flag: '🇧🇼' },
-  formatCurrency: defaultFormat,
-  symbol: 'P',
-});
-
-export const useCurrency = () => useContext(CurrencyContext);
 
 export const CURRENCIES = [
   { code: 'BWP', symbol: 'P', name: 'Botswana Pula', locale: 'en-BW', flag: '🇧🇼' },
@@ -55,47 +32,65 @@ export const getCurrencyInfo = (code) => {
   return CURRENCIES.find(c => c.code === code) || CURRENCIES[0];
 };
 
+// Standalone format function — no hooks, no closures
+export const formatAmount = (amount, currencyCode) => {
+  const info = getCurrencyInfo(currencyCode);
+  if (amount === null || amount === undefined || isNaN(amount)) {
+    return info.symbol + '0.00';
+  }
+  const num = parseFloat(amount);
+  const noDecimals = currencyCode === 'JPY' || currencyCode === 'UGX';
+  try {
+    const formatted = new Intl.NumberFormat(info.locale, {
+      style: 'currency',
+      currency: info.code,
+      minimumFractionDigits: noDecimals ? 0 : 2,
+      maximumFractionDigits: noDecimals ? 0 : 2,
+    }).format(num);
+    if (info.code === 'BWP') {
+      return formatted.replace('BWP', 'P').replace(/\s+/g, '');
+    }
+    return formatted;
+  } catch (err) {
+    const abs = Math.abs(num);
+    const sign = num < 0 ? '-' : '';
+    if (noDecimals) {
+      return sign + info.symbol + Math.round(abs).toLocaleString();
+    }
+    return sign + info.symbol + abs.toFixed(2);
+  }
+};
+
+// Default format for BWP
+const defaultFormat = (amount) => formatAmount(amount, 'BWP');
+
+const CurrencyContext = createContext({
+  currencyCode: 'BWP',
+  currencyInfo: CURRENCIES[0],
+  formatCurrency: defaultFormat,
+  symbol: 'P',
+});
+
+export const useCurrency = () => useContext(CurrencyContext);
+
 export const CurrencyProvider = ({ children }) => {
   const { profile } = useAuth();
-  const currencyCode = profile?.currency || 'BWP';
-  const currencyInfo = useMemo(() => getCurrencyInfo(currencyCode), [currencyCode]);
-
-  const formatCurrency = useCallback((amount) => {
-    if (amount === null || amount === undefined || isNaN(amount)) return currencyInfo.symbol + '0.00';
-    const num = parseFloat(amount);
-    const noDecimals = ['JPY', 'UGX'].includes(currencyInfo.code);
-
-    try {
-      const formatted = new Intl.NumberFormat(currencyInfo.locale, {
-        style: 'currency',
-        currency: currencyInfo.code,
-        minimumFractionDigits: noDecimals ? 0 : 2,
-        maximumFractionDigits: noDecimals ? 0 : 2,
-      }).format(num);
-
-      if (currencyInfo.code === 'BWP') {
-        return formatted.replace('BWP', 'P').replace(/\s+/g, '');
-      }
-      return formatted;
-    } catch (e) {
-      const abs = Math.abs(num);
-      const sign = num < 0 ? '-' : '';
-      const f = noDecimals
-        ? abs.toLocaleString()
-        : abs.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-      return sign + currencyInfo.symbol + f;
-    }
-  }, [currencyInfo]);
-
-  const value = useMemo(() => ({
-    currencyCode,
-    currencyInfo,
-    formatCurrency,
-    symbol: currencyInfo.symbol,
-  }), [currencyCode, currencyInfo, formatCurrency]);
+  
+  // Read currency from profile — this updates when profile state changes
+  const code = (profile && profile.currency) || 'BWP';
+  const info = getCurrencyInfo(code);
+  
+  // Build formatter for current currency — new function each render is fine
+  // because it ensures we always use the latest currency code
+  const formatCurrency = (amount) => formatAmount(amount, code);
 
   return (
-    <CurrencyContext.Provider value={value}>
+    <CurrencyContext.Provider value={{
+      currencyCode: code,
+      currencyInfo: info,
+      formatCurrency: formatCurrency,
+      symbol: info.symbol,
+    }}>
       {children}
     </CurrencyContext.Provider>
   );
