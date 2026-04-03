@@ -55,7 +55,9 @@ export const InsightsProvider = ({ children }) => {
     }
 
     try {
-      const userId = passedUserId;
+      // Get fresh session to ensure valid token
+      const { data: { session } } = await supabase.auth.getSession();
+      const userId = session ? session.user.id : passedUserId;
 
       const [txnRes, budgetRes] = await Promise.all([
         supabase
@@ -129,7 +131,6 @@ export const InsightsProvider = ({ children }) => {
 
   // Initial load + re-load when user changes
   useEffect(() => {
-    const t = setTimeout(() => setLoading(false), 10000);
     if (user?.id) {
       setLoading(true);
       fetchAndAnalyse(user.id);
@@ -141,7 +142,6 @@ export const InsightsProvider = ({ children }) => {
       setLoading(false);
       prevInsightsRef.current = null;
     }
-    return () => clearTimeout(t);
   }, [user?.id, fetchAndAnalyse]);
 
   // Real-time subscription + polling fallback
