@@ -40,6 +40,7 @@ const Dashboard = () => {
   const userName = user?.user_metadata?.full_name?.split(' ')[0] || 'there';
 
   useEffect(() => {
+    console.log("[EFFECT] user:", user?.id, "user obj:", !!user);
     if (user) {
       fetchData();
     }
@@ -47,9 +48,11 @@ const Dashboard = () => {
 
   const fetchData = async () => {
     try {
+      // v2 fix: use getSession directly
       const { data: { session: _s } } = await supabase.auth.getSession();
       const userId = _s ? _s.user.id : user?.id;
-      if (!userId) { setLoading(false); return; }
+      console.log('[FETCH] userId:', userId, 'session:', !!_s);
+      if (!userId) { console.log('[FETCH] No userId, stopping'); setLoading(false); return; }
       // Fetch recent transactions
       const { data: recentTransactions } = await supabase
         .from('transactions')

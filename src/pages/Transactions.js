@@ -85,6 +85,7 @@ const Transactions = () => {
 
   // Check mobile
   useEffect(() => {
+    console.log("[EFFECT] user:", user?.id, "user obj:", !!user);
     const check = () => {
       const mobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
       const touch = 'ontouchstart' in window;
@@ -97,6 +98,7 @@ const Transactions = () => {
 
   // Load Tesseract lazily when scanner opens
   useEffect(() => {
+    console.log("[EFFECT] user:", user?.id, "user obj:", !!user);
     if (!scannerOpen) return;
     if (window.Tesseract) {
       setTesseractReady(true);
@@ -110,6 +112,7 @@ const Transactions = () => {
   }, [scannerOpen]);
 
   useEffect(() => {
+    console.log("[EFFECT] user:", user?.id, "user obj:", !!user);
     if (user) {
       fetchTransactions();
     }
@@ -117,9 +120,11 @@ const Transactions = () => {
 
   const fetchTransactions = async () => {
     try {
+      // v2 fix: use getSession directly
       const { data: { session: _s } } = await supabase.auth.getSession();
       const userId = _s ? _s.user.id : user?.id;
-      if (!userId) { setLoading(false); return; }
+      console.log('[FETCH] userId:', userId, 'session:', !!_s);
+      if (!userId) { console.log('[FETCH] No userId, stopping'); setLoading(false); return; }
       const { data, error } = await supabase
         .from('transactions')
         .select('*')

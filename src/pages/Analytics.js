@@ -40,6 +40,7 @@ const Analytics = () => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    console.log("[EFFECT] user:", user?.id, "user obj:", !!user);
     if (user) {
       fetchTransactions();
     }
@@ -47,9 +48,11 @@ const Analytics = () => {
 
   const fetchTransactions = async () => {
     try {
+      // v2 fix: use getSession directly
       const { data: { session: _s } } = await supabase.auth.getSession();
       const userId = _s ? _s.user.id : user?.id;
-      if (!userId) { setLoading(false); return; }
+      console.log('[FETCH] userId:', userId, 'session:', !!_s);
+      if (!userId) { console.log('[FETCH] No userId, stopping'); setLoading(false); return; }
       const { data, error } = await supabase
         .from('transactions')
         .select('*')
