@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { supabase } from '../lib/supabase';
 
 const AuthContext = createContext({});
@@ -8,14 +8,6 @@ export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState(true);
-  const doneRef = useRef(false);
-
-  const done = () => {
-    if (!doneRef.current) {
-      doneRef.current = true;
-      setLoading(false);
-    }
-  };
 
   const fetchProfileById = async (userId) => {
     try {
@@ -25,63 +17,68 @@ export const AuthProvider = ({ children }) => {
   };
 
   useEffect(() => {
-    // Hard timeout — loading WILL stop in 4 seconds no matter what
-    const timeout = setTimeout(done, 4000);
+    let mounted = true;
+    const timeout = setTimeout(() => { if (mounted) setLoading(false); }, 5000);
 
     const init = async () => {
       try {
-        // Step 1: Get existing session
-        const { data: sessionData } = await supabase.auth.getSession();
+        // Step 1: Check if session exists
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!session) {
+          if (mounted) { setUser(null); setProfile(null); setLoading(false); }
+          return;
+        }
+
+        // Step 2: Force token refresh — this is critical for RLS
+        const { data: { user: freshUser }, error } = await supabase.auth.getUser();
         
-        if (sessionData?.session) {
-          // Step 2: Force token refresh with getUser()
-          // This ensures the JWT is fresh so RLS queries return data
-          const { data: userData } = await supabase.auth.getUser();
-          
-          if (userData?.user) {
-            setUser(userData.user);
-            await fetchProfileById(userData.user.id);
-          } else {
-            // getUser failed but session exists — use session user
-            setUser(sessionData.session.user);
-            await fetchProfileById(sessionData.session.user.id);
-          }
+        if (error || !freshUser) {
+          // Token refresh failed — session is invalid
+          if (mounted) { setUser(null); setProfile(null); setLoading(false); }
+          return;
+        }
+
+        // Step 3: NOW set the user — token is guaranteed fresh at this point
+        if (mounted) {
+          setUser(freshUser);
+          await fetchProfileById(freshUser.id);
+          setLoading(false);
         }
       } catch (e) {
         console.error('Auth init error:', e);
+        if (mounted) setLoading(false);
       }
-      done();
     };
 
     init();
 
-    // Listen for future auth events (sign in, sign out, token refresh)
-    const { data: listener } = supabase.auth.onAuthStateChange(
-      async (event, session) => {
-        console.log('Auth:', event);
-        if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
-          if (session?.user) {
-            setUser(session.user);
-            await fetchProfileById(session.user.id);
-          }
-          done();
-        } else if (event === 'SIGNED_OUT') {
-          setUser(null);
-          setProfile(null);
-          done();
+    const { data: listener } = supabase.auth.onAuthStateChange(async (event, session) => {
+      if (!mounted) return;
+      console.log('Auth:', event);
+      
+      if (event === 'SIGNED_IN') {
+        if (session?.user) {
+          setUser(session.user);
+          await fetchProfileById(session.user.id);
         }
+        setLoading(false);
+      } else if (event === 'TOKEN_REFRESHED') {
+        if (session?.user) setUser(session.user);
+      } else if (event === 'SIGNED_OUT') {
+        setUser(null);
+        setProfile(null);
+        setLoading(false);
       }
-    );
+    });
 
     return () => {
+      mounted = false;
       clearTimeout(timeout);
       if (listener?.subscription) listener.subscription.unsubscribe();
     };
   }, []);
 
-  const fetchProfile = useCallback(async (userId) => {
-    await fetchProfileById(userId);
-  }, []);
+  const fetchProfile = useCallback(async (userId) => { await fetchProfileById(userId); }, []);
 
   const signUp = async (email, password, fullName) => {
     try {
@@ -107,8 +104,7 @@ export const AuthProvider = ({ children }) => {
 
   const signOut = async () => {
     try { await supabase.auth.signOut(); } catch (e) { /* ok */ }
-    setUser(null);
-    setProfile(null);
+    setUser(null); setProfile(null);
     return { error: null };
   };
 
