@@ -40,9 +40,13 @@ const Analytics = () => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    const loadTimeout = setTimeout(() => setLoading(false), 8000);
     if (user) {
       fetchTransactions();
+    } else {
+      setLoading(false);
     }
+    return () => clearTimeout(loadTimeout);
   }, [user]);
 
   const fetchTransactions = async () => {

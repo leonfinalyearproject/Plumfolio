@@ -40,78 +40,78 @@ const Dashboard = () => {
   const userName = user?.user_metadata?.full_name?.split(' ')[0] || 'there';
 
   useEffect(() => {
+    const loadTimeout = setTimeout(() => setLoading(false), 8000);
     if (user) {
       fetchData();
-
-      // Safety timeout — if DB is paused/slow, stop loading after 10s
-      const timeout = setTimeout(() => {
-        setLoading(false);
-      }, 10000);
-
-      return () => clearTimeout(timeout);
     } else {
       setLoading(false);
     }
+    return () => clearTimeout(loadTimeout);
   }, [user]);
 
   const fetchData = async () => {
     try {
-      const [recentRes, allRes, budgetsRes] = await Promise.all([
-        supabase
-          .from('transactions')
-          .select('*')
-          .eq('user_id', user.id)
-          .order('date', { ascending: false })
-          .limit(5),
-        supabase
-          .from('transactions')
-          .select('*')
-          .eq('user_id', user.id),
-        supabase
-          .from('budgets')
-          .select('*')
-          .eq('user_id', user.id),
-      ]);
+      // Fetch recent transactions
+      const { data: recentTransactions } = await supabase
+        .from('transactions')
+        .select('*')
+        .eq('user_id', user.id)
+        .order('date', { ascending: false })
+        .limit(5);
 
-      const recentTransactions = recentRes.data || [];
-      const allTransactions = allRes.data || [];
-      const budgetsData = budgetsRes.data || [];
+      // Fetch all transactions for stats
+      const { data: allTransactions } = await supabase
+        .from('transactions')
+        .select('*')
+        .eq('user_id', user.id);
+
+      // Fetch budgets
+      const { data: budgetsData } = await supabase
+        .from('budgets')
+        .select('*')
+        .eq('user_id', user.id);
 
       // Calculate stats
-      const income = allTransactions
-        .filter(t => t.type === 'income')
-        .reduce((sum, t) => sum + parseFloat(t.amount), 0);
-      
-      const expenses = allTransactions
-        .filter(t => t.type === 'expense')
-        .reduce((sum, t) => sum + parseFloat(t.amount), 0);
+      if (allTransactions) {
+        const income = allTransactions
+          .filter(t => t.type === 'income')
+          .reduce((sum, t) => sum + parseFloat(t.amount), 0);
+        
+        const expenses = allTransactions
+          .filter(t => t.type === 'expense')
+          .reduce((sum, t) => sum + parseFloat(t.amount), 0);
 
-      setStats({ balance: income - expenses, income, expenses });
+        setStats({
+          balance: income - expenses,
+          income,
+          expenses,
+        });
 
-      // Category breakdown
-      const categoryTotals = allTransactions
+        // Calculate expenses by category for pie chart
+        const categoryTotals = allTransactions
+          .filter(t => t.type === 'expense')
+          .reduce((acc, t) => {
+            acc[t.category] = (acc[t.category] || 0) + parseFloat(t.amount);
+            return acc;
+          }, {});
+        
+        setExpensesByCategory(categoryTotals);
+      }
+
+      // Calculate spent per category for budgets
+      const spentByCategory = (allTransactions || [])
         .filter(t => t.type === 'expense')
         .reduce((acc, t) => {
           acc[t.category] = (acc[t.category] || 0) + parseFloat(t.amount);
           return acc;
         }, {});
-      
-      setExpensesByCategory(categoryTotals);
 
-      // Budget progress
-      const spentByCategory = allTransactions
-        .filter(t => t.type === 'expense')
-        .reduce((acc, t) => {
-          acc[t.category] = (acc[t.category] || 0) + parseFloat(t.amount);
-          return acc;
-        }, {});
-
-      const budgetsWithSpent = budgetsData.map(b => ({
+      const budgetsWithSpent = (budgetsData || []).map(b => ({
         ...b,
         spent: spentByCategory[b.category] || 0,
       }));
 
-      setTransactions(recentTransactions);
+      setTransactions(recentTransactions || []);
       setBudgets(budgetsWithSpent);
     } catch (error) {
       console.error('Error fetching data:', error);
@@ -134,11 +134,15 @@ const Dashboard = () => {
     return icons[category] || ShoppingBag;
   };
 
+
+  // Generate chart data from real expenses
   const generateChartData = () => {
     const categories = Object.keys(expensesByCategory);
     const amounts = Object.values(expensesByCategory);
     
-    if (categories.length === 0) return null;
+    if (categories.length === 0) {
+      return null;
+    }
 
     const colors = [
       '#7B2D8E', '#4CAF50', '#FFB300', '#3B82F6', 

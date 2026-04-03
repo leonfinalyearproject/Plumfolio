@@ -31,9 +31,13 @@ const Budgets = () => {
   ];
 
   useEffect(() => {
+    const loadTimeout = setTimeout(() => setLoading(false), 8000);
     if (user) {
       fetchBudgets();
+    } else {
+      setLoading(false);
     }
+    return () => clearTimeout(loadTimeout);
   }, [user]);
 
   const fetchBudgets = async () => {
