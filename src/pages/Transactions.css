@@ -695,3 +695,299 @@
   .scan-result-actions { flex-direction: column; }
   .empty-state-actions { flex-direction: column; width: 100%; }
 }
+
+/* ================================================
+   NEW FEATURES — Search, Filter, Inline Edit, Import
+   ================================================ */
+
+/* Search Bar */
+.search-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px;
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-lg);
+  flex: 1;
+  max-width: 320px;
+  transition: border-color 200ms;
+}
+
+.search-bar:focus-within {
+  border-color: rgba(168, 85, 247, 0.3);
+}
+
+.search-bar svg { color: var(--text-dim); flex-shrink: 0; }
+
+.search-bar input {
+  flex: 1;
+  background: none;
+  border: none;
+  color: var(--text-primary);
+  font-size: 0.85rem;
+  outline: none;
+}
+
+.search-bar input::placeholder { color: var(--text-dim); }
+
+.search-clear {
+  background: none;
+  border: none;
+  color: var(--text-dim);
+  cursor: pointer;
+  padding: 2px;
+  display: flex;
+}
+
+.search-clear:hover { color: var(--text-muted); }
+
+/* Filter Toggle */
+.filter-toggle.active {
+  background: rgba(168, 85, 247, 0.08);
+  color: var(--plum-glow);
+  border-color: rgba(168, 85, 247, 0.15);
+}
+
+.filter-dot {
+  width: 6px;
+  height: 6px;
+  background: #A855F7;
+  border-radius: 50%;
+}
+
+/* Filter Panel */
+.filter-panel {
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-xl);
+  padding: 16px 20px;
+  margin-bottom: 16px;
+  animation: fadeInUp 0.25s var(--ease-out) forwards;
+}
+
+.filter-row {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  align-items: flex-end;
+}
+
+.filter-group {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.filter-group label {
+  font-size: 0.68rem;
+  font-weight: 600;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.filter-group select,
+.filter-group input[type="date"] {
+  padding: 6px 10px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  color: var(--text-primary);
+  font-size: 0.8rem;
+  outline: none;
+}
+
+.filter-group select:focus,
+.filter-group input:focus {
+  border-color: rgba(168, 85, 247, 0.3);
+}
+
+.filter-tabs.compact {
+  padding: 2px;
+  gap: 1px;
+}
+
+.filter-tabs.compact .filter-tab {
+  padding: 5px 12px;
+  font-size: 0.75rem;
+}
+
+.clear-filters-btn {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 12px;
+  background: rgba(239, 68, 68, 0.06);
+  color: var(--error);
+  border: 1px solid rgba(239, 68, 68, 0.1);
+  border-radius: var(--radius-md);
+  font-size: 0.75rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 200ms;
+  align-self: flex-end;
+}
+
+.clear-filters-btn:hover {
+  background: rgba(239, 68, 68, 0.1);
+}
+
+.filter-summary {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border-color);
+  font-size: 0.75rem;
+  color: var(--text-dim);
+}
+
+.summary-income { color: var(--green-medium); }
+.summary-expense { color: var(--error); }
+
+/* Sortable Headers */
+.sortable {
+  cursor: pointer;
+  user-select: none;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  transition: color 200ms;
+}
+
+.sortable:hover { color: var(--text-secondary); }
+
+.sort-icon { transition: all 200ms; }
+.sort-icon.inactive { opacity: 0.2; }
+.sort-icon.active { color: #A855F7; opacity: 1; }
+
+/* Inline Editing */
+.inline-input {
+  padding: 4px 8px;
+  background: var(--bg-secondary);
+  border: 1px solid rgba(168, 85, 247, 0.3);
+  border-radius: var(--radius-sm);
+  color: var(--text-primary);
+  font-size: 0.85rem;
+  outline: none;
+  width: 100%;
+  box-shadow: 0 0 0 3px rgba(168, 85, 247, 0.08);
+}
+
+.inline-input.amount {
+  max-width: 120px;
+  text-align: right;
+}
+
+.inline-select {
+  padding: 4px 8px;
+  background: var(--bg-secondary);
+  border: 1px solid rgba(168, 85, 247, 0.3);
+  border-radius: var(--radius-sm);
+  color: var(--text-primary);
+  font-size: 0.8rem;
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(168, 85, 247, 0.08);
+}
+
+/* Double-click hint */
+.transactions-table td span[ondoubleclick],
+.desc-wrapper[ondoubleclick],
+.category-badge[ondoubleclick] {
+  cursor: text;
+}
+
+.transactions-table td span:hover,
+.desc-wrapper:hover,
+.category-badge:hover {
+  background: rgba(168, 85, 247, 0.03);
+  border-radius: 4px;
+}
+
+/* CSV Import Modal */
+.import-modal {
+  max-width: 600px;
+}
+
+.import-body {
+  padding: 16px 20px;
+}
+
+.import-info {
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  margin-bottom: 12px;
+}
+
+.import-preview {
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  overflow: auto;
+  max-height: 200px;
+  margin-bottom: 16px;
+}
+
+.import-preview table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.78rem;
+}
+
+.import-preview th {
+  padding: 8px 10px;
+  text-align: left;
+  font-size: 0.68rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-dim);
+  border-bottom: 1px solid var(--border-color);
+  position: sticky;
+  top: 0;
+  background: var(--bg-elevated);
+}
+
+.import-preview td {
+  padding: 6px 10px;
+  color: var(--text-muted);
+  border-bottom: 1px solid var(--border-color);
+  white-space: nowrap;
+}
+
+.import-more {
+  text-align: center;
+  color: var(--text-dim);
+  font-style: italic;
+}
+
+.import-actions {
+  display: flex;
+  gap: 10px;
+}
+
+.cancel-btn {
+  padding: 10px 20px;
+  background: rgba(255, 255, 255, 0.03);
+  color: var(--text-muted);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  font-size: 0.85rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 200ms;
+}
+
+.cancel-btn:hover {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+/* Responsive adjustments for new features */
+@media (max-width: 768px) {
+  .search-bar { max-width: 100%; }
+  .filter-row { flex-direction: column; }
+  .filter-group { width: 100%; }
+  .filter-group select,
+  .filter-group input[type="date"] { width: 100%; }
+  .import-modal { max-width: 100%; margin: 10px !important; }
+  .action-btn span { display: none; }
+  .action-btn { padding: 8px 10px; }
+}
