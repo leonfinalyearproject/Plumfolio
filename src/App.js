@@ -16,16 +16,18 @@ import Transactions from './pages/Transactions';
 import Budgets from './pages/Budgets';
 import Analytics from './pages/Analytics';
 import Insights from './pages/Insights';
-import Settings from './pages/Settings';
 import Reports from './pages/Reports';
+import Settings from './pages/Settings';
 import DashboardLayout from './components/DashboardLayout';
 import AIInsightWidget from './components/AIInsightWidget';
 import MobileNav from './components/MobileNav';
+
 import './styles/globals.css';
 import './styles/mobile.css';
+
 const ProtectedRoute = ({ children }) => {
   const { user, loading } = useAuth();
-  // Show spinner while auth is loading — NOT black screen
+
   if (loading) {
     return (
       <div style={{
@@ -43,18 +45,28 @@ const ProtectedRoute = ({ children }) => {
       </div>
     );
   }
-  // Not loading, no user — redirect to sign in
+
   if (!user) return <Navigate to="/signin" />;
+
   return <DashboardLayout>{children}</DashboardLayout>;
 };
+
 const GlobalAIWidget = () => {
   const { user } = useAuth();
   const location = useLocation();
   const authPages = ['/', '/signin', '/signup', '/verified', '/forgot-password', '/reset-password'];
   if (!user || authPages.includes(location.pathname)) return null;
   return <AIInsightWidget />;
+};
+
 const GlobalMobileNav = () => {
+  const { user } = useAuth();
+  const location = useLocation();
+  const authPages = ['/', '/signin', '/signup', '/verified', '/forgot-password', '/reset-password'];
+  if (!user || authPages.includes(location.pathname)) return null;
   return <MobileNav />;
+};
+
 function App() {
   return (
     <Router basename="/Plumfolio">
@@ -87,4 +99,5 @@ function App() {
     </Router>
   );
 }
+
 export default App;
