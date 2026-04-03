@@ -169,6 +169,10 @@ const SignIn = () => {
               {errors.password && touched.password && (
                 <span className="field-error">{errors.password}</span>
               )}
+            <div className="forgot-password-link">
+              <Link to="/forgot-password">Forgot your password?</Link>
+            </div>
+
             </div>
             
             <button type="submit" className="auth-btn" disabled={loading}>

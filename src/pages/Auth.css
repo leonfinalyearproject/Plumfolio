@@ -509,3 +509,85 @@
     padding: 32px 28px;
   }
 }
+
+/* ================================================
+   FORGOT / RESET PASSWORD
+   ================================================ */
+.forgot-password-link {
+  text-align: right;
+  margin-top: -4px;
+  margin-bottom: 4px;
+}
+
+.forgot-password-link a {
+  font-size: 0.78rem;
+  color: #A855F7;
+  text-decoration: none;
+  transition: color 200ms;
+}
+
+.forgot-password-link a:hover {
+  color: #C084FC;
+}
+
+.reset-success {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+  padding: 24px 0;
+  text-align: center;
+}
+
+.reset-success-icon {
+  color: #10B981;
+  filter: drop-shadow(0 0 12px rgba(16, 185, 129, 0.3));
+}
+
+.reset-success h1 {
+  font-size: 1.3rem;
+  font-weight: 600;
+  color: #F0EFF4;
+}
+
+.reset-success p {
+  font-size: 0.85rem;
+  color: #7C7C8A;
+  line-height: 1.5;
+  max-width: 320px;
+}
+
+.reset-success strong {
+  color: #C084FC;
+}
+
+.reset-hint {
+  font-size: 0.75rem !important;
+  color: #4A4A55 !important;
+  margin-top: 4px;
+}
+
+.auth-btn.outline {
+  background: transparent;
+  border: 1px solid rgba(168, 85, 247, 0.2);
+  color: #C084FC;
+  margin-top: 8px;
+}
+
+.auth-btn.outline:hover {
+  background: rgba(168, 85, 247, 0.06);
+}
+
+.auth-info {
+  padding: 12px 16px;
+  background: rgba(168, 85, 247, 0.06);
+  border: 1px solid rgba(168, 85, 247, 0.1);
+  border-radius: 10px;
+  margin-bottom: 16px;
+}
+
+.auth-info p {
+  font-size: 0.8rem;
+  color: #7C7C8A;
+  line-height: 1.5;
+}

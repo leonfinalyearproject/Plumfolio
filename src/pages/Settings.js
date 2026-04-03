@@ -1,35 +1,28 @@
 import React, { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useCurrency, CURRENCIES } from '../context/CurrencyContext';
-import { User, Mail, Lock, Bell, Shield, Trash2, Save, Globe, Check, Search } from 'lucide-react';
+import { supabase } from '../lib/supabase';
+import { User, Mail, Lock, Shield, Trash2, Save, Globe, Check, Search, KeyRound } from 'lucide-react';
 import './Settings.css';
 
 const Settings = () => {
-  const { user, profile, updateProfile, updatePassword } = useAuth();
+  const { user, profile, updateProfile } = useAuth();
   const { currencyCode, formatCurrency, rate, ratesLoaded } = useCurrency();
   const [activeTab, setActiveTab] = useState('profile');
   const [profileData, setProfileData] = useState({
     fullName: user?.user_metadata?.full_name || profile?.full_name || '',
     email: user?.email || '',
   });
-  const [passwordData, setPasswordData] = useState({
-    currentPassword: '',
-    newPassword: '',
-    confirmPassword: '',
-  });
-  const [notifications, setNotifications] = useState({
-    budgetAlerts: true,
-    weeklyReport: false,
-    monthlyReport: true,
-  });
+  const [resetEmail, setResetEmail] = useState(user?.email || '');
   const [currencySearch, setCurrencySearch] = useState('');
   const [saving, setSaving] = useState(false);
   const [switchingTo, setSwitchingTo] = useState(null);
   const [message, setMessage] = useState({ type: '', text: '' });
+  const [resetSent, setResetSent] = useState(false);
 
   const showMessage = (type, text) => {
     setMessage({ type, text });
-    setTimeout(() => setMessage({ type: '', text: '' }), 3000);
+    setTimeout(() => setMessage({ type: '', text: '' }), 4000);
   };
 
   const handleProfileSave = async () => {
@@ -45,21 +38,20 @@ const Settings = () => {
     }
   };
 
-  const handlePasswordChange = async () => {
-    if (passwordData.newPassword !== passwordData.confirmPassword) {
-      return showMessage('error', 'Passwords do not match');
-    }
-    if (passwordData.newPassword.length < 6) {
-      return showMessage('error', 'Password must be at least 6 characters');
+  const handlePasswordReset = async () => {
+    if (!resetEmail || !resetEmail.includes('@')) {
+      return showMessage('error', 'Please enter a valid email address');
     }
     setSaving(true);
     try {
-      const { error } = await updatePassword(passwordData.newPassword);
+      const { error } = await supabase.auth.resetPasswordForEmail(resetEmail, {
+        redirectTo: window.location.origin + '/Plumfolio/reset-password',
+      });
       if (error) throw error;
-      setPasswordData({ currentPassword: '', newPassword: '', confirmPassword: '' });
-      showMessage('success', 'Password changed');
+      setResetSent(true);
+      showMessage('success', 'Password reset link sent! Check your email.');
     } catch (error) {
-      showMessage('error', 'Failed: ' + error.message);
+      showMessage('error', 'Failed to send reset email: ' + error.message);
     } finally {
       setSaving(false);
     }
@@ -82,33 +74,32 @@ const Settings = () => {
     }
   };
 
-  const filteredCurrencies = CURRENCIES.filter(function(c) {
-    var q = currencySearch.toLowerCase();
+  const filteredCurrencies = CURRENCIES.filter(c => {
+    const q = currencySearch.toLowerCase();
     return c.name.toLowerCase().includes(q) ||
       c.code.toLowerCase().includes(q) ||
       c.symbol.toLowerCase().includes(q);
   });
 
-  var africanCodes = ['BWP','ZAR','NGN','KES','GHS','TZS','UGX','ZMW','NAD','MWK','LSL','SZL','EGP'];
-  var activeCurrency = CURRENCIES.find(function(c) { return c.code === currencyCode; });
-  var africanList = filteredCurrencies.filter(function(c) { return africanCodes.indexOf(c.code) >= 0 && c.code !== currencyCode; });
-  var internationalList = filteredCurrencies.filter(function(c) { return africanCodes.indexOf(c.code) < 0 && c.code !== currencyCode; });
+  const africanCodes = ['BWP','ZAR','NGN','KES','GHS','TZS','UGX','ZMW','NAD','MWK','LSL','SZL','EGP'];
+  const activeCurrency = CURRENCIES.find(c => c.code === currencyCode);
+  const africanList = filteredCurrencies.filter(c => africanCodes.includes(c.code) && c.code !== currencyCode);
+  const internationalList = filteredCurrencies.filter(c => !africanCodes.includes(c.code) && c.code !== currencyCode);
 
-  var tabs = [
+  const tabs = [
     { id: 'profile', label: 'Profile', icon: User },
     { id: 'currency', label: 'Currency', icon: Globe },
     { id: 'security', label: 'Security', icon: Shield },
-    { id: 'notifications', label: 'Notifications', icon: Bell },
   ];
 
-  var renderCurrencyItem = function(c) {
-    var isActive = c.code === currencyCode;
-    var isSwitching = c.code === switchingTo;
+  const renderCurrencyItem = (c) => {
+    const isActive = c.code === currencyCode;
+    const isSwitching = c.code === switchingTo;
     return (
       <button
         key={c.code}
         className={'currency-item' + (isActive ? ' active' : '') + (isSwitching ? ' switching' : '')}
-        onClick={function() { handleCurrencySelect(c.code); }}
+        onClick={() => handleCurrencySelect(c.code)}
         disabled={isActive || !!switchingTo}
       >
         <span className="currency-item-flag">{c.flag}</span>
@@ -126,14 +117,12 @@ const Settings = () => {
   return (
     <div className="settings-page">
       <div className="settings-tabs">
-        {tabs.map(function(tab) {
-          return (
-            <button key={tab.id} className={'settings-tab' + (activeTab === tab.id ? ' active' : '')} onClick={function() { setActiveTab(tab.id); }}>
-              <tab.icon size={18} />
-              <span>{tab.label}</span>
-            </button>
-          );
-        })}
+        {tabs.map(tab => (
+          <button key={tab.id} className={'settings-tab' + (activeTab === tab.id ? ' active' : '')} onClick={() => setActiveTab(tab.id)}>
+            <tab.icon size={18} />
+            <span>{tab.label}</span>
+          </button>
+        ))}
       </div>
 
       {message.text && <div className={'settings-message ' + message.type}>{message.text}</div>}
@@ -149,7 +138,7 @@ const Settings = () => {
             <div className="settings-form">
               <div className="form-group">
                 <label><User size={14} /> Full Name</label>
-                <input type="text" value={profileData.fullName} onChange={function(e) { setProfileData({ ...profileData, fullName: e.target.value }); }} placeholder="Your full name" />
+                <input type="text" value={profileData.fullName} onChange={(e) => setProfileData({ ...profileData, fullName: e.target.value })} placeholder="Your full name" />
               </div>
               <div className="form-group">
                 <label><Mail size={14} /> Email Address</label>
@@ -184,7 +173,7 @@ const Settings = () => {
 
             <div className="currency-search-box">
               <Search size={15} />
-              <input type="text" placeholder="Search currencies..." value={currencySearch} onChange={function(e) { setCurrencySearch(e.target.value); }} />
+              <input type="text" placeholder="Search currencies..." value={currencySearch} onChange={(e) => setCurrencySearch(e.target.value)} />
             </div>
 
             {!currencySearch && activeCurrency && (
@@ -210,63 +199,47 @@ const Settings = () => {
           </div>
         )}
 
-        {/* SECURITY */}
+        {/* SECURITY — Forgot Password */}
         {activeTab === 'security' && (
           <div className="settings-section">
             <div className="section-header">
-              <h2>Change Password</h2>
-              <p>Keep your account secure.</p>
+              <h2>Password & Security</h2>
+              <p>Reset your password via email.</p>
             </div>
-            <div className="settings-form">
-              <div className="form-group">
-                <label><Lock size={14} /> Current Password</label>
-                <input type="password" value={passwordData.currentPassword} onChange={function(e) { setPasswordData({ ...passwordData, currentPassword: e.target.value }); }} placeholder="Current password" />
-              </div>
-              <div className="form-group">
-                <label><Lock size={14} /> New Password</label>
-                <input type="password" value={passwordData.newPassword} onChange={function(e) { setPasswordData({ ...passwordData, newPassword: e.target.value }); }} placeholder="New password" />
-              </div>
-              <div className="form-group">
-                <label><Lock size={14} /> Confirm Password</label>
-                <input type="password" value={passwordData.confirmPassword} onChange={function(e) { setPasswordData({ ...passwordData, confirmPassword: e.target.value }); }} placeholder="Confirm password" />
-              </div>
-              <button className="save-btn" onClick={handlePasswordChange} disabled={saving}>
-                {saving ? <span className="spinner" /> : <Shield size={16} />} Update Password
-              </button>
-            </div>
-            <div className="danger-zone">
-              <div className="section-header"><h2>Danger Zone</h2><p>Permanently delete your account.</p></div>
-              <button className="delete-btn"><Trash2 size={16} /> Delete Account</button>
-            </div>
-          </div>
-        )}
 
-        {/* NOTIFICATIONS */}
-        {activeTab === 'notifications' && (
-          <div className="settings-section">
-            <div className="section-header">
-              <h2>Notifications</h2>
-              <p>Control what you receive.</p>
-            </div>
-            <div className="notification-options">
-              {[
-                { key: 'budgetAlerts', title: 'Budget Alerts', desc: 'When approaching budget limits' },
-                { key: 'weeklyReport', title: 'Weekly Summary', desc: 'Weekly spending overview' },
-                { key: 'monthlyReport', title: 'Monthly Report', desc: 'Detailed monthly report' },
-              ].map(function(item) {
-                return (
-                  <div key={item.key} className="notification-item">
-                    <div className="notification-info">
-                      <span className="notification-title">{item.title}</span>
-                      <span className="notification-desc">{item.desc}</span>
-                    </div>
-                    <label className="toggle">
-                      <input type="checkbox" checked={notifications[item.key]} onChange={function(e) { setNotifications({ ...notifications, [item.key]: e.target.checked }); }} />
-                      <span className="toggle-slider" />
-                    </label>
-                  </div>
-                );
-              })}
+            {!resetSent ? (
+              <div className="settings-form">
+                <div className="reset-info">
+                  <KeyRound size={32} className="reset-icon" />
+                  <p>We'll send a password reset link to your email. Click the link in the email to set a new password.</p>
+                </div>
+                <div className="form-group">
+                  <label><Mail size={14} /> Email Address</label>
+                  <input
+                    type="email"
+                    value={resetEmail}
+                    onChange={(e) => setResetEmail(e.target.value)}
+                    placeholder="your@email.com"
+                  />
+                </div>
+                <button className="save-btn" onClick={handlePasswordReset} disabled={saving}>
+                  {saving ? <span className="spinner" /> : <Mail size={16} />} Send Reset Link
+                </button>
+              </div>
+            ) : (
+              <div className="reset-sent">
+                <div className="reset-sent-icon">✓</div>
+                <h3>Reset Link Sent!</h3>
+                <p>Check your email at <strong>{resetEmail}</strong> for the password reset link. It may take a minute to arrive.</p>
+                <button className="save-btn outline" onClick={() => setResetSent(false)}>
+                  Send Again
+                </button>
+              </div>
+            )}
+
+            <div className="danger-zone">
+              <div className="section-header"><h2>Danger Zone</h2><p>Permanently delete your account and all data.</p></div>
+              <button className="delete-btn"><Trash2 size={16} /> Delete Account</button>
             </div>
           </div>
         )}
