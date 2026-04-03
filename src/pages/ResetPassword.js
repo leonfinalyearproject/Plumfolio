@@ -12,24 +12,23 @@ const ResetPassword = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState(false);
-  const [sessionReady, setSessionReady] = useState(false);
   const navigate = useNavigate();
 
   useEffect(() => {
-    // Supabase sets the session automatically from the URL hash
-    // when the user clicks the reset link in their email
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
-      if (event === 'PASSWORD_RECOVERY') {
-        setSessionReady(true);
+    // The URL contains the access token in the hash fragment.
+    // Supabase client automatically picks it up and sets the session.
+    // We just need to wait a moment for it to process.
+    const checkSession = async () => {
+      // Give Supabase a moment to process the URL hash
+      await new Promise(r => setTimeout(r, 1000));
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        console.log('No session found from reset link');
+      } else {
+        console.log('Session ready for password reset');
       }
-    });
-
-    // Also check if we already have a session (user might have already been redirected)
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session) setSessionReady(true);
-    });
-
-    return () => subscription.unsubscribe();
+    };
+    checkSession();
   }, []);
 
   const handleSubmit = async (e) => {
@@ -50,7 +49,7 @@ const ResetPassword = () => {
       setSuccess(true);
       setTimeout(() => navigate('/dashboard'), 3000);
     } catch (err) {
-      setError(err.message || 'Failed to reset password');
+      setError(err.message || 'Failed to reset password. The link may have expired — try requesting a new one.');
     } finally {
       setLoading(false);
     }
@@ -83,12 +82,6 @@ const ResetPassword = () => {
                 <div className="auth-error">
                   <AlertCircle size={16} />
                   <span>{error}</span>
-                </div>
-              )}
-
-              {!sessionReady && (
-                <div className="auth-info">
-                  <p>Waiting for verification... If you arrived here from an email link, please wait a moment.</p>
                 </div>
               )}
 
@@ -137,7 +130,7 @@ const ResetPassword = () => {
                   </div>
                 </div>
 
-                <button type="submit" className="auth-btn" disabled={loading || !sessionReady}>
+                <button type="submit" className="auth-btn" disabled={loading}>
                   {loading ? (
                     <span className="spinner" />
                   ) : (
