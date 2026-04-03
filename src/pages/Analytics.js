@@ -40,21 +40,24 @@ const Analytics = () => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const t = setTimeout(() => setLoading(false), 6000);
+    const timeout = setTimeout(() => setLoading(false), 8000);
     if (user) {
-      setTimeout(() => { fetchTransactions().catch(() => setLoading(false)); }, 500);
+      fetchTransactions();
     } else {
       setLoading(false);
     }
-    return () => clearTimeout(t);
+    return () => clearTimeout(timeout);
   }, [user]);
 
   const fetchTransactions = async () => {
     try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) { setLoading(false); return; }
+      const uid = session.user.id;
       const { data, error } = await supabase
         .from('transactions')
         .select('*')
-        .eq('user_id', user.id)
+        .eq('user_id', uid)
         .order('date', { ascending: true });
 
       if (error) throw error;

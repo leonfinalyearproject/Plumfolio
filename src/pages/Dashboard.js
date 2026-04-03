@@ -40,36 +40,55 @@ const Dashboard = () => {
   const userName = user?.user_metadata?.full_name?.split(' ')[0] || 'there';
 
   useEffect(() => {
-    const t = setTimeout(() => setLoading(false), 6000);
+    const timeout = setTimeout(() => setLoading(false), 8000);
     if (user) {
-      setTimeout(() => { fetchData().catch(() => setLoading(false)); }, 500);
+      fetchData();
     } else {
       setLoading(false);
     }
-    return () => clearTimeout(t);
+    return () => clearTimeout(timeout);
   }, [user]);
 
   const fetchData = async () => {
     try {
+      // Force fresh session before querying
+      const { data: { session } } = await supabase.auth.getSession();
+      console.log('Dashboard session:', session ? 'exists' : 'null');
+      
+      if (!session) {
+        console.log('No session - cannot fetch data');
+        setLoading(false);
+        return;
+      }
+
+      const uid = session.user.id;
+      console.log('Fetching data for user:', uid);
+
       // Fetch recent transactions
-      const { data: recentTransactions } = await supabase
+      const { data: recentTransactions, error: e1 } = await supabase
         .from('transactions')
         .select('*')
-        .eq('user_id', user.id)
+        .eq('user_id', uid)
         .order('date', { ascending: false })
         .limit(5);
 
+      console.log('Recent transactions:', recentTransactions?.length, 'error:', e1);
+
       // Fetch all transactions for stats
-      const { data: allTransactions } = await supabase
+      const { data: allTransactions, error: e2 } = await supabase
         .from('transactions')
         .select('*')
-        .eq('user_id', user.id);
+        .eq('user_id', uid);
+
+      console.log('All transactions:', allTransactions?.length, 'error:', e2);
 
       // Fetch budgets
-      const { data: budgetsData } = await supabase
+      const { data: budgetsData, error: e3 } = await supabase
         .from('budgets')
         .select('*')
-        .eq('user_id', user.id);
+        .eq('user_id', uid);
+
+      console.log('Budgets:', budgetsData?.length, 'error:', e3);
 
       // Calculate stats
       if (allTransactions) {

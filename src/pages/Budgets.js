@@ -31,22 +31,25 @@ const Budgets = () => {
   ];
 
   useEffect(() => {
-    const t = setTimeout(() => setLoading(false), 6000);
+    const timeout = setTimeout(() => setLoading(false), 8000);
     if (user) {
-      setTimeout(() => { fetchBudgets().catch(() => setLoading(false)); }, 500);
+      fetchBudgets();
     } else {
       setLoading(false);
     }
-    return () => clearTimeout(t);
+    return () => clearTimeout(timeout);
   }, [user]);
 
   const fetchBudgets = async () => {
     try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) { setLoading(false); return; }
+      const uid = session.user.id;
       // Fetch budgets
       const { data: budgetsData, error: budgetsError } = await supabase
         .from('budgets')
         .select('*')
-        .eq('user_id', user.id);
+        .eq('user_id', uid);
 
       if (budgetsError) throw budgetsError;
 
@@ -54,7 +57,7 @@ const Budgets = () => {
       const { data: transactionsData } = await supabase
         .from('transactions')
         .select('*')
-        .eq('user_id', user.id)
+        .eq('user_id', uid)
         .eq('type', 'expense');
 
       // Calculate spent per category
