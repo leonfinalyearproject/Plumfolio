@@ -31,20 +31,33 @@ const Budgets = () => {
   ];
 
   useEffect(() => {
+    let cancelled = false;
     const timeout = setTimeout(() => setLoading(false), 8000);
+    
+    const loadData = async () => {
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!session || cancelled) { setLoading(false); return; }
+        await fetchBudgets();
+      } catch (e) {
+        console.error('Load error:', e);
+        setLoading(false);
+      }
+    };
+
     if (user) {
-      fetchBudgets();
+      loadData();
     } else {
       setLoading(false);
     }
-    return () => clearTimeout(timeout);
-  }, [user]);
+    return () => { cancelled = true; clearTimeout(timeout); };
+  }, [user?.id]);
 
   const fetchBudgets = async () => {
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) { setLoading(false); return; }
-      const uid = session.user.id;
+      const { data: { session: s } } = await supabase.auth.getSession();
+      const uid = s ? s.user.id : user?.id;
+      if (!uid) { setLoading(false); return; }
       // Fetch budgets
       const { data: budgetsData, error: budgetsError } = await supabase
         .from('budgets')

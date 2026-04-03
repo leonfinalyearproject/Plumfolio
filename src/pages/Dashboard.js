@@ -40,55 +40,52 @@ const Dashboard = () => {
   const userName = user?.user_metadata?.full_name?.split(' ')[0] || 'there';
 
   useEffect(() => {
+    let cancelled = false;
     const timeout = setTimeout(() => setLoading(false), 8000);
+    
+    const loadData = async () => {
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!session || cancelled) { setLoading(false); return; }
+        await fetchData();
+      } catch (e) {
+        console.error('Load error:', e);
+        setLoading(false);
+      }
+    };
+
     if (user) {
-      fetchData();
+      loadData();
     } else {
       setLoading(false);
     }
-    return () => clearTimeout(timeout);
-  }, [user]);
+    return () => { cancelled = true; clearTimeout(timeout); };
+  }, [user?.id]);
 
   const fetchData = async () => {
     try {
-      // Force fresh session before querying
-      const { data: { session } } = await supabase.auth.getSession();
-      console.log('Dashboard session:', session ? 'exists' : 'null');
-      
-      if (!session) {
-        console.log('No session - cannot fetch data');
-        setLoading(false);
-        return;
-      }
-
-      const uid = session.user.id;
-      console.log('Fetching data for user:', uid);
-
+      const { data: { session: s } } = await supabase.auth.getSession();
+      const uid = s ? s.user.id : user?.id;
+      if (!uid) { setLoading(false); return; }
       // Fetch recent transactions
-      const { data: recentTransactions, error: e1 } = await supabase
+      const { data: recentTransactions } = await supabase
         .from('transactions')
         .select('*')
         .eq('user_id', uid)
         .order('date', { ascending: false })
         .limit(5);
 
-      console.log('Recent transactions:', recentTransactions?.length, 'error:', e1);
-
       // Fetch all transactions for stats
-      const { data: allTransactions, error: e2 } = await supabase
+      const { data: allTransactions } = await supabase
         .from('transactions')
         .select('*')
         .eq('user_id', uid);
 
-      console.log('All transactions:', allTransactions?.length, 'error:', e2);
-
       // Fetch budgets
-      const { data: budgetsData, error: e3 } = await supabase
+      const { data: budgetsData } = await supabase
         .from('budgets')
         .select('*')
         .eq('user_id', uid);
-
-      console.log('Budgets:', budgetsData?.length, 'error:', e3);
 
       // Calculate stats
       if (allTransactions) {
