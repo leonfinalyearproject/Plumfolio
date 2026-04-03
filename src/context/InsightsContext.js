@@ -2,7 +2,6 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 import { useAuth } from './AuthContext';
 import { supabase } from '../lib/supabase';
-import { getAuthUserId } from '../lib/supabaseHelper';
 import { generateInsights } from '../utils/insightsEngine';
 import { generatePredictions } from '../utils/predictionsEngine';
 
@@ -131,6 +130,7 @@ export const InsightsProvider = ({ children }) => {
 
   // Initial load + re-load when user changes
   useEffect(() => {
+    const t = setTimeout(() => setLoading(false), 10000);
     if (user?.id) {
       setLoading(true);
       fetchAndAnalyse(user.id);
@@ -142,6 +142,7 @@ export const InsightsProvider = ({ children }) => {
       setLoading(false);
       prevInsightsRef.current = null;
     }
+    return () => clearTimeout(t);
   }, [user?.id, fetchAndAnalyse]);
 
   // Real-time subscription + polling fallback
