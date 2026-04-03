@@ -14,8 +14,23 @@
     <link rel="apple-touch-icon" href="%PUBLIC_URL%/logo192.png" />
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,500;0,9..144,600;0,9..144,700;1,9..144,400&display=swap" rel="stylesheet">
+    <link href="https://api.fontshare.com/v2/css?f[]=clash-display@400,500,600,700&f[]=general-sans@400,500,600,700&display=swap" rel="stylesheet">
     <title>Plumfolio</title>
+
+    <!-- KILL SERVICE WORKER IMMEDIATELY — before anything else loads -->
+    <script>
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.getRegistrations().then(function(regs) {
+          regs.forEach(function(r) { r.unregister(); });
+        });
+        if ('caches' in window) {
+          caches.keys().then(function(keys) {
+            keys.forEach(function(k) { caches.delete(k); });
+          });
+        }
+      }
+    </script>
+
     <!-- SPA redirect handler for GitHub Pages -->
     <script type="text/javascript">
       (function(l) {
@@ -24,7 +39,6 @@
             return s.replace(/~and~/g, '&')
           }).join('?');
           var path = l.pathname;
-          // Remove trailing slash only if path is longer than /Plumfolio/
           if (path.endsWith('/') && path.length > 1) {
             path = path.slice(0, -1);
           }
@@ -36,20 +50,16 @@
     </script>
     <style>
       * { margin: 0; padding: 0; box-sizing: border-box; }
-      body { 
-        background: #0a0a0f; 
-        font-family: 'DM Sans', -apple-system, sans-serif;
-      }
+      body { background: #030305; font-family: 'General Sans', -apple-system, sans-serif; }
     </style>
   </head>
   <body>
     <noscript>You need to enable JavaScript to run this app.</noscript>
     <div id="root">
-      <!-- Instant loading screen - shows before React JS loads -->
-      <div style="display:flex;align-items:center;justify-content:center;min-height:100vh;background:#0a0a0f;flex-direction:column;gap:16px">
+      <div style="display:flex;align-items:center;justify-content:center;min-height:100vh;background:#030305;flex-direction:column;gap:16px">
         <img src="%PUBLIC_URL%/logo192.png" alt="" width="56" height="56" style="border-radius:12px;animation:pulse 1.5s ease-in-out infinite" />
-        <div style="color:rgba(255,255,255,0.3);font-size:13px;font-family:'DM Sans',sans-serif;letter-spacing:1px">PLUMFOLIO</div>
-        <style>@keyframes pulse{0%,100%{opacity:.5;transform:scale(1)}50%{opacity:1;transform:scale(1.05)}}</style>
+        <div style="color:rgba(255,255,255,0.25);font-size:12px;letter-spacing:2px;font-weight:600">PLUMFOLIO</div>
+        <style>@keyframes pulse{0%,100%{opacity:.4;transform:scale(1)}50%{opacity:1;transform:scale(1.05)}}</style>
       </div>
     </div>
   </body>
