@@ -55,8 +55,7 @@ export const InsightsProvider = ({ children }) => {
     }
 
     try {
-      // Get fresh auth token before querying
-      const userId = await getAuthUserId() || passedUserId;
+      const userId = passedUserId;
 
       const [txnRes, budgetRes] = await Promise.all([
         supabase
