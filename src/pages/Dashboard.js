@@ -3,7 +3,6 @@ import { Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useCurrency } from '../context/CurrencyContext';
 import { supabase } from '../lib/supabase';
-import { getAuthUserId } from '../lib/supabaseHelper';
 import { 
   Wallet, 
   TrendingUp, 
@@ -41,20 +40,22 @@ const Dashboard = () => {
   const userName = user?.user_metadata?.full_name?.split(' ')[0] || 'there';
 
   useEffect(() => {
+    const t = setTimeout(() => setLoading(false), 6000);
     if (user) {
-      fetchData();
+      fetchData().catch(() => setLoading(false));
+    } else {
+      setLoading(false);
     }
+    return () => clearTimeout(t);
   }, [user]);
 
   const fetchData = async () => {
     try {
-      const userId = await getAuthUserId();
-      if (!userId) { setLoading(false); return; }
       // Fetch recent transactions
       const { data: recentTransactions } = await supabase
         .from('transactions')
         .select('*')
-        .eq('user_id', userId)
+        .eq('user_id', user.id)
         .order('date', { ascending: false })
         .limit(5);
 
@@ -62,13 +63,13 @@ const Dashboard = () => {
       const { data: allTransactions } = await supabase
         .from('transactions')
         .select('*')
-        .eq('user_id', userId);
+        .eq('user_id', user.id);
 
       // Fetch budgets
       const { data: budgetsData } = await supabase
         .from('budgets')
         .select('*')
-        .eq('user_id', userId);
+        .eq('user_id', user.id);
 
       // Calculate stats
       if (allTransactions) {

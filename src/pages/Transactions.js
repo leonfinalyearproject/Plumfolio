@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { supabase } from '../lib/supabase';
-import { getAuthUserId } from '../lib/supabaseHelper';
 import { useCurrency } from '../context/CurrencyContext';
 import { parseReceiptText } from '../utils/receiptParser';
 import processReceiptImage from '../utils/imageProcessor';
@@ -111,19 +110,21 @@ const Transactions = () => {
   }, [scannerOpen]);
 
   useEffect(() => {
+    const t = setTimeout(() => setLoading(false), 6000);
     if (user) {
-      fetchTransactions();
+      fetchTransactions().catch(() => setLoading(false));
+    } else {
+      setLoading(false);
     }
+    return () => clearTimeout(t);
   }, [user]);
 
   const fetchTransactions = async () => {
     try {
-      const userId = await getAuthUserId();
-      if (!userId) { setLoading(false); return; }
       const { data, error } = await supabase
         .from('transactions')
         .select('*')
-        .eq('user_id', userId)
+        .eq('user_id', user.id)
         .order('date', { ascending: false });
 
       if (error) throw error;
