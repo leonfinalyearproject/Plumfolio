@@ -51,24 +51,27 @@ const Dashboard = () => {
       const userId = user.id;
       console.log('[FETCH] using user.id:', userId);
       // Fetch recent transactions
-      const { data: recentTransactions } = await supabase
+      const { data: recentTransactions, error: e1 } = await supabase
         .from('transactions')
         .select('*')
         .eq('user_id', userId)
         .order('date', { ascending: false })
         .limit(5);
+      console.log('[FETCH] recent:', recentTransactions?.length, 'err:', e1?.message || 'none');
 
       // Fetch all transactions for stats
-      const { data: allTransactions } = await supabase
+      const { data: allTransactions, error: e2 } = await supabase
         .from('transactions')
         .select('*')
         .eq('user_id', userId);
+      console.log('[FETCH] all:', allTransactions?.length, 'err:', e2?.message || 'none');
 
       // Fetch budgets
-      const { data: budgetsData } = await supabase
+      const { data: budgetsData, error: e3 } = await supabase
         .from('budgets')
         .select('*')
         .eq('user_id', userId);
+      console.log('[FETCH] budgets:', budgetsData?.length, 'err:', e3?.message || 'none');
 
       // Calculate stats
       if (allTransactions) {
