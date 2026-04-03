@@ -6,7 +6,7 @@ import './Settings.css';
 
 const Settings = () => {
   const { user, profile, updateProfile, updatePassword } = useAuth();
-  const { currencyCode, formatCurrency } = useCurrency();
+  const { currencyCode, formatCurrency, rate, ratesLoaded } = useCurrency();
   const [activeTab, setActiveTab] = useState('profile');
   const [profileData, setProfileData] = useState({
     fullName: user?.user_metadata?.full_name || profile?.full_name || '',
@@ -67,54 +67,48 @@ const Settings = () => {
 
   const handleCurrencySelect = async (code) => {
     if (code === currencyCode || switchingTo) return;
-    
-    console.log('Switching currency from', currencyCode, 'to', code);
     setSwitchingTo(code);
-    
     try {
       const result = await updateProfile({ currency: code });
-      console.log('Currency update result:', result);
-      
       if (result.error) {
-        console.error('Currency update error:', result.error);
         showMessage('error', 'Failed to switch currency');
       } else {
         showMessage('success', 'Switched to ' + code);
       }
     } catch (err) {
-      console.error('Currency switch exception:', err);
       showMessage('error', 'Failed to switch currency');
     } finally {
       setSwitchingTo(null);
     }
   };
 
-  const filteredCurrencies = CURRENCIES.filter(c =>
-    c.name.toLowerCase().includes(currencySearch.toLowerCase()) ||
-    c.code.toLowerCase().includes(currencySearch.toLowerCase()) ||
-    c.symbol.toLowerCase().includes(currencySearch.toLowerCase())
-  );
+  const filteredCurrencies = CURRENCIES.filter(function(c) {
+    var q = currencySearch.toLowerCase();
+    return c.name.toLowerCase().includes(q) ||
+      c.code.toLowerCase().includes(q) ||
+      c.symbol.toLowerCase().includes(q);
+  });
 
-  const africanCodes = ['BWP', 'ZAR', 'NGN', 'KES', 'GHS', 'TZS', 'UGX', 'ZMW', 'NAD', 'MWK', 'LSL', 'SZL', 'EGP'];
-  const activeCurrency = CURRENCIES.find(c => c.code === currencyCode);
-  const africanList = filteredCurrencies.filter(c => africanCodes.includes(c.code) && c.code !== currencyCode);
-  const internationalList = filteredCurrencies.filter(c => !africanCodes.includes(c.code) && c.code !== currencyCode);
+  var africanCodes = ['BWP','ZAR','NGN','KES','GHS','TZS','UGX','ZMW','NAD','MWK','LSL','SZL','EGP'];
+  var activeCurrency = CURRENCIES.find(function(c) { return c.code === currencyCode; });
+  var africanList = filteredCurrencies.filter(function(c) { return africanCodes.indexOf(c.code) >= 0 && c.code !== currencyCode; });
+  var internationalList = filteredCurrencies.filter(function(c) { return africanCodes.indexOf(c.code) < 0 && c.code !== currencyCode; });
 
-  const tabs = [
+  var tabs = [
     { id: 'profile', label: 'Profile', icon: User },
     { id: 'currency', label: 'Currency', icon: Globe },
     { id: 'security', label: 'Security', icon: Shield },
     { id: 'notifications', label: 'Notifications', icon: Bell },
   ];
 
-  const renderCurrencyItem = (c) => {
-    const isActive = c.code === currencyCode;
-    const isSwitching = c.code === switchingTo;
+  var renderCurrencyItem = function(c) {
+    var isActive = c.code === currencyCode;
+    var isSwitching = c.code === switchingTo;
     return (
       <button
         key={c.code}
-        className={`currency-item ${isActive ? 'active' : ''} ${isSwitching ? 'switching' : ''}`}
-        onClick={() => handleCurrencySelect(c.code)}
+        className={'currency-item' + (isActive ? ' active' : '') + (isSwitching ? ' switching' : '')}
+        onClick={function() { handleCurrencySelect(c.code); }}
         disabled={isActive || !!switchingTo}
       >
         <span className="currency-item-flag">{c.flag}</span>
@@ -132,17 +126,20 @@ const Settings = () => {
   return (
     <div className="settings-page">
       <div className="settings-tabs">
-        {tabs.map((tab) => (
-          <button key={tab.id} className={`settings-tab ${activeTab === tab.id ? 'active' : ''}`} onClick={() => setActiveTab(tab.id)}>
-            <tab.icon size={18} />
-            <span>{tab.label}</span>
-          </button>
-        ))}
+        {tabs.map(function(tab) {
+          return (
+            <button key={tab.id} className={'settings-tab' + (activeTab === tab.id ? ' active' : '')} onClick={function() { setActiveTab(tab.id); }}>
+              <tab.icon size={18} />
+              <span>{tab.label}</span>
+            </button>
+          );
+        })}
       </div>
 
-      {message.text && <div className={`settings-message ${message.type}`}>{message.text}</div>}
+      {message.text && <div className={'settings-message ' + message.type}>{message.text}</div>}
 
       <div className="settings-content">
+        {/* PROFILE */}
         {activeTab === 'profile' && (
           <div className="settings-section">
             <div className="section-header">
@@ -152,7 +149,7 @@ const Settings = () => {
             <div className="settings-form">
               <div className="form-group">
                 <label><User size={14} /> Full Name</label>
-                <input type="text" value={profileData.fullName} onChange={(e) => setProfileData({ ...profileData, fullName: e.target.value })} placeholder="Your full name" />
+                <input type="text" value={profileData.fullName} onChange={function(e) { setProfileData({ ...profileData, fullName: e.target.value }); }} placeholder="Your full name" />
               </div>
               <div className="form-group">
                 <label><Mail size={14} /> Email Address</label>
@@ -165,23 +162,29 @@ const Settings = () => {
           </div>
         )}
 
+        {/* CURRENCY */}
         {activeTab === 'currency' && (
           <div className="settings-section">
             <div className="section-header">
               <h2>Currency</h2>
-              <p>Tap a currency to switch — changes apply instantly everywhere.</p>
+              <p>Tap a currency to switch. All values are converted using live exchange rates.</p>
             </div>
 
             <div className="currency-preview">
-              <div className="currency-preview-amount">{formatCurrency(12345.67)}</div>
+              <div className="currency-preview-amount">{formatCurrency(1000)}</div>
               <div className="currency-preview-label">
-                {activeCurrency ? `${activeCurrency.flag} ${activeCurrency.code} — ${activeCurrency.name}` : 'Botswana Pula'}
+                P1,000.00 BWP = {formatCurrency(1000)}
               </div>
+              {currencyCode !== 'BWP' && ratesLoaded && (
+                <div className="currency-preview-rate">
+                  Rate: 1 BWP = {rate.toFixed(4)} {currencyCode}
+                </div>
+              )}
             </div>
 
             <div className="currency-search-box">
               <Search size={15} />
-              <input type="text" placeholder="Search currencies..." value={currencySearch} onChange={(e) => setCurrencySearch(e.target.value)} />
+              <input type="text" placeholder="Search currencies..." value={currencySearch} onChange={function(e) { setCurrencySearch(e.target.value); }} />
             </div>
 
             {!currencySearch && activeCurrency && (
@@ -207,6 +210,7 @@ const Settings = () => {
           </div>
         )}
 
+        {/* SECURITY */}
         {activeTab === 'security' && (
           <div className="settings-section">
             <div className="section-header">
@@ -216,15 +220,15 @@ const Settings = () => {
             <div className="settings-form">
               <div className="form-group">
                 <label><Lock size={14} /> Current Password</label>
-                <input type="password" value={passwordData.currentPassword} onChange={(e) => setPasswordData({ ...passwordData, currentPassword: e.target.value })} placeholder="Current password" />
+                <input type="password" value={passwordData.currentPassword} onChange={function(e) { setPasswordData({ ...passwordData, currentPassword: e.target.value }); }} placeholder="Current password" />
               </div>
               <div className="form-group">
                 <label><Lock size={14} /> New Password</label>
-                <input type="password" value={passwordData.newPassword} onChange={(e) => setPasswordData({ ...passwordData, newPassword: e.target.value })} placeholder="New password" />
+                <input type="password" value={passwordData.newPassword} onChange={function(e) { setPasswordData({ ...passwordData, newPassword: e.target.value }); }} placeholder="New password" />
               </div>
               <div className="form-group">
                 <label><Lock size={14} /> Confirm Password</label>
-                <input type="password" value={passwordData.confirmPassword} onChange={(e) => setPasswordData({ ...passwordData, confirmPassword: e.target.value })} placeholder="Confirm password" />
+                <input type="password" value={passwordData.confirmPassword} onChange={function(e) { setPasswordData({ ...passwordData, confirmPassword: e.target.value }); }} placeholder="Confirm password" />
               </div>
               <button className="save-btn" onClick={handlePasswordChange} disabled={saving}>
                 {saving ? <span className="spinner" /> : <Shield size={16} />} Update Password
@@ -237,6 +241,7 @@ const Settings = () => {
           </div>
         )}
 
+        {/* NOTIFICATIONS */}
         {activeTab === 'notifications' && (
           <div className="settings-section">
             <div className="section-header">
@@ -248,18 +253,20 @@ const Settings = () => {
                 { key: 'budgetAlerts', title: 'Budget Alerts', desc: 'When approaching budget limits' },
                 { key: 'weeklyReport', title: 'Weekly Summary', desc: 'Weekly spending overview' },
                 { key: 'monthlyReport', title: 'Monthly Report', desc: 'Detailed monthly report' },
-              ].map(({ key, title, desc }) => (
-                <div key={key} className="notification-item">
-                  <div className="notification-info">
-                    <span className="notification-title">{title}</span>
-                    <span className="notification-desc">{desc}</span>
+              ].map(function(item) {
+                return (
+                  <div key={item.key} className="notification-item">
+                    <div className="notification-info">
+                      <span className="notification-title">{item.title}</span>
+                      <span className="notification-desc">{item.desc}</span>
+                    </div>
+                    <label className="toggle">
+                      <input type="checkbox" checked={notifications[item.key]} onChange={function(e) { setNotifications({ ...notifications, [item.key]: e.target.checked }); }} />
+                      <span className="toggle-slider" />
+                    </label>
                   </div>
-                  <label className="toggle">
-                    <input type="checkbox" checked={notifications[key]} onChange={(e) => setNotifications({ ...notifications, [key]: e.target.checked })} />
-                    <span className="toggle-slider" />
-                  </label>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </div>
         )}
