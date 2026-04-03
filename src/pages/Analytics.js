@@ -40,37 +40,20 @@ const Analytics = () => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    let cancelled = false;
-    const timeout = setTimeout(() => setLoading(false), 8000);
-    
-    const loadData = async () => {
-      try {
-        const { data: { session } } = await supabase.auth.getSession();
-        if (!session || cancelled) { setLoading(false); return; }
-        await fetchTransactions();
-      } catch (e) {
-        console.error('Load error:', e);
-        setLoading(false);
-      }
-    };
-
     if (user) {
-      loadData();
-    } else {
-      setLoading(false);
+      fetchTransactions();
     }
-    return () => { cancelled = true; clearTimeout(timeout); };
   }, [user?.id]);
 
   const fetchTransactions = async () => {
     try {
-      const { data: { session: s } } = await supabase.auth.getSession();
-      const uid = s ? s.user.id : user?.id;
-      if (!uid) { setLoading(false); return; }
+      const { data: { session: _s } } = await supabase.auth.getSession();
+      const userId = _s ? _s.user.id : user?.id;
+      if (!userId) { setLoading(false); return; }
       const { data, error } = await supabase
         .from('transactions')
         .select('*')
-        .eq('user_id', uid)
+        .eq('user_id', userId)
         .order('date', { ascending: true });
 
       if (error) throw error;

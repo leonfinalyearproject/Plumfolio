@@ -31,38 +31,21 @@ const Budgets = () => {
   ];
 
   useEffect(() => {
-    let cancelled = false;
-    const timeout = setTimeout(() => setLoading(false), 8000);
-    
-    const loadData = async () => {
-      try {
-        const { data: { session } } = await supabase.auth.getSession();
-        if (!session || cancelled) { setLoading(false); return; }
-        await fetchBudgets();
-      } catch (e) {
-        console.error('Load error:', e);
-        setLoading(false);
-      }
-    };
-
     if (user) {
-      loadData();
-    } else {
-      setLoading(false);
+      fetchBudgets();
     }
-    return () => { cancelled = true; clearTimeout(timeout); };
   }, [user?.id]);
 
   const fetchBudgets = async () => {
     try {
-      const { data: { session: s } } = await supabase.auth.getSession();
-      const uid = s ? s.user.id : user?.id;
-      if (!uid) { setLoading(false); return; }
+      const { data: { session: _s } } = await supabase.auth.getSession();
+      const userId = _s ? _s.user.id : user?.id;
+      if (!userId) { setLoading(false); return; }
       // Fetch budgets
       const { data: budgetsData, error: budgetsError } = await supabase
         .from('budgets')
         .select('*')
-        .eq('user_id', uid);
+        .eq('user_id', userId);
 
       if (budgetsError) throw budgetsError;
 
@@ -70,7 +53,7 @@ const Budgets = () => {
       const { data: transactionsData } = await supabase
         .from('transactions')
         .select('*')
-        .eq('user_id', uid)
+        .eq('user_id', userId)
         .eq('type', 'expense');
 
       // Calculate spent per category
