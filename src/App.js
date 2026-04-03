@@ -25,18 +25,15 @@ import './styles/mobile.css';
 const ProtectedRoute = ({ children }) => {
   const { user, loading } = useAuth();
 
+  // Show spinner while auth is loading — NOT black screen
   if (loading) {
     return (
       <div style={{
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        minHeight: '100vh',
-        background: '#030305',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        minHeight: '100vh', background: '#030305',
       }}>
         <div style={{
-          width: 28,
-          height: 28,
+          width: 28, height: 28,
           border: '2px solid rgba(168,85,247,0.15)',
           borderTopColor: '#A855F7',
           borderRadius: '50%',
@@ -47,13 +44,10 @@ const ProtectedRoute = ({ children }) => {
     );
   }
 
+  // Not loading, no user — redirect to sign in
   if (!user) return <Navigate to="/signin" />;
 
-  return (
-    <DashboardLayout>
-      {children}
-    </DashboardLayout>
-  );
+  return <DashboardLayout>{children}</DashboardLayout>;
 };
 
 const GlobalAIWidget = () => {
