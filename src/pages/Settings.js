@@ -6,7 +6,7 @@ import './Settings.css';
 
 const Settings = () => {
   const { user, profile, updateProfile, updatePassword } = useAuth();
-  const { currencyCode } = useCurrency();
+  const { currencyCode, formatCurrency } = useCurrency();
   const [activeTab, setActiveTab] = useState('profile');
   const [profileData, setProfileData] = useState({
     fullName: user?.user_metadata?.full_name || profile?.full_name || '',
@@ -22,9 +22,9 @@ const Settings = () => {
     weeklyReport: false,
     monthlyReport: true,
   });
-  const [selectedCurrency, setSelectedCurrency] = useState(currencyCode || 'BWP');
   const [currencySearch, setCurrencySearch] = useState('');
   const [saving, setSaving] = useState(false);
+  const [savingCurrency, setSavingCurrency] = useState(false);
   const [message, setMessage] = useState({ type: '', text: '' });
 
   const showMessage = (type, text) => {
@@ -47,12 +47,10 @@ const Settings = () => {
 
   const handlePasswordChange = async () => {
     if (passwordData.newPassword !== passwordData.confirmPassword) {
-      showMessage('error', 'Passwords do not match');
-      return;
+      return showMessage('error', 'Passwords do not match');
     }
     if (passwordData.newPassword.length < 6) {
-      showMessage('error', 'Password must be at least 6 characters');
-      return;
+      return showMessage('error', 'Password must be at least 6 characters');
     }
     setSaving(true);
     try {
@@ -67,23 +65,32 @@ const Settings = () => {
     }
   };
 
-  const handleCurrencySave = async () => {
-    setSaving(true);
+  // Auto-save currency on click — instant switch
+  const handleCurrencySelect = async (code) => {
+    if (code === currencyCode || savingCurrency) return;
+    setSavingCurrency(true);
     try {
-      const { error } = await updateProfile({ currency: selectedCurrency });
+      const { error } = await updateProfile({ currency: code });
       if (error) throw error;
-      showMessage('success', 'Currency changed to ' + selectedCurrency);
+      showMessage('success', `Currency switched to ${code}`);
     } catch (error) {
-      showMessage('error', 'Failed to update currency: ' + error.message);
+      showMessage('error', 'Failed to update currency');
     } finally {
-      setSaving(false);
+      setSavingCurrency(false);
     }
   };
 
   const filteredCurrencies = CURRENCIES.filter(c =>
     c.name.toLowerCase().includes(currencySearch.toLowerCase()) ||
-    c.code.toLowerCase().includes(currencySearch.toLowerCase())
+    c.code.toLowerCase().includes(currencySearch.toLowerCase()) ||
+    c.symbol.toLowerCase().includes(currencySearch.toLowerCase())
   );
+
+  // Group currencies: active first, then African, then international
+  const africanCodes = ['BWP', 'ZAR', 'NGN', 'KES', 'GHS', 'TZS', 'UGX', 'ZMW', 'NAD', 'MWK', 'LSL', 'SZL', 'EGP'];
+  const activeCurrency = filteredCurrencies.find(c => c.code === currencyCode);
+  const africanCurrencies = filteredCurrencies.filter(c => africanCodes.includes(c.code) && c.code !== currencyCode);
+  const internationalCurrencies = filteredCurrencies.filter(c => !africanCodes.includes(c.code) && c.code !== currencyCode);
 
   const tabs = [
     { id: 'profile', label: 'Profile', icon: User },
@@ -108,133 +115,182 @@ const Settings = () => {
       </div>
 
       {message.text && (
-        <div className={`settings-message ${message.type}`}>
-          {message.text}
-        </div>
+        <div className={`settings-message ${message.type}`}>{message.text}</div>
       )}
 
       <div className="settings-content">
-        {/* Profile Tab */}
+        {/* ==================== PROFILE ==================== */}
         {activeTab === 'profile' && (
           <div className="settings-section">
             <div className="section-header">
               <h2>Profile Information</h2>
-              <p>Update your personal information and email address.</p>
+              <p>Update your personal information.</p>
             </div>
             <div className="settings-form">
               <div className="form-group">
-                <label htmlFor="fullName"><User size={16} /> Full Name</label>
-                <input type="text" id="fullName" value={profileData.fullName} onChange={(e) => setProfileData({ ...profileData, fullName: e.target.value })} placeholder="Your full name" />
+                <label><User size={14} /> Full Name</label>
+                <input type="text" value={profileData.fullName} onChange={(e) => setProfileData({ ...profileData, fullName: e.target.value })} placeholder="Your full name" />
               </div>
               <div className="form-group">
-                <label htmlFor="email"><Mail size={16} /> Email Address</label>
-                <input type="email" id="email" value={profileData.email} disabled placeholder="you@example.com" />
+                <label><Mail size={14} /> Email Address</label>
+                <input type="email" value={profileData.email} disabled />
               </div>
               <button className="save-btn" onClick={handleProfileSave} disabled={saving}>
-                {saving ? <span className="spinner" /> : <Save size={18} />}
+                {saving ? <span className="spinner" /> : <Save size={16} />}
                 Save Changes
               </button>
             </div>
           </div>
         )}
 
-        {/* Currency Tab */}
+        {/* ==================== CURRENCY ==================== */}
         {activeTab === 'currency' && (
           <div className="settings-section">
             <div className="section-header">
-              <h2>Currency Preferences</h2>
-              <p>Choose your preferred currency for displaying amounts across the app.</p>
+              <h2>Currency</h2>
+              <p>Select your currency — changes apply instantly across all pages.</p>
             </div>
-            <div className="currency-selector">
-              <div className="current-currency">
-                <span className="current-currency-label">Current Currency</span>
-                <div className="current-currency-display">
-                  <span className="currency-flag">{CURRENCIES.find(c => c.code === selectedCurrency)?.flag}</span>
-                  <span className="currency-code-large">{selectedCurrency}</span>
-                  <span className="currency-name-large">{CURRENCIES.find(c => c.code === selectedCurrency)?.name}</span>
+
+            {/* Preview */}
+            <div className="currency-preview">
+              <div className="currency-preview-amount">{formatCurrency(12345.67)}</div>
+              <div className="currency-preview-label">Preview with current currency</div>
+            </div>
+
+            {/* Search */}
+            <div className="currency-search-box">
+              <Search size={15} />
+              <input
+                type="text"
+                placeholder="Search by name, code, or symbol..."
+                value={currencySearch}
+                onChange={(e) => setCurrencySearch(e.target.value)}
+              />
+            </div>
+
+            {savingCurrency && (
+              <div className="currency-saving">
+                <span className="spinner" /> Switching currency...
+              </div>
+            )}
+
+            {/* Active currency */}
+            {activeCurrency && !currencySearch && (
+              <div className="currency-group">
+                <div className="currency-group-label">Active</div>
+                <div className="currency-list">
+                  <div className="currency-item active">
+                    <span className="currency-item-flag">{activeCurrency.flag}</span>
+                    <div className="currency-item-info">
+                      <span className="currency-item-code">{activeCurrency.code}</span>
+                      <span className="currency-item-name">{activeCurrency.name}</span>
+                    </div>
+                    <span className="currency-item-symbol">{activeCurrency.symbol}</span>
+                    <Check size={16} className="currency-item-check" />
+                  </div>
                 </div>
               </div>
+            )}
 
-              <div className="currency-search-wrapper">
-                <Search size={16} className="currency-search-icon" />
-                <input type="text" className="currency-search" placeholder="Search currencies..." value={currencySearch} onChange={(e) => setCurrencySearch(e.target.value)} />
+            {/* African currencies */}
+            {africanCurrencies.length > 0 && (
+              <div className="currency-group">
+                {!currencySearch && <div className="currency-group-label">African Currencies</div>}
+                <div className="currency-list">
+                  {africanCurrencies.map((c) => (
+                    <button
+                      key={c.code}
+                      className={`currency-item ${currencyCode === c.code ? 'active' : ''}`}
+                      onClick={() => handleCurrencySelect(c.code)}
+                      disabled={savingCurrency}
+                    >
+                      <span className="currency-item-flag">{c.flag}</span>
+                      <div className="currency-item-info">
+                        <span className="currency-item-code">{c.code}</span>
+                        <span className="currency-item-name">{c.name}</span>
+                      </div>
+                      <span className="currency-item-symbol">{c.symbol}</span>
+                      {currencyCode === c.code && <Check size={16} className="currency-item-check" />}
+                    </button>
+                  ))}
+                </div>
               </div>
+            )}
 
-              <div className="currency-grid">
-                {filteredCurrencies.map((currency) => (
-                  <button
-                    key={currency.code}
-                    className={`currency-option ${selectedCurrency === currency.code ? 'selected' : ''}`}
-                    onClick={() => setSelectedCurrency(currency.code)}
-                  >
-                    <span className="currency-option-flag">{currency.flag}</span>
-                    <div className="currency-option-info">
-                      <span className="currency-option-code">{currency.code}</span>
-                      <span className="currency-option-name">{currency.name}</span>
-                    </div>
-                    <span className="currency-option-symbol">{currency.symbol}</span>
-                    {selectedCurrency === currency.code && <Check size={16} className="currency-check" />}
-                  </button>
-                ))}
+            {/* International currencies */}
+            {internationalCurrencies.length > 0 && (
+              <div className="currency-group">
+                {!currencySearch && <div className="currency-group-label">International</div>}
+                <div className="currency-list">
+                  {internationalCurrencies.map((c) => (
+                    <button
+                      key={c.code}
+                      className={`currency-item ${currencyCode === c.code ? 'active' : ''}`}
+                      onClick={() => handleCurrencySelect(c.code)}
+                      disabled={savingCurrency}
+                    >
+                      <span className="currency-item-flag">{c.flag}</span>
+                      <div className="currency-item-info">
+                        <span className="currency-item-code">{c.code}</span>
+                        <span className="currency-item-name">{c.name}</span>
+                      </div>
+                      <span className="currency-item-symbol">{c.symbol}</span>
+                      {currencyCode === c.code && <Check size={16} className="currency-item-check" />}
+                    </button>
+                  ))}
+                </div>
               </div>
-
-              {selectedCurrency !== currencyCode && (
-                <button className="save-btn" onClick={handleCurrencySave} disabled={saving}>
-                  {saving ? <span className="spinner" /> : <Globe size={18} />}
-                  Save Currency ({selectedCurrency})
-                </button>
-              )}
-            </div>
+            )}
           </div>
         )}
 
-        {/* Security Tab */}
+        {/* ==================== SECURITY ==================== */}
         {activeTab === 'security' && (
           <div className="settings-section">
             <div className="section-header">
               <h2>Change Password</h2>
-              <p>Update your password to keep your account secure.</p>
+              <p>Keep your account secure.</p>
             </div>
             <div className="settings-form">
               <div className="form-group">
-                <label htmlFor="currentPassword"><Lock size={16} /> Current Password</label>
-                <input type="password" id="currentPassword" value={passwordData.currentPassword} onChange={(e) => setPasswordData({ ...passwordData, currentPassword: e.target.value })} placeholder="Enter current password" />
+                <label><Lock size={14} /> Current Password</label>
+                <input type="password" value={passwordData.currentPassword} onChange={(e) => setPasswordData({ ...passwordData, currentPassword: e.target.value })} placeholder="Enter current password" />
               </div>
               <div className="form-group">
-                <label htmlFor="newPassword"><Lock size={16} /> New Password</label>
-                <input type="password" id="newPassword" value={passwordData.newPassword} onChange={(e) => setPasswordData({ ...passwordData, newPassword: e.target.value })} placeholder="Enter new password" />
+                <label><Lock size={14} /> New Password</label>
+                <input type="password" value={passwordData.newPassword} onChange={(e) => setPasswordData({ ...passwordData, newPassword: e.target.value })} placeholder="Enter new password" />
               </div>
               <div className="form-group">
-                <label htmlFor="confirmPassword"><Lock size={16} /> Confirm New Password</label>
-                <input type="password" id="confirmPassword" value={passwordData.confirmPassword} onChange={(e) => setPasswordData({ ...passwordData, confirmPassword: e.target.value })} placeholder="Confirm new password" />
+                <label><Lock size={14} /> Confirm Password</label>
+                <input type="password" value={passwordData.confirmPassword} onChange={(e) => setPasswordData({ ...passwordData, confirmPassword: e.target.value })} placeholder="Confirm new password" />
               </div>
               <button className="save-btn" onClick={handlePasswordChange} disabled={saving}>
-                {saving ? <span className="spinner" /> : <Shield size={18} />}
+                {saving ? <span className="spinner" /> : <Shield size={16} />}
                 Update Password
               </button>
             </div>
             <div className="danger-zone">
               <div className="section-header">
                 <h2>Danger Zone</h2>
-                <p>Permanently delete your account and all associated data.</p>
+                <p>Permanently delete your account and all data.</p>
               </div>
-              <button className="delete-btn"><Trash2 size={18} /> Delete Account</button>
+              <button className="delete-btn"><Trash2 size={16} /> Delete Account</button>
             </div>
           </div>
         )}
 
-        {/* Notifications Tab */}
+        {/* ==================== NOTIFICATIONS ==================== */}
         {activeTab === 'notifications' && (
           <div className="settings-section">
             <div className="section-header">
-              <h2>Notification Preferences</h2>
-              <p>Choose what notifications you want to receive.</p>
+              <h2>Notifications</h2>
+              <p>Control what notifications you receive.</p>
             </div>
             <div className="notification-options">
               {[
-                { key: 'budgetAlerts', title: 'Budget Alerts', desc: "Get notified when you're approaching your budget limits" },
-                { key: 'weeklyReport', title: 'Weekly Summary', desc: 'Receive a weekly summary of your spending' },
-                { key: 'monthlyReport', title: 'Monthly Report', desc: 'Get a detailed monthly financial report' },
+                { key: 'budgetAlerts', title: 'Budget Alerts', desc: 'Notified when approaching budget limits' },
+                { key: 'weeklyReport', title: 'Weekly Summary', desc: 'Weekly spending summary' },
+                { key: 'monthlyReport', title: 'Monthly Report', desc: 'Detailed monthly financial report' },
               ].map(({ key, title, desc }) => (
                 <div key={key} className="notification-item">
                   <div className="notification-info">
