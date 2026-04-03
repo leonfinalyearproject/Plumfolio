@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { supabase } from '../lib/supabase';
+import { getAuthUserId } from '../lib/supabaseHelper';
 import { useCurrency } from '../context/CurrencyContext';
 import { Plus, Edit, Trash2, X, AlertTriangle, CheckCircle, Target } from 'lucide-react';
 import './Budgets.css';
@@ -31,22 +32,20 @@ const Budgets = () => {
   ];
 
   useEffect(() => {
-    const loadTimeout = setTimeout(() => setLoading(false), 8000);
     if (user) {
       fetchBudgets();
-    } else {
-      setLoading(false);
     }
-    return () => clearTimeout(loadTimeout);
   }, [user]);
 
   const fetchBudgets = async () => {
     try {
+      const userId = await getAuthUserId();
+      if (!userId) { setLoading(false); return; }
       // Fetch budgets
       const { data: budgetsData, error: budgetsError } = await supabase
         .from('budgets')
         .select('*')
-        .eq('user_id', user.id);
+        .eq('user_id', userId);
 
       if (budgetsError) throw budgetsError;
 
@@ -54,7 +53,7 @@ const Budgets = () => {
       const { data: transactionsData } = await supabase
         .from('transactions')
         .select('*')
-        .eq('user_id', user.id)
+        .eq('user_id', userId)
         .eq('type', 'expense');
 
       // Calculate spent per category

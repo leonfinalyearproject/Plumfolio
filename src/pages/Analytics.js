@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useCurrency } from '../context/CurrencyContext';
 import { supabase } from '../lib/supabase';
+import { getAuthUserId } from '../lib/supabaseHelper';
 import { TrendingUp, TrendingDown, Calendar, BarChart3, Plus } from 'lucide-react';
 import { Line, Doughnut, Bar } from 'react-chartjs-2';
 import {
@@ -40,21 +41,19 @@ const Analytics = () => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const loadTimeout = setTimeout(() => setLoading(false), 8000);
     if (user) {
       fetchTransactions();
-    } else {
-      setLoading(false);
     }
-    return () => clearTimeout(loadTimeout);
   }, [user]);
 
   const fetchTransactions = async () => {
     try {
+      const userId = await getAuthUserId();
+      if (!userId) { setLoading(false); return; }
       const { data, error } = await supabase
         .from('transactions')
         .select('*')
-        .eq('user_id', user.id)
+        .eq('user_id', userId)
         .order('date', { ascending: true });
 
       if (error) throw error;
