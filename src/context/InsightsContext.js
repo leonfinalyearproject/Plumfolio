@@ -55,9 +55,8 @@ export const InsightsProvider = ({ children }) => {
     }
 
     try {
-      // Get fresh session to ensure valid token
-      const { data: { session } } = await supabase.auth.getSession();
-      const userId = session ? session.user.id : passedUserId;
+      const { data: { session: s } } = await supabase.auth.getSession();
+      const userId = s ? s.user.id : passedUserId;
 
       const [txnRes, budgetRes] = await Promise.all([
         supabase
