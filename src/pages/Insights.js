@@ -6,10 +6,15 @@ import {
   ArrowUpRight, ArrowDownRight, Repeat, Lightbulb, Target,
   BarChart3, DollarSign, Calendar, Shield, ChevronRight
 } from 'lucide-react';
+import { useCurrency } from '../context/CurrencyContext';
 import './Insights.css';
 
 const Insights = () => {
   const { insights, predictions, loading, refreshInsights } = useInsights();
+  const { formatCurrency, symbol } = useCurrency();
+
+  // Replace currency placeholder in insight messages
+  const fmt = (msg) => msg ? msg.replace(/¤/g, symbol) : msg;
   const [activeTab, setActiveTab] = useState('insights');
 
   const getSeverityIcon = (severity) => {
@@ -75,7 +80,7 @@ const Insights = () => {
           <div className="summary-card">
             <div className="summary-icon prediction-icon"><Target size={20} /></div>
             <div className="summary-content">
-              <span className="summary-value">P{predictions.totalForecast.predicted?.toFixed(0) || '0'}</span>
+              <span className="summary-value">{formatCurrency(predictions.totalForecast.predicted || 0)}</span>
               <span className="summary-label">Predicted Next Month</span>
             </div>
           </div>
@@ -123,7 +128,7 @@ const Insights = () => {
                 <div key={i} className={`insight-card ${getSeverityClass(insight.severity)}`}>
                   <div className="insight-icon">{getSeverityIcon(insight.severity)}</div>
                   <div className="insight-body">
-                    <p className="insight-message">{insight.message}</p>
+                    <p className="insight-message">{fmt(insight.message)}</p>
                     {insight.category && <span className="insight-tag">{insight.category}</span>}
                     {insight.percentChange && (
                       <span className={`insight-badge ${insight.percentChange > 0 ? 'badge-up' : 'badge-down'}`}>
@@ -148,7 +153,7 @@ const Insights = () => {
                   {predictions.totalForecast.confidence} confidence
                 </span>
               </div>
-              <div className="forecast-value">P{predictions.totalForecast.predicted?.toFixed(2) || '0.00'}</div>
+              <div className="forecast-value">{formatCurrency(predictions.totalForecast.predicted || 0)}</div>
               <p className="forecast-detail">Predicted expenses for {predictions.totalForecast.nextMonth || 'next month'}</p>
               {predictions.totalForecast.trend !== undefined && (
                 <p className="forecast-method">
@@ -170,7 +175,7 @@ const Insights = () => {
                       {pred.trend}
                     </span>
                   </div>
-                  <div className="cat-forecast-value">P{pred.predicted.toFixed(2)}</div>
+                  <div className="cat-forecast-value">{formatCurrency(pred.predicted)}</div>
                   <span className={`confidence-badge small ${getConfidenceClass(pred.confidence)}`}>{pred.confidence}</span>
                 </div>
               ))}
@@ -184,9 +189,9 @@ const Insights = () => {
                     <div key={i} className="suggestion-card">
                       <div className="suggestion-header">
                         <span>{sug.category}</span>
-                        <span className="suggested-amount">P{sug.suggestedAmount.toFixed(2)}</span>
+                        <span className="suggested-amount">{formatCurrency(sug.suggestedAmount)}</span>
                       </div>
-                      <p className="suggestion-detail">Based on predicted spend of P{sug.predictedSpend.toFixed(2)} + 10% buffer</p>
+                      <p className="suggestion-detail">Based on predicted spend of {formatCurrency(sug.predictedSpend)} + 10% buffer</p>
                     </div>
                   ))}
                 </div>
@@ -213,7 +218,7 @@ const Insights = () => {
                       <p>{rec.message}</p>
                       <div className="recurring-meta">
                         <span className="recurring-freq">{rec.frequency}</span>
-                        <span className="recurring-amount">P{rec.amount.toFixed(2)}</span>
+                        <span className="recurring-amount">{formatCurrency(rec.amount)}</span>
                         <span className="recurring-count">{rec.occurrences} occurrences</span>
                         {rec.nextExpected && (
                           <span className="recurring-next">
@@ -248,7 +253,7 @@ const Insights = () => {
                       <div className="warning-bar">
                         <div className="warning-bar-fill" style={{ width: `${Math.min(100, (warn.spent / warn.allocated) * 100)}%` }} />
                       </div>
-                      <span className="warning-detail">P{warn.spent.toFixed(2)} / P{warn.allocated.toFixed(2)}</span>
+                      <span className="warning-detail">{formatCurrency(warn.spent)} / {formatCurrency(warn.allocated)}</span>
                     </div>
                   </div>
                 ))}
