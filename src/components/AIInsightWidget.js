@@ -8,6 +8,7 @@ import {
   Target, Shield, Repeat, BarChart3, DollarSign,
   ArrowUpRight, ArrowDownRight, Receipt, Settings
 } from 'lucide-react';
+import { useCurrency } from '../context/CurrencyContext';
 import './AIInsightWidget.css';
 
 /**
@@ -309,7 +310,7 @@ export const AIToasts = () => {
           </div>
           <div className="ai-toast-content">
             <span className="ai-toast-title">{toast.title}</span>
-            <p className="ai-toast-message">{toast.message}</p>
+            <p className="ai-toast-message">{fmt(toast.message)}</p>
           </div>
           <button className="ai-toast-close" onClick={() => dismissToast(toast.id)}>
             <X size={14} />
@@ -408,7 +409,7 @@ const AIInsightWidget = () => {
               <div className="ai-widget-stats">
                 <div className="widget-stat">
                   <Target size={12} />
-                  <span>Next: <strong>P{predictions.totalForecast.predicted.toFixed(0)}</strong></span>
+                  <span>Next: <strong>{formatCurrency(predictions.totalForecast.predicted)}</strong></span>
                 </div>
                 <div className="widget-stat">
                   <Shield size={12} />
@@ -435,7 +436,7 @@ const AIInsightWidget = () => {
                     </div>
                     <div className="widget-insight-content">
                       {item.context && <span className="widget-insight-context">{item.context}</span>}
-                      <p>{item.message}</p>
+                      <p>{fmt(item.message)}</p>
                     </div>
                   </div>
                 ))
