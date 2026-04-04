@@ -384,3 +384,21 @@
   .ai-widget-expanded { width: 300px; }
   .ai-toasts-container { right: 10px; max-width: 300px; }
 }
+
+/* Override mobile positioning — ensure widget is above bottom nav */
+@media (max-width: 768px) {
+  .ai-widget {
+    width: 280px !important;
+    right: 12px !important;
+    bottom: 75px !important;
+    left: auto !important;
+  }
+  .ai-widget-expanded {
+    width: 300px !important;
+  }
+  .ai-toasts-container {
+    right: 12px !important;
+    bottom: 140px !important;
+    max-width: 280px !important;
+  }
+}
