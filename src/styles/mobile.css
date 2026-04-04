@@ -104,10 +104,19 @@
   .filter-group { width: 100%; }
   .filter-group select, .filter-group input[type="date"], .filter-group input[type="number"] { width: 100%; }
   .bulk-bar { flex-wrap: wrap; font-size: 0.78rem; padding: 8px 12px; }
+  /* Transaction table — scrollable on mobile so all columns visible */
+  .transactions-table-wrapper {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    border-radius: 14px;
+  }
+  .transactions-table {
+    table-layout: auto;
+    min-width: 520px;
+  }
   .transactions-table th:nth-child(4), .transactions-table td:nth-child(4),
   .transactions-table th:nth-child(5), .transactions-table td:nth-child(5) { display: none; }
   .transactions-table th, .transactions-table td { padding: 10px 8px; font-size: 0.78rem; }
-  .transactions-table { table-layout: auto; }
   .desc-cell .transaction-icon { width: 28px; height: 28px; }
   .desc-cell .transaction-icon svg { width: 13px; height: 13px; }
   .actions-cell { opacity: 1 !important; }
