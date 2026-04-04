@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { supabase } from '../lib/supabase';
 import { useCurrency } from '../context/CurrencyContext';
@@ -9,13 +9,14 @@ import {
   Coffee, Home, Car, Zap, GraduationCap, ShoppingCart, Wallet, Briefcase,
   Heart, Film, MoreHorizontal, Trash2, Edit, Receipt, Camera, FileText,
   Check, Loader, AlertCircle, Image, ScanLine, Tag, Calendar, DollarSign,
-  Search, ArrowUp, ArrowDown, RefreshCw, ChevronDown, Save
+  Search, ArrowUp, ArrowDown, RefreshCw, ChevronDown, Save, CheckSquare,
+  Square, FileSpreadsheet, Calculator, XCircle
 } from 'lucide-react';
 import './Transactions.css';
 
 const Transactions = () => {
   const { user } = useAuth();
-  const { formatCurrency } = useCurrency();
+  const { formatCurrency, symbol } = useCurrency();
   const [transactions, setTransactions] = useState([]);
   const [loading, setLoading] = useState(true);
 
@@ -26,6 +27,8 @@ const Transactions = () => {
   const [dateTo, setDateTo] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('all');
   const [showFilters, setShowFilters] = useState(false);
+  const [amountMin, setAmountMin] = useState('');
+  const [amountMax, setAmountMax] = useState('');
 
   // Sort
   const [sortField, setSortField] = useState('date');
@@ -37,20 +40,28 @@ const Transactions = () => {
   const [formData, setFormData] = useState({
     type: 'expense', amount: '', description: '',
     category: 'Food & Dining', date: new Date().toISOString().split('T')[0],
-    is_recurring: false, recurring_interval: 'monthly',
   });
 
   // Inline editing
-  const [inlineEdit, setInlineEdit] = useState(null); // { id, field, value }
+  const [inlineEdit, setInlineEdit] = useState(null);
 
-  // CSV import
+  // Multi-select
+  const [selected, setSelected] = useState(new Set());
+  const [showBulkBar, setShowBulkBar] = useState(false);
+
+  // Formula bar
+  const [showFormula, setShowFormula] = useState(false);
+
+  // Import
   const [importModalOpen, setImportModalOpen] = useState(false);
-  const [csvData, setCsvData] = useState(null);
-  const [csvPreview, setCsvPreview] = useState([]);
+  const [importData, setImportData] = useState(null);
+  const [importPreview, setImportPreview] = useState([]);
   const [importing, setImporting] = useState(false);
+  const [importSource, setImportSource] = useState('');
   const csvInputRef = useRef(null);
+  const xlsxInputRef = useRef(null);
 
-  // Scanner state
+  // Scanner
   const [scannerOpen, setScannerOpen] = useState(false);
   const [selectedFile, setSelectedFile] = useState(null);
   const [preview, setPreview] = useState(null);
@@ -65,45 +76,51 @@ const Transactions = () => {
   const fileInputRef = useRef(null);
   const cameraInputRef = useRef(null);
 
+  // SheetJS loaded flag
+  const [xlsxReady, setXlsxReady] = useState(false);
+
   const categories = [
     'Food & Dining', 'Transportation', 'Housing', 'Utilities',
     'Entertainment', 'Shopping', 'Health & Fitness', 'Education',
     'Groceries', 'Subscriptions', 'Savings', 'Investments',
-    'Gifts & Donations', 'Personal Care', 'Travel',
-    'Income', 'Other',
+    'Gifts & Donations', 'Personal Care', 'Travel', 'Income', 'Other',
   ];
 
-  const recurringIntervals = [
-    { value: 'daily', label: 'Daily' },
-    { value: 'weekly', label: 'Weekly' },
-    { value: 'monthly', label: 'Monthly' },
-    { value: 'yearly', label: 'Yearly' },
-  ];
+  // Load SheetJS on demand
+  const loadSheetJS = () => {
+    return new Promise((resolve) => {
+      if (window.XLSX) { setXlsxReady(true); resolve(true); return; }
+      const s = document.createElement('script');
+      s.src = 'https://cdn.sheetjs.com/xlsx-0.20.0/package/dist/xlsx.full.min.js';
+      s.onload = () => { setXlsxReady(true); resolve(true); };
+      s.onerror = () => resolve(false);
+      document.head.appendChild(s);
+    });
+  };
 
   // Mobile check
   useEffect(() => {
     const check = () => {
       const mobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
-      const touch = 'ontouchstart' in window;
-      setIsMobile(mobile || (touch && window.innerWidth < 1024));
+      setIsMobile(mobile || ('ontouchstart' in window && window.innerWidth < 1024));
     };
     check();
     window.addEventListener('resize', check);
     return () => window.removeEventListener('resize', check);
   }, []);
 
-  // Tesseract lazy load
+  // Tesseract
   useEffect(() => {
     if (!scannerOpen) return;
     if (window.Tesseract) { setTesseractReady(true); return; }
-    const script = document.createElement('script');
-    script.src = 'https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js';
-    script.onload = () => setTesseractReady(true);
-    script.onerror = () => setScanError('Failed to load OCR engine.');
-    document.head.appendChild(script);
+    const s = document.createElement('script');
+    s.src = 'https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js';
+    s.onload = () => setTesseractReady(true);
+    s.onerror = () => setScanError('Failed to load OCR.');
+    document.head.appendChild(s);
   }, [scannerOpen]);
 
-  // Fetch data
+  // Fetch
   useEffect(() => {
     if (user) fetchTransactions();
     else setLoading(false);
@@ -111,338 +128,361 @@ const Transactions = () => {
 
   const fetchTransactions = async () => {
     try {
-      const { data, error } = await supabase
-        .from('transactions').select('*')
-        .eq('user_id', user.id)
-        .order('date', { ascending: false });
+      const { data, error } = await supabase.from('transactions').select('*')
+        .eq('user_id', user.id).order('date', { ascending: false });
       if (error) throw error;
       setTransactions(data || []);
-    } catch (error) {
-      console.error('Error fetching:', error);
-    } finally {
-      setLoading(false);
-    }
+    } catch (e) { console.error('Fetch error:', e); }
+    finally { setLoading(false); }
   };
 
-  // =====================
-  // FILTERING & SORTING
-  // =====================
-  const filteredTransactions = transactions
-    .filter(t => {
-      if (filter !== 'all' && t.type !== filter) return false;
-      if (categoryFilter !== 'all' && t.category !== categoryFilter) return false;
-      if (searchQuery) {
-        const q = searchQuery.toLowerCase();
-        if (!t.description.toLowerCase().includes(q) &&
-            !t.category.toLowerCase().includes(q) &&
-            !t.amount.toString().includes(q)) return false;
-      }
-      if (dateFrom && t.date < dateFrom) return false;
-      if (dateTo && t.date > dateTo) return false;
-      return true;
-    })
-    .sort((a, b) => {
-      let valA, valB;
-      if (sortField === 'date') { valA = a.date; valB = b.date; }
-      else if (sortField === 'amount') { valA = parseFloat(a.amount); valB = parseFloat(b.amount); }
-      else if (sortField === 'description') { valA = a.description.toLowerCase(); valB = b.description.toLowerCase(); }
-      else if (sortField === 'category') { valA = a.category; valB = b.category; }
-      else if (sortField === 'type') { valA = a.type; valB = b.type; }
-      else { valA = a.date; valB = b.date; }
-      if (valA < valB) return sortDir === 'asc' ? -1 : 1;
-      if (valA > valB) return sortDir === 'asc' ? 1 : -1;
-      return 0;
-    });
+  // ========== FILTERING & SORTING ==========
+  const filtered = transactions.filter(t => {
+    if (filter !== 'all' && t.type !== filter) return false;
+    if (categoryFilter !== 'all' && t.category !== categoryFilter) return false;
+    if (searchQuery) {
+      const q = searchQuery.toLowerCase();
+      if (!t.description.toLowerCase().includes(q) && !t.category.toLowerCase().includes(q)) return false;
+    }
+    if (dateFrom && t.date < dateFrom) return false;
+    if (dateTo && t.date > dateTo) return false;
+    if (amountMin && parseFloat(t.amount) < parseFloat(amountMin)) return false;
+    if (amountMax && parseFloat(t.amount) > parseFloat(amountMax)) return false;
+    return true;
+  }).sort((a, b) => {
+    let va, vb;
+    if (sortField === 'date') { va = a.date; vb = b.date; }
+    else if (sortField === 'amount') { va = parseFloat(a.amount); vb = parseFloat(b.amount); }
+    else if (sortField === 'description') { va = a.description.toLowerCase(); vb = b.description.toLowerCase(); }
+    else if (sortField === 'category') { va = a.category; vb = b.category; }
+    else if (sortField === 'type') { va = a.type; vb = b.type; }
+    else { va = a.date; vb = b.date; }
+    if (va < vb) return sortDir === 'asc' ? -1 : 1;
+    if (va > vb) return sortDir === 'asc' ? 1 : -1;
+    return 0;
+  });
 
   const handleSort = (field) => {
-    if (sortField === field) {
-      setSortDir(d => d === 'asc' ? 'desc' : 'asc');
-    } else {
-      setSortField(field);
-      setSortDir('desc');
-    }
+    if (sortField === field) setSortDir(d => d === 'asc' ? 'desc' : 'asc');
+    else { setSortField(field); setSortDir('desc'); }
   };
 
   const SortIcon = ({ field }) => {
     if (sortField !== field) return <ChevronDown size={12} className="sort-icon inactive" />;
-    return sortDir === 'asc'
-      ? <ArrowUp size={12} className="sort-icon active" />
-      : <ArrowDown size={12} className="sort-icon active" />;
+    return sortDir === 'asc' ? <ArrowUp size={12} className="sort-icon active" /> : <ArrowDown size={12} className="sort-icon active" />;
   };
 
   const clearFilters = () => {
     setSearchQuery(''); setDateFrom(''); setDateTo('');
     setCategoryFilter('all'); setFilter('all');
+    setAmountMin(''); setAmountMax('');
   };
+  const hasFilters = searchQuery || dateFrom || dateTo || categoryFilter !== 'all' || filter !== 'all' || amountMin || amountMax;
 
-  const hasActiveFilters = searchQuery || dateFrom || dateTo || categoryFilter !== 'all' || filter !== 'all';
+  // Formula calculations
+  const fIncome = filtered.filter(t => t.type === 'income').reduce((s, t) => s + parseFloat(t.amount), 0);
+  const fExpenses = filtered.filter(t => t.type === 'expense').reduce((s, t) => s + parseFloat(t.amount), 0);
+  const fAmounts = filtered.map(t => parseFloat(t.amount));
+  const fSum = fAmounts.reduce((a, b) => a + b, 0);
+  const fAvg = fAmounts.length > 0 ? fSum / fAmounts.length : 0;
+  const fMin = fAmounts.length > 0 ? Math.min(...fAmounts) : 0;
+  const fMax = fAmounts.length > 0 ? Math.max(...fAmounts) : 0;
 
-  // Stats
-  const totalIncome = filteredTransactions.filter(t => t.type === 'income').reduce((s, t) => s + parseFloat(t.amount), 0);
-  const totalExpenses = filteredTransactions.filter(t => t.type === 'expense').reduce((s, t) => s + parseFloat(t.amount), 0);
-
-  // =====================
-  // CRUD
-  // =====================
+  // ========== CRUD ==========
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
-      const payload = {
-        type: formData.type,
-        amount: parseFloat(formData.amount),
-        description: formData.description,
-        category: formData.category,
-        date: formData.date,
-      };
-      if (editingTransaction) {
-        const { error } = await supabase.from('transactions').update(payload).eq('id', editingTransaction.id);
-        if (error) throw error;
-      } else {
-        const { error } = await supabase.from('transactions').insert({ ...payload, user_id: user.id });
-        if (error) throw error;
-      }
-      setModalOpen(false);
-      setEditingTransaction(null);
-      setFormData({ type: 'expense', amount: '', description: '', category: 'Food & Dining', date: new Date().toISOString().split('T')[0], is_recurring: false, recurring_interval: 'monthly' });
+      const p = { type: formData.type, amount: parseFloat(formData.amount), description: formData.description, category: formData.category, date: formData.date };
+      if (editingTransaction) await supabase.from('transactions').update(p).eq('id', editingTransaction.id);
+      else await supabase.from('transactions').insert({ ...p, user_id: user.id });
+      setModalOpen(false); setEditingTransaction(null);
+      setFormData({ type: 'expense', amount: '', description: '', category: 'Food & Dining', date: new Date().toISOString().split('T')[0] });
       fetchTransactions();
-    } catch (error) {
-      console.error('Save error:', error);
-    }
+    } catch (e) { console.error('Save error:', e); }
   };
 
   const handleDelete = async (id) => {
     if (!window.confirm('Delete this transaction?')) return;
-    try {
-      await supabase.from('transactions').delete().eq('id', id);
-      fetchTransactions();
-    } catch (error) { console.error('Delete error:', error); }
+    await supabase.from('transactions').delete().eq('id', id);
+    fetchTransactions();
   };
 
   const handleEdit = (t) => {
     setEditingTransaction(t);
-    setFormData({ type: t.type, amount: t.amount.toString(), description: t.description, category: t.category, date: t.date, is_recurring: false, recurring_interval: 'monthly' });
+    setFormData({ type: t.type, amount: t.amount.toString(), description: t.description, category: t.category, date: t.date });
     setModalOpen(true);
   };
 
-  // =====================
-  // INLINE EDITING
-  // =====================
-  const startInlineEdit = (id, field, value) => {
-    setInlineEdit({ id, field, value: value.toString() });
+  // ========== MULTI-SELECT & BULK ==========
+  const toggleSelect = (id) => {
+    const n = new Set(selected);
+    if (n.has(id)) n.delete(id); else n.add(id);
+    setSelected(n);
+    setShowBulkBar(n.size > 0);
   };
 
+  const toggleSelectAll = () => {
+    if (selected.size === filtered.length) {
+      setSelected(new Set());
+      setShowBulkBar(false);
+    } else {
+      setSelected(new Set(filtered.map(t => t.id)));
+      setShowBulkBar(true);
+    }
+  };
+
+  const bulkDelete = async () => {
+    if (!window.confirm(`Delete ${selected.size} transactions?`)) return;
+    const ids = Array.from(selected);
+    await supabase.from('transactions').delete().in('id', ids);
+    setSelected(new Set()); setShowBulkBar(false);
+    fetchTransactions();
+  };
+
+  // ========== INLINE EDITING ==========
+  const startInlineEdit = (id, field, value) => setInlineEdit({ id, field, value: value.toString() });
   const saveInlineEdit = async () => {
     if (!inlineEdit) return;
     const { id, field, value } = inlineEdit;
-    try {
-      const update = {};
-      if (field === 'amount') update.amount = parseFloat(value);
-      else update[field] = value;
-      const { error } = await supabase.from('transactions').update(update).eq('id', id);
-      if (error) throw error;
-      setTransactions(prev => prev.map(t => t.id === id ? { ...t, ...update } : t));
-    } catch (e) { console.error('Inline save error:', e); }
+    const update = field === 'amount' ? { amount: parseFloat(value) } : { [field]: value };
+    await supabase.from('transactions').update(update).eq('id', id);
+    setTransactions(prev => prev.map(t => t.id === id ? { ...t, ...update } : t));
     setInlineEdit(null);
   };
+  const handleInlineKey = (e) => { if (e.key === 'Enter') saveInlineEdit(); if (e.key === 'Escape') setInlineEdit(null); };
 
-  const cancelInlineEdit = () => setInlineEdit(null);
+  // ========== XLSX EXPORT ==========
+  const exportXLSX = async () => {
+    await loadSheetJS();
+    if (!window.XLSX) { alert('Failed to load Excel library'); return; }
+    const data = filtered.map(t => ({
+      Date: t.date, Description: t.description, Category: t.category,
+      Type: t.type, Amount: parseFloat(t.amount),
+    }));
+    const ws = window.XLSX.utils.json_to_sheet(data);
+    // Column widths
+    ws['!cols'] = [{ wch: 12 }, { wch: 30 }, { wch: 18 }, { wch: 10 }, { wch: 14 }];
+    const wb = window.XLSX.utils.book_new();
+    window.XLSX.utils.book_append_sheet(wb, ws, 'Transactions');
 
-  const handleInlineKeyDown = (e) => {
-    if (e.key === 'Enter') saveInlineEdit();
-    if (e.key === 'Escape') cancelInlineEdit();
+    // Add summary sheet
+    const summary = [
+      ['Plumfolio Financial Summary'],
+      [''],
+      ['Total Income', fIncome],
+      ['Total Expenses', fExpenses],
+      ['Net Savings', fIncome - fExpenses],
+      ['Transaction Count', filtered.length],
+      ['Average Transaction', fAvg],
+      ['Largest Transaction', fMax],
+      [''],
+      ['Category Breakdown'],
+      ...Object.entries(filtered.filter(t => t.type === 'expense').reduce((a, t) => {
+        a[t.category] = (a[t.category] || 0) + parseFloat(t.amount); return a;
+      }, {})).sort((a, b) => b[1] - a[1]).map(([cat, amt]) => [cat, amt]),
+    ];
+    const ws2 = window.XLSX.utils.aoa_to_sheet(summary);
+    ws2['!cols'] = [{ wch: 24 }, { wch: 16 }];
+    window.XLSX.utils.book_append_sheet(wb, ws2, 'Summary');
+
+    window.XLSX.writeFile(wb, `plumfolio-${new Date().toISOString().split('T')[0]}.xlsx`);
   };
 
-  // =====================
-  // CSV EXPORT
-  // =====================
+  // ========== CSV EXPORT ==========
   const exportCSV = () => {
-    const headers = ['Date', 'Description', 'Category', 'Type', 'Amount'];
-    const rows = filteredTransactions.map(t => [t.date, `"${t.description}"`, t.category, t.type, t.amount]);
-    const csv = [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
+    const h = ['Date', 'Description', 'Category', 'Type', 'Amount'];
+    const rows = filtered.map(t => [t.date, `"${t.description}"`, t.category, t.type, t.amount]);
+    const csv = [h.join(','), ...rows.map(r => r.join(','))].join('\n');
     const blob = new Blob([csv], { type: 'text/csv' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `plumfolio-transactions-${new Date().toISOString().split('T')[0]}.csv`;
+    const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
+    a.download = `plumfolio-${new Date().toISOString().split('T')[0]}.csv`;
     a.click();
-    URL.revokeObjectURL(url);
   };
 
-  // =====================
-  // CSV IMPORT
-  // =====================
-  const handleCSVFile = (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
+  // ========== XLSX IMPORT ==========
+  const handleXLSXFile = async (e) => {
+    const file = e.target.files[0]; if (!file) return;
+    await loadSheetJS();
+    if (!window.XLSX) { alert('Failed to load Excel library'); return; }
     const reader = new FileReader();
     reader.onload = (ev) => {
-      const text = ev.target.result;
-      const lines = text.split('\n').filter(l => l.trim());
-      if (lines.length < 2) { alert('CSV file is empty or has no data rows.'); return; }
+      const wb = window.XLSX.read(ev.target.result, { type: 'array', cellDates: true });
+      const ws = wb.Sheets[wb.SheetNames[0]];
+      const json = window.XLSX.utils.sheet_to_json(ws);
+      const rows = json.map(r => ({
+        date: r.Date || r.date || r.DATE || '',
+        description: r.Description || r.description || r.Memo || r.memo || r.Narrative || '',
+        category: r.Category || r.category || 'Other',
+        type: (r.Type || r.type || '').toLowerCase() === 'income' ? 'income' : 'expense',
+        amount: Math.abs(parseFloat(r.Amount || r.amount || r.Value || 0)),
+      })).filter(r => r.amount > 0 && r.date);
+      // Fix dates
+      rows.forEach(r => {
+        if (r.date instanceof Date) r.date = r.date.toISOString().split('T')[0];
+        else if (typeof r.date === 'string' && !r.date.match(/^\d{4}-/)) {
+          try { r.date = new Date(r.date).toISOString().split('T')[0]; } catch (e) { /* keep as is */ }
+        }
+      });
+      setImportData(rows); setImportPreview(rows.slice(0, 5));
+      setImportSource('xlsx'); setImportModalOpen(true);
+    };
+    reader.readAsArrayBuffer(file);
+    e.target.value = '';
+  };
+
+  // ========== CSV IMPORT ==========
+  const handleCSVFile = (e) => {
+    const file = e.target.files[0]; if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      const lines = ev.target.result.split('\n').filter(l => l.trim());
+      if (lines.length < 2) return;
       const headers = lines[0].split(',').map(h => h.trim().replace(/"/g, '').toLowerCase());
       const rows = [];
       for (let i = 1; i < lines.length; i++) {
-        const cols = lines[i].match(/(".*?"|[^",\s]+)(?=\s*,|\s*$)/g);
+        const cols = lines[i].match(/(".*?"|[^",]+)(?=\s*,|\s*$)/g);
         if (!cols) continue;
         const clean = cols.map(c => c.replace(/^"|"$/g, '').trim());
-        const row = {};
-        headers.forEach((h, idx) => { row[h] = clean[idx] || ''; });
-        // Map common header names
-        const mapped = {
-          date: row.date || row.transaction_date || row.trans_date || '',
-          description: row.description || row.desc || row.memo || row.narrative || row.details || '',
-          category: row.category || row.cat || 'Other',
+        const row = {}; headers.forEach((h, idx) => { row[h] = clean[idx] || ''; });
+        rows.push({
+          date: row.date || row.transaction_date || '',
+          description: row.description || row.memo || row.narrative || '',
+          category: row.category || 'Other',
           type: (row.type || '').toLowerCase() === 'income' ? 'income' : 'expense',
-          amount: Math.abs(parseFloat(row.amount || row.value || row.total || 0)),
-        };
-        // Auto-detect type from negative amount
-        if (row.amount && parseFloat(row.amount) > 0 && !row.type) mapped.type = 'income';
-        if (mapped.amount > 0 && mapped.date) rows.push(mapped);
+          amount: Math.abs(parseFloat(row.amount || row.value || 0)),
+        });
       }
-      setCsvData(rows);
-      setCsvPreview(rows.slice(0, 5));
-      setImportModalOpen(true);
+      const valid = rows.filter(r => r.amount > 0 && r.date);
+      setImportData(valid); setImportPreview(valid.slice(0, 5));
+      setImportSource('csv'); setImportModalOpen(true);
     };
     reader.readAsText(file);
     e.target.value = '';
   };
 
-  const importCSV = async () => {
-    if (!csvData || !user) return;
+  const doImport = async () => {
+    if (!importData || !user) return;
     setImporting(true);
     try {
-      const inserts = csvData.map(r => ({
-        user_id: user.id,
-        date: r.date,
-        description: r.description,
+      const inserts = importData.map(r => ({
+        user_id: user.id, date: r.date, description: r.description,
         category: categories.includes(r.category) ? r.category : 'Other',
-        type: r.type,
-        amount: r.amount,
+        type: r.type, amount: r.amount,
       }));
-      const { error } = await supabase.from('transactions').insert(inserts);
-      if (error) throw error;
-      setImportModalOpen(false);
-      setCsvData(null);
-      setCsvPreview([]);
+      await supabase.from('transactions').insert(inserts);
+      setImportModalOpen(false); setImportData(null); setImportPreview([]);
       fetchTransactions();
-    } catch (e) {
-      console.error('Import error:', e);
-      alert('Import failed: ' + e.message);
-    } finally {
-      setImporting(false);
-    }
+    } catch (e) { alert('Import failed: ' + e.message); }
+    finally { setImporting(false); }
   };
 
-  // =====================
-  // HELPERS
-  // =====================
-  const getCategoryIcon = (category) => {
-    const icons = {
-      'Food & Dining': Coffee, 'Housing': Home, 'Transportation': Car,
-      'Utilities': Zap, 'Education': GraduationCap, 'Income': Wallet,
-      'Shopping': ShoppingCart, 'Health & Fitness': Heart, 'Entertainment': Film,
-      'Groceries': ShoppingCart, 'Subscriptions': RefreshCw, 'Savings': Wallet,
-      'Investments': Briefcase, 'Personal Care': Heart, 'Travel': Car,
-      'Gifts & Donations': Heart, 'Other': MoreHorizontal,
-    };
-    return icons[category] || ShoppingCart;
+  // ========== HELPERS ==========
+  const getCategoryIcon = (c) => {
+    const icons = { 'Food & Dining': Coffee, 'Housing': Home, 'Transportation': Car, 'Utilities': Zap, 'Education': GraduationCap, 'Income': Wallet, 'Shopping': ShoppingCart, 'Health & Fitness': Heart, 'Entertainment': Film, 'Groceries': ShoppingCart, 'Subscriptions': RefreshCw, 'Savings': Wallet, 'Investments': Briefcase, 'Personal Care': Heart, 'Travel': Car, 'Gifts & Donations': Heart, 'Other': MoreHorizontal };
+    return icons[c] || ShoppingCart;
   };
-
   const formatDate = (d) => new Date(d).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
 
-  // =====================
-  // SCANNER FUNCTIONS (kept from original)
-  // =====================
-  const openScanner = () => { setScannerOpen(true); setScanError(''); setScanSuccess(''); setExtractedData(null); setSelectedFile(null); setPreview(null); setScanProgress(0); setScanStatus(''); };
-  const closeScanner = () => { setScannerOpen(false); setSelectedFile(null); setPreview(null); setExtractedData(null); setScanError(''); setScanSuccess(''); setScanning(false); setScanProgress(0); setScanStatus(''); };
-  const processFile = (file) => { if (!file) return; if (!file.type.startsWith('image/')) { setScanError('Please select an image.'); return; } if (file.size > 15*1024*1024) { setScanError('Image must be under 15MB.'); return; } setSelectedFile(file); setScanError(''); setExtractedData(null); setScanSuccess(''); setScanProgress(0); setScanStatus(''); const reader = new FileReader(); reader.onload = (e) => setPreview(e.target.result); reader.readAsDataURL(file); };
-  const handleFileChange = (e) => { const file = e.target.files?.[0]; if (file) processFile(file); e.target.value = ''; };
-  const scoreOCR = (text) => { if (!text || text.length < 10) return -10; let s = 0; const a = text.match(/\d+\.\d{2}/g); if (a) { s += a.length*15; a.forEach(x => { if (parseFloat(x)>1) s+=25; }); } if (/total/i.test(text)) s+=30; if (/P\s*\d+\.\d{2}/i.test(text)) s+=25; if (/\d{1,2}[\/\-\.]\d{1,2}[\/\-\.]\d{2,4}/.test(text)) s+=15; if (/card|cash|visa|master/i.test(text)) s+=10; if (/engen|shell|shoprite|choppies|spar|pick.*pay|kfc|woolworths/i.test(text)) s+=15; if (text.length<50) s-=15; return s; };
-  const resetScannerPreview = () => { setSelectedFile(null); setPreview(null); setExtractedData(null); setScanError(''); setScanSuccess(''); setScanProgress(0); setScanStatus(''); };
+  // Conditional formatting
+  const getAmountClass = (t) => {
+    const amt = parseFloat(t.amount);
+    if (t.type === 'income') return 'amount-cell income';
+    if (amt > 5000) return 'amount-cell expense high-expense';
+    if (amt > 1000) return 'amount-cell expense mid-expense';
+    return 'amount-cell expense';
+  };
+
+  // ========== SCANNER (condensed from original) ==========
+  const openScanner = () => { setScannerOpen(true); setScanError(''); setScanSuccess(''); setExtractedData(null); setSelectedFile(null); setPreview(null); };
+  const closeScanner = () => { setScannerOpen(false); setSelectedFile(null); setPreview(null); setExtractedData(null); setScanError(''); setScanSuccess(''); setScanning(false); };
+  const processFileInput = (file) => { if (!file || !file.type.startsWith('image/') || file.size > 15*1024*1024) return; setSelectedFile(file); setScanError(''); setExtractedData(null); const r = new FileReader(); r.onload = e => setPreview(e.target.result); r.readAsDataURL(file); };
+  const handleFileChange = (e) => { if (e.target.files?.[0]) processFileInput(e.target.files[0]); e.target.value = ''; };
+  const scoreOCR = (text) => { if (!text || text.length < 10) return -10; let s = 0; const a = text.match(/\d+\.\d{2}/g); if (a) { s += a.length*15; a.forEach(x => { if (parseFloat(x)>1) s+=25; }); } if (/total/i.test(text)) s+=30; if (/P\s*\d+\.\d{2}/i.test(text)) s+=25; return s; };
+  const resetScanner = () => { setSelectedFile(null); setPreview(null); setExtractedData(null); setScanError(''); setScanSuccess(''); };
 
   const scanReceipt = async () => {
     if (!selectedFile || !tesseractReady) return;
-    setScanning(true); setScanError(''); setScanProgress(0);
+    setScanning(true); setScanError('');
     try {
-      setScanStatus('Reading image...');
-      const imageDataUrl = await new Promise((res, rej) => { const r = new FileReader(); r.onload = e => res(e.target.result); r.onerror = () => rej(new Error('Failed')); r.readAsDataURL(selectedFile); });
-      setScanStatus('Enhancing...');
-      const versions = await processReceiptImage(imageDataUrl);
+      const img = await new Promise((res, rej) => { const r = new FileReader(); r.onload = e => res(e.target.result); r.onerror = () => rej(new Error('Fail')); r.readAsDataURL(selectedFile); });
+      const versions = await processReceiptImage(img);
       const results = [];
       for (let i = 0; i < versions.length; i++) {
-        setScanStatus(`Scanning ${versions[i].label} (${i+1}/${versions.length})...`);
+        setScanStatus(`Scanning ${i+1}/${versions.length}...`);
         const ocr = await window.Tesseract.recognize(versions[i].data, 'eng', { logger: m => { if (m.status === 'recognizing text') setScanProgress(Math.round(((i + m.progress) / versions.length) * 100)); } });
-        const text = ocr.data.text || '';
-        const score = scoreOCR(text);
-        results.push({ text, score, label: versions[i].label });
-        if (score >= 80) break;
+        results.push({ text: ocr.data.text || '', score: scoreOCR(ocr.data.text), label: versions[i].label });
+        if (results[results.length-1].score >= 80) break;
       }
       results.sort((a, b) => b.score - a.score);
-      const best = results[0];
-      if (!best.text || best.text.trim().length < 5 || best.score < 0) { setScanError('Could not read receipt. Try a clearer photo.'); return; }
-      setScanStatus('Extracting...');
-      const parsed = parseReceiptText(best.text);
-      if (!parsed) { setScanError('Could not extract details. Enter manually.'); return; }
+      if (!results[0].text || results[0].score < 0) { setScanError('Could not read receipt.'); return; }
+      const parsed = parseReceiptText(results[0].text);
+      if (!parsed) { setScanError('Could not extract details.'); return; }
       setExtractedData(parsed);
-    } catch (err) { setScanError('Scan failed: ' + (err.message || 'Unknown error')); }
+    } catch (err) { setScanError('Scan failed: ' + err.message); }
     finally { setScanning(false); setScanProgress(0); setScanStatus(''); }
   };
 
-  const handleScanFieldChange = (field, value) => setExtractedData(prev => ({ ...prev, [field]: value }));
-
-  const saveScannedTransaction = async () => {
-    if (!extractedData || !user) return;
-    if (extractedData.total <= 0) { setScanError('Enter amount > 0.'); return; }
-    try {
-      const { error } = await supabase.from('transactions').insert({ user_id: user.id, type: 'expense', amount: extractedData.total, category: extractedData.category, description: `${extractedData.merchant}${extractedData.items.length > 0 ? ` (${extractedData.items.length} items)` : ''}`, date: extractedData.date });
-      if (error) throw error;
-      setScanSuccess(`Saved: P${extractedData.total.toFixed(2)} at ${extractedData.merchant}`);
-      fetchTransactions();
-      setTimeout(closeScanner, 1500);
-    } catch (err) { setScanError('Failed: ' + err.message); }
+  const saveScanned = async () => {
+    if (!extractedData || !user || extractedData.total <= 0) return;
+    await supabase.from('transactions').insert({ user_id: user.id, type: 'expense', amount: extractedData.total, category: extractedData.category, description: extractedData.merchant, date: extractedData.date });
+    setScanSuccess('Saved!'); fetchTransactions();
+    setTimeout(closeScanner, 1500);
   };
 
-  // =====================
-  // RENDER
-  // =====================
+  // ========== RENDER ==========
   if (loading) return <div className="transactions-loading"><div className="spinner" /></div>;
 
   return (
     <div className="transactions-page">
-      {/* Search & Actions Bar */}
+      {/* Action Bar */}
       <div className="actions-bar">
         <div className="search-bar">
           <Search size={16} />
-          <input
-            type="text"
-            placeholder="Search transactions..."
-            value={searchQuery}
-            onChange={e => setSearchQuery(e.target.value)}
-          />
+          <input type="text" placeholder="Search transactions..." value={searchQuery} onChange={e => setSearchQuery(e.target.value)} />
           {searchQuery && <button className="search-clear" onClick={() => setSearchQuery('')}><X size={14} /></button>}
         </div>
-
         <div className="action-buttons">
-          <button className={`action-btn filter-toggle ${showFilters ? 'active' : ''}`} onClick={() => setShowFilters(!showFilters)}>
-            <Filter size={16} />
-            <span>Filter</span>
-            {hasActiveFilters && <span className="filter-dot" />}
+          <button className={`action-btn ${showFormula ? 'active' : ''}`} onClick={() => setShowFormula(!showFormula)} title="Formula Bar">
+            <Calculator size={16} /> <span>Formulas</span>
           </button>
-          <button className="action-btn" onClick={() => csvInputRef.current?.click()}>
-            <Upload size={16} /> <span>Import</span>
+          <button className={`action-btn ${showFilters ? 'active' : ''}`} onClick={() => setShowFilters(!showFilters)}>
+            <Filter size={16} /> <span>Filter</span>
+            {hasFilters && <span className="filter-dot" />}
           </button>
-          <button className="action-btn" onClick={exportCSV} disabled={filteredTransactions.length === 0}>
-            <Download size={16} /> <span>Export</span>
+          <button className="action-btn" onClick={() => xlsxInputRef.current?.click()} title="Import Excel">
+            <FileSpreadsheet size={16} /> <span>Import</span>
+          </button>
+          <button className="action-btn" onClick={exportXLSX} disabled={filtered.length === 0} title="Export Excel">
+            <Download size={16} /> <span>Excel</span>
+          </button>
+          <button className="action-btn" onClick={exportCSV} disabled={filtered.length === 0} title="Export CSV">
+            <FileText size={16} /> <span>CSV</span>
           </button>
           <button className="action-btn scan-receipt-btn" onClick={openScanner}>
-            <ScanLine size={18} /> <span>Scan</span>
+            <ScanLine size={16} /> <span>Scan</span>
           </button>
           <button className="action-btn primary" onClick={() => setModalOpen(true)}>
             <Plus size={18} /> <span>Add</span>
           </button>
         </div>
+        <input ref={xlsxInputRef} type="file" accept=".xlsx,.xls" onChange={handleXLSXFile} style={{ display: 'none' }} />
         <input ref={csvInputRef} type="file" accept=".csv" onChange={handleCSVFile} style={{ display: 'none' }} />
       </div>
+
+      {/* Formula Bar */}
+      {showFormula && (
+        <div className="formula-bar">
+          <div className="formula-item"><span className="formula-label">COUNT</span><span className="formula-value">{filtered.length}</span></div>
+          <div className="formula-item"><span className="formula-label">SUM</span><span className="formula-value">{formatCurrency(fSum)}</span></div>
+          <div className="formula-item"><span className="formula-label">AVG</span><span className="formula-value">{formatCurrency(fAvg)}</span></div>
+          <div className="formula-item"><span className="formula-label">MIN</span><span className="formula-value">{formatCurrency(fMin)}</span></div>
+          <div className="formula-item"><span className="formula-label">MAX</span><span className="formula-value">{formatCurrency(fMax)}</span></div>
+          <div className="formula-sep" />
+          <div className="formula-item income-formula"><span className="formula-label">INCOME</span><span className="formula-value">{formatCurrency(fIncome)}</span></div>
+          <div className="formula-item expense-formula"><span className="formula-label">EXPENSES</span><span className="formula-value">{formatCurrency(fExpenses)}</span></div>
+          <div className="formula-item net-formula"><span className="formula-label">NET</span><span className="formula-value">{formatCurrency(fIncome - fExpenses)}</span></div>
+        </div>
+      )}
 
       {/* Filter Panel */}
       {showFilters && (
@@ -458,41 +498,42 @@ const Transactions = () => {
                 ))}
               </div>
             </div>
-            <div className="filter-group">
-              <label>Category</label>
+            <div className="filter-group"><label>Category</label>
               <select value={categoryFilter} onChange={e => setCategoryFilter(e.target.value)}>
                 <option value="all">All Categories</option>
                 {categories.map(c => <option key={c} value={c}>{c}</option>)}
               </select>
             </div>
-            <div className="filter-group">
-              <label>From</label>
-              <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} />
-            </div>
-            <div className="filter-group">
-              <label>To</label>
-              <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)} />
-            </div>
-            {hasActiveFilters && (
-              <button className="clear-filters-btn" onClick={clearFilters}>
-                <X size={14} /> Clear
-              </button>
-            )}
+            <div className="filter-group"><label>From</label><input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} /></div>
+            <div className="filter-group"><label>To</label><input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)} /></div>
+            <div className="filter-group"><label>Min Amt</label><input type="number" placeholder="0" value={amountMin} onChange={e => setAmountMin(e.target.value)} /></div>
+            <div className="filter-group"><label>Max Amt</label><input type="number" placeholder="∞" value={amountMax} onChange={e => setAmountMax(e.target.value)} /></div>
+            {hasFilters && <button className="clear-filters-btn" onClick={clearFilters}><X size={14} /> Clear</button>}
           </div>
           <div className="filter-summary">
-            Showing {filteredTransactions.length} of {transactions.length} transactions
-            {totalIncome > 0 && <span className="summary-income"> • Income: {formatCurrency(totalIncome)}</span>}
-            {totalExpenses > 0 && <span className="summary-expense"> • Expenses: {formatCurrency(totalExpenses)}</span>}
+            {filtered.length} of {transactions.length} transactions
+            <span className="summary-income"> • Income: {formatCurrency(fIncome)}</span>
+            <span className="summary-expense"> • Expenses: {formatCurrency(fExpenses)}</span>
           </div>
         </div>
       )}
 
+      {/* Bulk Action Bar */}
+      {showBulkBar && (
+        <div className="bulk-bar">
+          <span>{selected.size} selected</span>
+          <button className="bulk-btn delete" onClick={bulkDelete}><Trash2 size={14} /> Delete Selected</button>
+          <button className="bulk-btn" onClick={() => { setSelected(new Set()); setShowBulkBar(false); }}><X size={14} /> Cancel</button>
+        </div>
+      )}
+
       {/* Table */}
-      {filteredTransactions.length > 0 ? (
+      {filtered.length > 0 ? (
         <div className="transactions-table-wrapper">
           <table className="transactions-table">
             <thead>
               <tr>
+                <th className="check-col"><button className="check-btn" onClick={toggleSelectAll}>{selected.size === filtered.length && filtered.length > 0 ? <CheckSquare size={16} /> : <Square size={16} />}</button></th>
                 <th onClick={() => handleSort('date')} className="sortable">Date <SortIcon field="date" /></th>
                 <th onClick={() => handleSort('description')} className="sortable">Description <SortIcon field="description" /></th>
                 <th onClick={() => handleSort('category')} className="sortable">Category <SortIcon field="category" /></th>
@@ -502,54 +543,38 @@ const Transactions = () => {
               </tr>
             </thead>
             <tbody>
-              {filteredTransactions.map(t => {
+              {filtered.map(t => {
                 const Icon = getCategoryIcon(t.category);
+                const isSelected = selected.has(t.id);
                 return (
-                  <tr key={t.id}>
+                  <tr key={t.id} className={isSelected ? 'row-selected' : ''}>
+                    <td className="check-col"><button className="check-btn" onClick={() => toggleSelect(t.id)}>{isSelected ? <CheckSquare size={16} /> : <Square size={16} />}</button></td>
                     <td className="date-cell">
                       {inlineEdit?.id === t.id && inlineEdit.field === 'date' ? (
-                        <input type="date" className="inline-input" value={inlineEdit.value} onChange={e => setInlineEdit({ ...inlineEdit, value: e.target.value })} onBlur={saveInlineEdit} onKeyDown={handleInlineKeyDown} autoFocus />
-                      ) : (
-                        <span onDoubleClick={() => startInlineEdit(t.id, 'date', t.date)}>{formatDate(t.date)}</span>
-                      )}
+                        <input type="date" className="inline-input" value={inlineEdit.value} onChange={e => setInlineEdit({...inlineEdit, value: e.target.value})} onBlur={saveInlineEdit} onKeyDown={handleInlineKey} autoFocus />
+                      ) : <span onDoubleClick={() => startInlineEdit(t.id, 'date', t.date)}>{formatDate(t.date)}</span>}
                     </td>
                     <td className="desc-cell">
                       {inlineEdit?.id === t.id && inlineEdit.field === 'description' ? (
-                        <input type="text" className="inline-input" value={inlineEdit.value} onChange={e => setInlineEdit({ ...inlineEdit, value: e.target.value })} onBlur={saveInlineEdit} onKeyDown={handleInlineKeyDown} autoFocus />
-                      ) : (
-                        <div className="desc-wrapper" onDoubleClick={() => startInlineEdit(t.id, 'description', t.description)}>
-                          <div className="transaction-icon"><Icon size={16} /></div>
-                          <span>{t.description}</span>
-                        </div>
-                      )}
+                        <input type="text" className="inline-input" value={inlineEdit.value} onChange={e => setInlineEdit({...inlineEdit, value: e.target.value})} onBlur={saveInlineEdit} onKeyDown={handleInlineKey} autoFocus />
+                      ) : <div className="desc-wrapper" onDoubleClick={() => startInlineEdit(t.id, 'description', t.description)}><div className="transaction-icon"><Icon size={16} /></div><span>{t.description}</span></div>}
                     </td>
                     <td>
                       {inlineEdit?.id === t.id && inlineEdit.field === 'category' ? (
-                        <select className="inline-select" value={inlineEdit.value} onChange={e => { setInlineEdit({ ...inlineEdit, value: e.target.value }); }} onBlur={saveInlineEdit} autoFocus>
+                        <select className="inline-select" value={inlineEdit.value} onChange={e => setInlineEdit({...inlineEdit, value: e.target.value})} onBlur={saveInlineEdit} autoFocus>
                           {categories.map(c => <option key={c} value={c}>{c}</option>)}
                         </select>
-                      ) : (
-                        <span className="category-badge" onDoubleClick={() => startInlineEdit(t.id, 'category', t.category)}>{t.category}</span>
-                      )}
+                      ) : <span className="category-badge" onDoubleClick={() => startInlineEdit(t.id, 'category', t.category)}>{t.category}</span>}
                     </td>
-                    <td>
-                      <span className={`type-badge ${t.type}`}>
-                        {t.type === 'income' ? <ArrowUpCircle size={14} /> : <ArrowDownCircle size={14} />}
-                        {t.type}
-                      </span>
-                    </td>
-                    <td className={`amount-cell ${t.type}`}>
+                    <td><span className={`type-badge ${t.type}`}>{t.type === 'income' ? <ArrowUpCircle size={14} /> : <ArrowDownCircle size={14} />}{t.type}</span></td>
+                    <td className={getAmountClass(t)}>
                       {inlineEdit?.id === t.id && inlineEdit.field === 'amount' ? (
-                        <input type="number" step="0.01" className="inline-input amount" value={inlineEdit.value} onChange={e => setInlineEdit({ ...inlineEdit, value: e.target.value })} onBlur={saveInlineEdit} onKeyDown={handleInlineKeyDown} autoFocus />
-                      ) : (
-                        <span onDoubleClick={() => startInlineEdit(t.id, 'amount', t.amount)}>
-                          {t.type === 'income' ? '+' : '-'}{formatCurrency(t.amount)}
-                        </span>
-                      )}
+                        <input type="number" step="0.01" className="inline-input amount" value={inlineEdit.value} onChange={e => setInlineEdit({...inlineEdit, value: e.target.value})} onBlur={saveInlineEdit} onKeyDown={handleInlineKey} autoFocus />
+                      ) : <span onDoubleClick={() => startInlineEdit(t.id, 'amount', t.amount)}>{t.type === 'income' ? '+' : '-'}{formatCurrency(t.amount)}</span>}
                     </td>
                     <td className="actions-cell">
-                      <button className="row-action edit" onClick={() => handleEdit(t)} title="Edit"><Edit size={16} /></button>
-                      <button className="row-action delete" onClick={() => handleDelete(t.id)} title="Delete"><Trash2 size={16} /></button>
+                      <button className="row-action edit" onClick={() => handleEdit(t)}><Edit size={16} /></button>
+                      <button className="row-action delete" onClick={() => handleDelete(t.id)}><Trash2 size={16} /></button>
                     </td>
                   </tr>
                 );
@@ -558,20 +583,16 @@ const Transactions = () => {
           </table>
         </div>
       ) : (
-        <div className="empty-state-container">
-          <div className="empty-state">
-            <Receipt size={64} strokeWidth={1} />
-            <h3>{hasActiveFilters ? 'No matching transactions' : 'No transactions yet'}</h3>
-            <p>{hasActiveFilters ? 'Try changing your filters' : 'Start tracking your finances'}</p>
-            <div className="empty-state-actions">
-              {hasActiveFilters && (
-                <button className="empty-action-btn" onClick={clearFilters}><X size={18} /> Clear Filters</button>
-              )}
-              <button className="empty-action-btn" onClick={openScanner}><ScanLine size={18} /> Scan Receipt</button>
-              <button className="empty-action-btn primary" onClick={() => setModalOpen(true)}><Plus size={18} /> Add Transaction</button>
-            </div>
+        <div className="empty-state-container"><div className="empty-state">
+          <Receipt size={64} strokeWidth={1} />
+          <h3>{hasFilters ? 'No matching transactions' : 'No transactions yet'}</h3>
+          <p>{hasFilters ? 'Try adjusting your filters' : 'Start tracking your finances'}</p>
+          <div className="empty-state-actions">
+            {hasFilters && <button className="empty-action-btn" onClick={clearFilters}><X size={18} /> Clear Filters</button>}
+            <button className="empty-action-btn" onClick={openScanner}><ScanLine size={18} /> Scan Receipt</button>
+            <button className="empty-action-btn primary" onClick={() => setModalOpen(true)}><Plus size={18} /> Add Transaction</button>
           </div>
-        </div>
+        </div></div>
       )}
 
       {/* Mobile FABs */}
@@ -584,64 +605,38 @@ const Transactions = () => {
       {modalOpen && (
         <div className="modal-overlay" onClick={() => { setModalOpen(false); setEditingTransaction(null); }}>
           <div className="modal" onClick={e => e.stopPropagation()}>
-            <div className="modal-header">
-              <h2>{editingTransaction ? 'Edit Transaction' : 'Add Transaction'}</h2>
-              <button className="modal-close" onClick={() => { setModalOpen(false); setEditingTransaction(null); }}><X size={20} /></button>
-            </div>
+            <div className="modal-header"><h2>{editingTransaction ? 'Edit' : 'Add'} Transaction</h2><button className="modal-close" onClick={() => { setModalOpen(false); setEditingTransaction(null); }}><X size={20} /></button></div>
             <form onSubmit={handleSubmit} className="modal-form">
               <div className="type-selector">
-                <button type="button" className={`type-btn ${formData.type === 'income' ? 'active income' : ''}`} onClick={() => setFormData({ ...formData, type: 'income' })}><ArrowUpCircle size={20} /> Income</button>
-                <button type="button" className={`type-btn ${formData.type === 'expense' ? 'active expense' : ''}`} onClick={() => setFormData({ ...formData, type: 'expense' })}><ArrowDownCircle size={20} /> Expense</button>
+                <button type="button" className={`type-btn ${formData.type === 'income' ? 'active income' : ''}`} onClick={() => setFormData({...formData, type: 'income'})}><ArrowUpCircle size={20} /> Income</button>
+                <button type="button" className={`type-btn ${formData.type === 'expense' ? 'active expense' : ''}`} onClick={() => setFormData({...formData, type: 'expense'})}><ArrowDownCircle size={20} /> Expense</button>
               </div>
-              <div className="form-group">
-                <label>Amount (P)</label>
-                <input type="number" value={formData.amount} onChange={e => setFormData({ ...formData, amount: e.target.value })} placeholder="0.00" min="0" step="0.01" required />
-              </div>
-              <div className="form-group">
-                <label>Description</label>
-                <input type="text" value={formData.description} onChange={e => setFormData({ ...formData, description: e.target.value })} placeholder="Enter description" required />
-              </div>
-              <div className="form-group">
-                <label>Category</label>
-                <select value={formData.category} onChange={e => setFormData({ ...formData, category: e.target.value })}>
-                  {categories.map(c => <option key={c} value={c}>{c}</option>)}
-                </select>
-              </div>
-              <div className="form-group">
-                <label>Date</label>
-                <input type="date" value={formData.date} onChange={e => setFormData({ ...formData, date: e.target.value })} required />
-              </div>
+              <div className="form-group"><label>Amount (P)</label><input type="number" value={formData.amount} onChange={e => setFormData({...formData, amount: e.target.value})} placeholder="0.00" min="0" step="0.01" required /></div>
+              <div className="form-group"><label>Description</label><input type="text" value={formData.description} onChange={e => setFormData({...formData, description: e.target.value})} placeholder="Enter description" required /></div>
+              <div className="form-group"><label>Category</label><select value={formData.category} onChange={e => setFormData({...formData, category: e.target.value})}>{categories.map(c => <option key={c} value={c}>{c}</option>)}</select></div>
+              <div className="form-group"><label>Date</label><input type="date" value={formData.date} onChange={e => setFormData({...formData, date: e.target.value})} required /></div>
               <button type="submit" className="submit-btn">{editingTransaction ? 'Save Changes' : 'Add Transaction'}</button>
             </form>
           </div>
         </div>
       )}
 
-      {/* CSV Import Modal */}
+      {/* Import Modal */}
       {importModalOpen && (
         <div className="modal-overlay" onClick={() => setImportModalOpen(false)}>
           <div className="modal import-modal" onClick={e => e.stopPropagation()}>
-            <div className="modal-header">
-              <h2><Upload size={20} /> Import from CSV</h2>
-              <button className="modal-close" onClick={() => setImportModalOpen(false)}><X size={20} /></button>
-            </div>
+            <div className="modal-header"><h2><FileSpreadsheet size={20} /> Import from {importSource.toUpperCase()}</h2><button className="modal-close" onClick={() => setImportModalOpen(false)}><X size={20} /></button></div>
             <div className="import-body">
-              <p className="import-info">{csvData?.length || 0} transactions found. Preview:</p>
+              <p className="import-info">{importData?.length || 0} transactions found. Preview:</p>
               <div className="import-preview">
-                <table>
-                  <thead><tr><th>Date</th><th>Description</th><th>Category</th><th>Type</th><th>Amount</th></tr></thead>
-                  <tbody>
-                    {csvPreview.map((r, i) => (
-                      <tr key={i}><td>{r.date}</td><td>{r.description}</td><td>{r.category}</td><td>{r.type}</td><td>P{r.amount.toFixed(2)}</td></tr>
-                    ))}
-                    {csvData && csvData.length > 5 && <tr><td colSpan="5" className="import-more">...and {csvData.length - 5} more</td></tr>}
-                  </tbody>
-                </table>
+                <table><thead><tr><th>Date</th><th>Description</th><th>Category</th><th>Type</th><th>Amount</th></tr></thead>
+                <tbody>
+                  {importPreview.map((r, i) => <tr key={i}><td>{r.date}</td><td>{r.description}</td><td>{r.category}</td><td>{r.type}</td><td>P{r.amount.toFixed(2)}</td></tr>)}
+                  {importData && importData.length > 5 && <tr><td colSpan="5" className="import-more">...and {importData.length - 5} more</td></tr>}
+                </tbody></table>
               </div>
               <div className="import-actions">
-                <button className="submit-btn" onClick={importCSV} disabled={importing}>
-                  {importing ? <><Loader size={16} className="spin" /> Importing...</> : <><Upload size={16} /> Import {csvData?.length} Transactions</>}
-                </button>
+                <button className="submit-btn" onClick={doImport} disabled={importing}>{importing ? <><Loader size={16} className="spin" /> Importing...</> : <><Upload size={16} /> Import {importData?.length}</>}</button>
                 <button className="cancel-btn" onClick={() => setImportModalOpen(false)}>Cancel</button>
               </div>
             </div>
@@ -649,65 +644,32 @@ const Transactions = () => {
         </div>
       )}
 
-      {/* Scanner Modal — same as original */}
+      {/* Scanner Modal */}
       {scannerOpen && (
-        <div className="modal-overlay" onClick={closeScanner}>
-          <div className="modal scanner-modal" onClick={e => e.stopPropagation()}>
-            <div className="modal-header">
-              <div className="scanner-modal-title"><ScanLine size={20} /><h2>Scan Receipt</h2></div>
-              <button className="modal-close" onClick={closeScanner}><X size={20} /></button>
-            </div>
-            <div className="scanner-modal-body">
-              {scanSuccess && <div className="scan-msg scan-msg-success"><Check size={16} /><span>{scanSuccess}</span></div>}
-              {scanError && <div className="scan-msg scan-msg-error"><AlertCircle size={16} /><span>{scanError}</span><button onClick={() => setScanError('')}><X size={14} /></button></div>}
-              {!extractedData && (
-                <div className="scan-upload-area">
-                  {preview ? (
-                    <div className="scan-preview-wrapper"><img src={preview} alt="Receipt" className="scan-preview-img" /><button className="scan-preview-remove" onClick={resetScannerPreview}><X size={14} /></button></div>
-                  ) : (
-                    <div className="scan-dropzone" onClick={() => fileInputRef.current?.click()}><ScanLine size={32} className="scan-dropzone-icon" /><p className="scan-dropzone-text">{isMobile ? 'Tap to select' : 'Click to upload'}</p><span className="scan-dropzone-formats">JPEG, PNG, WebP</span></div>
-                  )}
-                  <input ref={fileInputRef} type="file" accept="image/*" onChange={handleFileChange} style={{ display: 'none' }} />
-                  <input ref={cameraInputRef} type="file" accept="image/*" capture="environment" onChange={handleFileChange} style={{ display: 'none' }} />
-                  {!preview && (
-                    <div className="scan-btn-row">
-                      {isMobile && <button className="scan-action-btn scan-camera" onClick={() => cameraInputRef.current?.click()}><Camera size={16} /> Photo</button>}
-                      <button className="scan-action-btn scan-gallery" onClick={() => fileInputRef.current?.click()}><Image size={16} /> {isMobile ? 'Gallery' : 'Upload'}</button>
-                    </div>
-                  )}
-                  {preview && (
-                    <div className="scan-go-row">
-                      <button className="scan-go-btn" onClick={scanReceipt} disabled={scanning || !tesseractReady}>
-                        {scanning ? <><Loader size={16} className="spin" /> {scanStatus || `${scanProgress}%`}</> : !tesseractReady ? <><Loader size={16} className="spin" /> Loading OCR...</> : <><FileText size={16} /> Scan</>}
-                      </button>
-                      {scanning && <div className="scan-progress"><div className="scan-progress-fill" style={{ width: `${Math.max(scanProgress, 3)}%` }} /></div>}
-                    </div>
-                  )}
-                </div>
-              )}
-              {extractedData && (
-                <div className="scan-result">
-                  <div className="scan-result-header"><Check size={16} /><span>Review & Save</span></div>
-                  <div className="scan-fields">
-                    <div className="scan-field"><label><Tag size={13} /> Merchant</label><input type="text" value={extractedData.merchant} onChange={e => handleScanFieldChange('merchant', e.target.value)} /></div>
-                    <div className="scan-field-row">
-                      <div className="scan-field"><label><Calendar size={13} /> Date</label><input type="date" value={extractedData.date} onChange={e => handleScanFieldChange('date', e.target.value)} /></div>
-                      <div className="scan-field"><label><DollarSign size={13} /> Total</label><input type="number" step="0.01" min="0" value={extractedData.total} onChange={e => handleScanFieldChange('total', parseFloat(e.target.value) || 0)} /></div>
-                    </div>
-                    <div className="scan-field"><label><Tag size={13} /> Category</label><select value={extractedData.category} onChange={e => handleScanFieldChange('category', e.target.value)}>{categories.map(c => <option key={c} value={c}>{c}</option>)}</select></div>
-                    {extractedData.items?.length > 0 && (
-                      <div className="scan-items"><label><Receipt size={13} /> Items ({extractedData.items.length})</label><div className="scan-items-list">{extractedData.items.map((item, i) => <div key={i} className="scan-item"><span>{item.description}</span><span className="scan-item-amt">P{item.amount.toFixed(2)}</span></div>)}</div></div>
-                    )}
-                  </div>
-                  <div className="scan-result-actions">
-                    <button className="scan-save-btn" onClick={saveScannedTransaction}><Plus size={16} /> Save</button>
-                    <button className="scan-retry-btn" onClick={resetScannerPreview}>Try Another</button>
-                  </div>
-                </div>
-              )}
-            </div>
+        <div className="modal-overlay" onClick={closeScanner}><div className="modal scanner-modal" onClick={e => e.stopPropagation()}>
+          <div className="modal-header"><div className="scanner-modal-title"><ScanLine size={20} /><h2>Scan Receipt</h2></div><button className="modal-close" onClick={closeScanner}><X size={20} /></button></div>
+          <div className="scanner-modal-body">
+            {scanSuccess && <div className="scan-msg scan-msg-success"><Check size={16} />{scanSuccess}</div>}
+            {scanError && <div className="scan-msg scan-msg-error"><AlertCircle size={16} />{scanError}<button onClick={() => setScanError('')}><X size={14} /></button></div>}
+            {!extractedData && <div className="scan-upload-area">
+              {preview ? <div className="scan-preview-wrapper"><img src={preview} alt="Receipt" className="scan-preview-img" /><button className="scan-preview-remove" onClick={resetScanner}><X size={14} /></button></div>
+              : <div className="scan-dropzone" onClick={() => fileInputRef.current?.click()}><ScanLine size={32} className="scan-dropzone-icon" /><p className="scan-dropzone-text">{isMobile ? 'Tap to select' : 'Click to upload'}</p></div>}
+              <input ref={fileInputRef} type="file" accept="image/*" onChange={handleFileChange} style={{display:'none'}} />
+              <input ref={cameraInputRef} type="file" accept="image/*" capture="environment" onChange={handleFileChange} style={{display:'none'}} />
+              {!preview && <div className="scan-btn-row">{isMobile && <button className="scan-action-btn scan-camera" onClick={() => cameraInputRef.current?.click()}><Camera size={16} /> Photo</button>}<button className="scan-action-btn scan-gallery" onClick={() => fileInputRef.current?.click()}><Image size={16} /> Upload</button></div>}
+              {preview && <div className="scan-go-row"><button className="scan-go-btn" onClick={scanReceipt} disabled={scanning || !tesseractReady}>{scanning ? <><Loader size={16} className="spin" /> {scanStatus || scanProgress+'%'}</> : <><FileText size={16} /> Scan</>}</button>{scanning && <div className="scan-progress"><div className="scan-progress-fill" style={{width:`${Math.max(scanProgress,3)}%`}} /></div>}</div>}
+            </div>}
+            {extractedData && <div className="scan-result">
+              <div className="scan-result-header"><Check size={16} />Review & Save</div>
+              <div className="scan-fields">
+                <div className="scan-field"><label>Merchant</label><input type="text" value={extractedData.merchant} onChange={e => setExtractedData({...extractedData, merchant: e.target.value})} /></div>
+                <div className="scan-field-row"><div className="scan-field"><label>Date</label><input type="date" value={extractedData.date} onChange={e => setExtractedData({...extractedData, date: e.target.value})} /></div><div className="scan-field"><label>Total</label><input type="number" step="0.01" value={extractedData.total} onChange={e => setExtractedData({...extractedData, total: parseFloat(e.target.value)||0})} /></div></div>
+                <div className="scan-field"><label>Category</label><select value={extractedData.category} onChange={e => setExtractedData({...extractedData, category: e.target.value})}>{categories.map(c => <option key={c} value={c}>{c}</option>)}</select></div>
+              </div>
+              <div className="scan-result-actions"><button className="scan-save-btn" onClick={saveScanned}><Plus size={16} /> Save</button><button className="scan-retry-btn" onClick={resetScanner}>Try Another</button></div>
+            </div>}
           </div>
-        </div>
+        </div></div>
       )}
     </div>
   );
