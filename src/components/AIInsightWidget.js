@@ -324,6 +324,8 @@ export const AIToasts = () => {
 // === Floating Widget ===
 const AIInsightWidget = () => {
   const { insights, predictions, loading } = useInsights();
+  const { formatCurrency, symbol } = useCurrency();
+  const fmt = (msg) => msg ? msg.replace(/¤/g, symbol) : msg;
   const [expanded, setExpanded] = useState(false);
   const [minimised, setMinimised] = useState(false);
   const location = useLocation();
