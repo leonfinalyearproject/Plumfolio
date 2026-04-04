@@ -15,7 +15,7 @@ import './AIInsightWidget.css';
  * Generate page-specific insights based on the current route
  * Each page gets its own analysis - the AI "mind" adapts to context
  */
-function getPageInsights(pathname, insights, predictions) {
+function getPageInsights(pathname, insights, predictions, formatCurrency) {
   if (!insights || !insights.insights) {
     return { title: 'AI Insights', icon: Brain, items: [], summary: '' };
   }
@@ -60,7 +60,7 @@ function getPageInsights(pathname, insights, predictions) {
         items.push({
           type: 'prediction',
           severity: 'info',
-          message: `Predicted expenses for ${totalForecast.nextMonth || 'next month'}: P${totalForecast.predicted.toFixed(0)} (${totalForecast.confidence} confidence)`,
+          message: `Predicted expenses for ${totalForecast.nextMonth || 'next month'}: ${formatCurrency(totalForecast.predicted || 0)} (${totalForecast.confidence} confidence)`,
           context: 'Forecast',
         });
       }
@@ -161,7 +161,7 @@ function getPageInsights(pathname, insights, predictions) {
           items.push({
             type: 'trend',
             severity: 'medium',
-            message: `${cat} spending is trending upward — predicted P${pred.predicted.toFixed(0)} next month`,
+            message: `${cat} spending is trending upward — predicted ${formatCurrency(pred.predicted || 0)} next month`,
             context: 'Spending trend',
           });
         }
@@ -189,7 +189,7 @@ function getPageInsights(pathname, insights, predictions) {
         items.push({
           type: 'forecast',
           severity: 'info',
-          message: `Next month forecast: P${totalForecast.predicted.toFixed(0)} (${totalForecast.confidence} confidence, ${totalForecast.trend > 0 ? 'upward' : totalForecast.trend < 0 ? 'downward' : 'stable'} trend)`,
+          message: `Next month forecast: ${formatCurrency(totalForecast.predicted || 0)} (${totalForecast.confidence} confidence, ${totalForecast.trend > 0 ? 'upward' : totalForecast.trend < 0 ? 'downward' : 'stable'} trend)`,
           context: 'Expense forecast',
         });
       }
@@ -200,7 +200,7 @@ function getPageInsights(pathname, insights, predictions) {
           items.push({
             type: 'trend',
             severity: pred.trend === 'increasing' ? 'medium' : 'positive',
-            message: `${cat}: ${pred.trend} trend — predicted P${pred.predicted.toFixed(0)} next month`,
+            message: `${cat}: ${pred.trend} trend — predicted ${formatCurrency(pred.predicted || 0)} next month`,
             context: 'Category forecast',
           });
         }
@@ -219,7 +219,7 @@ function getPageInsights(pathname, insights, predictions) {
         icon: BarChart3,
         items: items.slice(0, 5),
         summary: totalForecast.predicted > 0
-          ? `Predicted P${totalForecast.predicted.toFixed(0)} next month`
+          ? `Predicted ${formatCurrency(totalForecast.predicted || 0)} next month`
           : 'Add more data for forecasting',
       };
     }
@@ -331,8 +331,8 @@ const AIInsightWidget = () => {
 
   // Get page-specific insights
   const pageData = useMemo(() => {
-    return getPageInsights(location.pathname, insights, predictions);
-  }, [location.pathname, insights, predictions]);
+    return getPageInsights(location.pathname, insights, predictions, formatCurrency);
+  }, [location.pathname, insights, predictions, formatCurrency]);
 
   // Don't show widget on receipt scanner page
   const page = location.pathname.replace(/^\/Plumfolio/i, '').replace(/^\//, '') || 'dashboard';
@@ -405,11 +405,11 @@ const AIInsightWidget = () => {
         {expanded && (
           <div className="ai-widget-body">
             {/* Quick stats bar */}
-            {predictions?.totalForecast?.predicted > 0 && (
+            { predictions?.totalForecast?.predicted > 0 && (
               <div className="ai-widget-stats">
                 <div className="widget-stat">
                   <Target size={12} />
-                  <span>Next: <strong>{formatCurrency(predictions.totalForecast.predicted)}</strong></span>
+                  <span>Next: <strong>{formatCurrency(predictions?.totalForecast?.predicted || 0)}</strong></span>
                 </div>
                 <div className="widget-stat">
                   <Shield size={12} />
