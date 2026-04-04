@@ -278,3 +278,36 @@ input, textarea, select {
     transition-duration: 0.01ms !important;
   }
 }
+
+/* ================================================
+   FORM VALIDATION STYLES
+   ================================================ */
+.field-error {
+  font-size: 0.72rem;
+  color: #EF4444;
+  margin-top: 2px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  animation: fadeIn 0.2s ease;
+}
+
+.form-group.has-error input,
+.form-group.has-error select {
+  border-color: rgba(239, 68, 68, 0.4) !important;
+  box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.08) !important;
+}
+
+.form-group.has-error label {
+  color: #EF4444 !important;
+}
+
+.validation-summary {
+  padding: 10px 14px;
+  background: rgba(239, 68, 68, 0.06);
+  border: 1px solid rgba(239, 68, 68, 0.12);
+  border-radius: 10px;
+  font-size: 0.8rem;
+  color: #EF4444;
+  margin-bottom: 12px;
+}
