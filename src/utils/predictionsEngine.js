@@ -137,7 +137,7 @@ export function forecastTotalExpenses(transactions, lookbackMonths = 6) {
     trend: Math.round(trend * 100) / 100,
     wma: Math.round(wma * 100) / 100,
     nextMonth: monthName,
-    message: `Predicted total expenses for ${monthName}: P${predicted.toFixed(2)} (${confidence} confidence)`,
+    message: `Predicted total expenses for ${monthName}: ¤${predicted.toFixed(2)} (${confidence} confidence)`,
   };
 }
 
@@ -204,7 +204,7 @@ export function suggestBudgetAllocations(transactions, lookbackMonths = 6) {
       confidence: pred.confidence,
       trend: pred.trend,
       buffer: Math.round(suggested - pred.predicted),
-      message: `Suggested budget for ${category}: P${suggested.toFixed(2)} (based on predicted spend of P${pred.predicted.toFixed(2)} + 10% buffer)`,
+      message: `Suggested budget for ${category}: ¤${suggested.toFixed(2)} (based on predicted spend of ¤${pred.predicted.toFixed(2)} + 10% buffer)`,
     });
   });
   
@@ -252,7 +252,7 @@ export function checkBudgetWarnings(transactions, budgets) {
         category: budget.category,
         spent,
         allocated,
-        message: `${budget.category} budget exceeded! You've spent P${spent.toFixed(2)} of P${allocated.toFixed(2)} (${Math.round(spentRatio * 100)}%).`,
+        message: `${budget.category} budget exceeded! You've spent ¤${spent.toFixed(2)} of ¤${allocated.toFixed(2)} (${Math.round(spentRatio * 100)}%).`,
       });
     } else if (projectedRatio > 1 && spentRatio < 1) {
       warnings.push({
@@ -262,7 +262,7 @@ export function checkBudgetWarnings(transactions, budgets) {
         spent,
         allocated,
         projected: Math.round(projectedTotal),
-        message: `At your current pace, ${budget.category} spending will reach ~P${Math.round(projectedTotal)} by month end, exceeding your P${allocated.toFixed(2)} budget.`,
+        message: `At your current pace, ${budget.category} spending will reach ~¤${Math.round(projectedTotal)} by month end, exceeding your ¤${allocated.toFixed(2)} budget.`,
       });
     } else if (spentRatio > 0.8) {
       warnings.push({
@@ -271,7 +271,7 @@ export function checkBudgetWarnings(transactions, budgets) {
         category: budget.category,
         spent,
         allocated,
-        message: `${budget.category} is at ${Math.round(spentRatio * 100)}% of budget (P${spent.toFixed(2)} of P${allocated.toFixed(2)}).`,
+        message: `${budget.category} is at ${Math.round(spentRatio * 100)}% of budget (¤${spent.toFixed(2)} of ¤${allocated.toFixed(2)}).`,
       });
     }
   });

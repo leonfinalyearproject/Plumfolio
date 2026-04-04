@@ -157,7 +157,7 @@ export function detectAnomalies(transactions) {
           transaction: t,
           category,
           severity: zScore > 3 ? 'high' : 'medium',
-          message: `Unusual ${category} transaction: P${amount.toFixed(2)} is significantly higher than your average of P${avg.toFixed(2)}.`,
+          message: `Unusual ${category} transaction: ¤${amount.toFixed(2)} is significantly higher than your average of ¤${avg.toFixed(2)}.`,
           amount,
           average: avg,
           zScore: Math.round(zScore * 10) / 10,
@@ -223,7 +223,7 @@ export function detectRecurringTransactions(transactions) {
             amount: amount1,
             frequency,
             occurrences: allDates.length,
-            message: `Recurring ${frequency} ${t1.type}: ${t1.description || t1.category} (P${amount1.toFixed(2)})`,
+            message: `Recurring ${frequency} ${t1.type}: ${t1.description || t1.category} (¤${amount1.toFixed(2)})`,
             nextExpected: new Date(allDates[allDates.length - 1].getTime() + avgInterval * 24 * 60 * 60 * 1000),
           });
         }
@@ -279,7 +279,7 @@ export function generateInsights(transactions) {
       summaryInsights.push({
         type: 'savings_rate',
         severity: 'high',
-        message: `You're spending more than you earn this period. Your expenses exceed income by P${Math.abs(totalIncome - totalExpenses).toFixed(2)}.`,
+        message: `You're spending more than you earn this period. Your expenses exceed income by ¤${Math.abs(totalIncome - totalExpenses).toFixed(2)}.`,
         value: Math.round(savingsRate),
       });
     }
@@ -298,7 +298,7 @@ export function generateInsights(transactions) {
     summaryInsights.push({
       type: 'top_category',
       severity: pct > 60 ? 'medium' : 'info',
-      message: `${topCat.category} is your top spending category at P${topCat.total.toFixed(2)} (${pct}% of total expenses).`,
+      message: `${topCat.category} is your top spending category at ¤${topCat.total.toFixed(2)} (${pct}% of total expenses).`,
       category: topCat.category,
       amount: topCat.total,
       percentage: pct,
