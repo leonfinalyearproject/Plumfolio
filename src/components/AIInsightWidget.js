@@ -310,7 +310,7 @@ export const AIToasts = () => {
           </div>
           <div className="ai-toast-content">
             <span className="ai-toast-title">{toast.title}</span>
-            <p className="ai-toast-message">{fmt(toast.message)}</p>
+            <p className="ai-toast-message">{toast.message}</p>
           </div>
           <button className="ai-toast-close" onClick={() => dismissToast(toast.id)}>
             <X size={14} />
