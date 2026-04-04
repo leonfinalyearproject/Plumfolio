@@ -1,6 +1,5 @@
 /* ================================================
-   MOBILE — Plumfolio Complete Responsive System
-   Covers: ALL pages, components, modals, tables
+   MOBILE — Plumfolio Complete Responsive v3
    ================================================ */
 
 /* ================================================
@@ -17,15 +16,15 @@
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
   border-top: 1px solid var(--border-color);
-  padding: 4px 4px;
-  padding-bottom: max(4px, env(safe-area-inset-bottom));
+  padding: 6px 8px;
+  padding-bottom: max(6px, env(safe-area-inset-bottom));
 }
 
 .mobile-nav-inner {
   display: flex;
   justify-content: space-around;
   align-items: center;
-  max-width: 520px;
+  max-width: 500px;
   margin: 0 auto;
 }
 
@@ -33,20 +32,20 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 1px;
-  padding: 6px 4px;
-  border-radius: var(--radius-md);
+  gap: 2px;
+  padding: 6px 6px;
+  border-radius: 10px;
   color: var(--text-dim);
   text-decoration: none;
-  font-size: 0.55rem;
+  font-size: 0.58rem;
   font-weight: 500;
-  transition: all 0.25s var(--ease-out);
-  min-width: 36px;
+  transition: all 0.2s;
+  min-width: 40px;
 }
 
 .mobile-nav-link svg {
-  width: 18px;
-  height: 18px;
+  width: 20px;
+  height: 20px;
 }
 
 .mobile-nav-link.active {
@@ -57,7 +56,7 @@
    MOBILE (max-width: 768px)
    ================================================ */
 @media (max-width: 768px) {
-  /* Layout */
+  /* ---- Layout ---- */
   .sidebar { display: none !important; }
   .mobile-nav { display: block; }
   .dashboard-layout { display: block; }
@@ -66,83 +65,147 @@
     width: 100%;
     max-width: 100%;
     overflow-x: hidden;
-    padding: 14px;
-    padding-bottom: 90px;
+    padding: 16px;
+    padding-bottom: 100px;
   }
-  .dashboard-footer { padding-bottom: 80px; }
-  .dashboard-header { padding: 12px 16px; }
-  .user-name { display: none; }
+  .dashboard-footer { padding-bottom: 90px; }
 
-  /* AI Widget */
-  .ai-widget { bottom: 80px !important; right: 10px !important; left: 10px !important; max-width: none !important; }
+  /* ---- Header ---- */
+  .dashboard-header {
+    padding: 12px 16px;
+  }
+  .user-name { display: none; }
+  /* Hide the logo that appears in header on mobile */
+  .dashboard-header .plumfolio-mobile-logo { display: none; }
+
+  /* ---- AI Widget — ABOVE the bottom nav ---- */
+  .ai-widget {
+    bottom: 75px !important;
+    right: 12px !important;
+    left: auto !important;
+    width: 300px !important;
+    max-width: calc(100vw - 24px) !important;
+  }
+  .ai-toasts-container {
+    bottom: 140px !important;
+    right: 12px !important;
+    max-width: 300px !important;
+  }
 
   /* ---- Dashboard ---- */
-  .dashboard-greeting h1 { font-size: 1.3rem; }
-  .stats-row { grid-template-columns: 1fr !important; }
+  .dashboard-greeting h1 { font-size: 1.4rem; }
+  .dashboard-greeting { margin-bottom: 16px; }
+  .stats-row {
+    grid-template-columns: 1fr !important;
+    gap: 10px !important;
+  }
   .stat-card.main { grid-column: 1 !important; }
-  .stat-card.main .stat-amount { font-size: 1.4rem; }
-  .dashboard-grid { grid-template-columns: 1fr !important; }
+  .stat-card { padding: 16px 18px; border-radius: 14px; }
+  .stat-amount { font-size: 1.3rem !important; }
+  .stat-card.main .stat-amount { font-size: 1.5rem !important; }
+  .dashboard-grid {
+    grid-template-columns: 1fr !important;
+    gap: 10px !important;
+  }
   .card.wide { grid-column: 1 !important; }
+  .card { padding: 16px 18px; border-radius: 14px; }
+  .chart-area { height: 180px; }
 
   /* ---- Transactions ---- */
-  .actions-bar { flex-direction: column; align-items: stretch; gap: 8px; }
+  .actions-bar {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 8px;
+  }
   .search-bar { max-width: 100%; }
-  .action-buttons { justify-content: flex-end; flex-wrap: wrap; }
+  .action-buttons {
+    justify-content: flex-end;
+    flex-wrap: wrap;
+    gap: 4px;
+  }
   .action-btn span { display: none; }
-  .action-btn { padding: 8px 10px; min-width: 38px; justify-content: center; }
+  .action-btn { padding: 9px 10px; min-width: 36px; justify-content: center; }
 
-  /* Formula bar mobile */
-  .formula-bar { gap: 2px; padding: 6px 10px; flex-wrap: nowrap; overflow-x: auto; }
-  .formula-item { padding: 4px 8px; min-width: 55px; }
-  .formula-label { font-size: 0.52rem; }
+  /* Formula bar */
+  .formula-bar {
+    padding: 6px 8px;
+    gap: 2px;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  .formula-item { padding: 4px 8px; min-width: 56px; }
+  .formula-label { font-size: 0.5rem; }
   .formula-value { font-size: 0.72rem; }
-  .formula-sep { height: 24px; margin: 0 2px; }
+  .formula-sep { height: 22px; margin: 0 2px; }
 
-  /* Filter panel mobile */
-  .filter-panel { padding: 12px 14px; }
+  /* Filter panel */
+  .filter-panel { padding: 12px; }
   .filter-row { flex-direction: column; gap: 8px; }
   .filter-group { width: 100%; }
   .filter-group select,
   .filter-group input[type="date"],
   .filter-group input[type="number"] { width: 100%; }
-  .clear-filters-btn { align-self: stretch; justify-content: center; }
 
-  /* Bulk bar mobile */
-  .bulk-bar { flex-wrap: wrap; font-size: 0.78rem; }
+  /* Bulk bar */
+  .bulk-bar { flex-wrap: wrap; font-size: 0.78rem; padding: 8px 12px; }
 
-  /* Table mobile - hide category & type columns */
+  /* Transaction table — hide category & type, show checkbox + date + desc + amount + actions */
   .transactions-table th:nth-child(4),
   .transactions-table td:nth-child(4),
   .transactions-table th:nth-child(5),
   .transactions-table td:nth-child(5) { display: none; }
+
   .transactions-table th,
-  .transactions-table td { padding: 10px 8px; font-size: 0.78rem; }
+  .transactions-table td {
+    padding: 10px 8px;
+    font-size: 0.78rem;
+  }
+  .transactions-table { table-layout: auto; }
   .desc-cell .transaction-icon { width: 28px; height: 28px; }
   .desc-cell .transaction-icon svg { width: 13px; height: 13px; }
-  .actions-cell { opacity: 1; } /* Always show on mobile */
-  .check-col { width: 32px !important; padding: 6px !important; }
+  .actions-cell { opacity: 1 !important; } /* Always visible on mobile */
+  .row-action { width: 28px; height: 28px; }
+  .check-col { width: 32px !important; padding: 6px 4px !important; }
 
   /* FABs */
-  .fab-group { display: flex; }
+  .fab-group { display: flex; bottom: 85px; }
 
   /* ---- Budgets ---- */
-  .budget-summary { grid-template-columns: 1fr !important; }
-  .budget-grid { grid-template-columns: 1fr !important; }
+  .budget-summary {
+    grid-template-columns: 1fr !important;
+    gap: 8px !important;
+  }
+  .budget-grid {
+    grid-template-columns: 1fr !important;
+    gap: 10px !important;
+  }
   .budgets-header { flex-wrap: wrap; gap: 10px; }
   .budget-view-toggle { width: 100%; }
-  .view-tab { flex: 1; justify-content: center; }
-  .goal-quick-add { flex-wrap: wrap; }
-  .quick-add-btn { min-width: 60px; }
+  .view-tab { flex: 1; justify-content: center; font-size: 0.78rem; }
+  .goal-quick-add { gap: 4px; }
+  .quick-add-btn { padding: 6px 4px; font-size: 0.72rem; }
 
   /* ---- Analytics ---- */
-  .analytics-summary { grid-template-columns: 1fr !important; }
-  .charts-grid { grid-template-columns: 1fr !important; }
+  .analytics-summary {
+    grid-template-columns: 1fr !important;
+    gap: 8px !important;
+  }
+  .charts-grid {
+    grid-template-columns: 1fr !important;
+    gap: 10px !important;
+  }
   .chart-card.wide { grid-column: 1 !important; }
   .chart-wrapper { min-height: 200px; }
 
   /* ---- Insights ---- */
-  .insights-summary-cards { grid-template-columns: repeat(2, 1fr) !important; }
-  .insights-tabs { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  .insights-summary-cards {
+    grid-template-columns: repeat(2, 1fr) !important;
+    gap: 8px !important;
+  }
+  .insights-tabs {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
   .category-forecasts { grid-template-columns: 1fr !important; }
   .insights-header { flex-wrap: wrap; gap: 10px; }
 
@@ -151,35 +214,53 @@
   .report-type-tabs { width: 100%; }
   .report-tab { flex: 1; justify-content: center; }
   .download-btn { margin-left: 0; justify-content: center; }
-  .report-summary { grid-template-columns: 1fr 1fr !important; }
-  .report-card { padding: 12px 14px; }
+  .report-summary {
+    grid-template-columns: 1fr 1fr !important;
+    gap: 8px !important;
+  }
+  .report-card { padding: 12px; }
   .report-card-icon { width: 34px; height: 34px; }
-  .report-card-value { font-size: 1rem; }
+  .report-card-value { font-size: 0.95rem; }
   .report-grid { grid-template-columns: 1fr !important; }
   .report-section.wide { grid-column: 1 !important; }
-  .quick-stats { grid-template-columns: 1fr 1fr; }
-  .report-transactions { overflow-x: auto; }
-  .report-transactions table { min-width: 400px; }
+  .report-section { padding: 16px; }
+  .quick-stats { grid-template-columns: 1fr 1fr; gap: 6px; }
+  .report-transactions { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  .report-transactions table { min-width: 380px; }
 
   /* ---- Settings ---- */
   .settings-page { padding: 0; }
-  .settings-tabs { overflow-x: auto; -webkit-overflow-scrolling: touch; }
-  .settings-tab span { display: none; }
-  .settings-tab { padding: 10px 14px; }
-  .settings-section { padding: 18px 14px; border-radius: 14px; }
+  .settings-tabs {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    gap: 1px;
+    padding: 3px;
+  }
+  /* Show tab labels on mobile — they were hidden before */
+  .settings-tab {
+    padding: 8px 14px;
+    font-size: 0.75rem;
+    gap: 5px;
+  }
+  .settings-tab svg { width: 15px; height: 15px; }
+  .settings-section { padding: 16px 14px; border-radius: 14px; }
   .currency-preview-amount { font-size: 1.4rem; }
   .currency-item { padding: 8px 10px; }
   .icon-picker { gap: 4px; }
-  .icon-btn { width: 34px; height: 34px; }
+  .icon-btn { width: 34px; height: 34px; font-size: 1rem; }
+  .reset-info { padding: 14px; }
 
   /* ---- Auth pages ---- */
   .auth-page { flex-direction: column; }
   .auth-slideshow { display: none; }
   .auth-container { width: 100%; max-width: 100%; padding: 20px 16px; }
-  .auth-card { padding: 20px 16px; border-radius: 16px; }
+  .auth-card { border-radius: 16px; }
 
-  /* ---- Modals ---- */
-  .modal-overlay { padding: 10px !important; align-items: flex-end !important; }
+  /* ---- Modals — slide up from bottom ---- */
+  .modal-overlay {
+    padding: 0 !important;
+    align-items: flex-end !important;
+  }
   .modal {
     max-width: 100% !important;
     margin: 0 !important;
@@ -193,31 +274,28 @@
   .import-actions { flex-direction: column; }
   .empty-state-actions { flex-direction: column; width: 100%; }
   .empty-action-btn { justify-content: center; }
-
-  /* ---- Reset password ---- */
-  .reset-info { padding: 14px; }
-  .reset-info p { font-size: 0.75rem; }
 }
 
 /* ================================================
    SMALL PHONES (max-width: 380px)
    ================================================ */
 @media (max-width: 380px) {
-  .dashboard-content { padding: 10px; padding-bottom: 85px; }
-  .mobile-nav-link { padding: 5px 3px; font-size: 0.5rem; min-width: 32px; }
-  .mobile-nav-link svg { width: 16px; height: 16px; }
+  .dashboard-content { padding: 10px; padding-bottom: 95px; }
+  .mobile-nav-link { padding: 5px 3px; font-size: 0.48rem; min-width: 32px; }
+  .mobile-nav-link svg { width: 17px; height: 17px; }
 
-  .stat-card { padding: 12px; }
+  .stat-card { padding: 12px 14px; }
   .stat-amount { font-size: 1.1rem !important; }
-  
+
   .formula-bar { padding: 4px 6px; }
-  .formula-item { padding: 3px 5px; min-width: 48px; }
-  
+  .formula-item { min-width: 46px; padding: 3px 5px; }
+
   .report-summary { grid-template-columns: 1fr !important; }
   .insights-summary-cards { grid-template-columns: 1fr !important; }
-  
+
+  /* Hide checkbox on very small screens */
   .transactions-table th:nth-child(1),
-  .transactions-table td:nth-child(1) { display: none; } /* Hide checkbox on tiny screens */
+  .transactions-table td:nth-child(1) { display: none; }
 }
 
 /* ================================================
@@ -237,21 +315,16 @@
   .dashboard-main { margin-left: 56px; }
   .mobile-nav { display: none; }
 
-  /* Tablet grids */
-  .stats-row { grid-template-columns: 1fr 1fr; }
-  .stat-card.main { grid-column: 1 / -1; }
+  .stats-row { grid-template-columns: repeat(3, 1fr); }
   .dashboard-grid { grid-template-columns: 1fr 1fr; }
   .budget-grid { grid-template-columns: 1fr 1fr; }
   .charts-grid { grid-template-columns: 1fr 1fr; }
   .report-summary { grid-template-columns: repeat(4, 1fr); }
   .report-grid { grid-template-columns: 1fr 1fr; }
-
-  /* Tablet action bar */
-  .action-btn span { font-size: 0.72rem; }
 }
 
 /* ================================================
-   LARGE SCREENS (1400px+)
+   LARGE (1400px+)
    ================================================ */
 @media (min-width: 1400px) {
   .dashboard-content { max-width: 1300px; margin: 0 auto; }
@@ -260,19 +333,13 @@
 }
 
 /* ================================================
-   TOUCH DEVICES
+   TOUCH
    ================================================ */
 @media (hover: none) {
-  /* Always show row actions on touch */
   .actions-cell { opacity: 1 !important; }
-  
-  /* Bigger touch targets */
   .row-action { width: 34px; height: 34px; }
   .check-btn { padding: 4px; }
   .filter-tab { padding: 8px 14px; }
-  .action-btn { padding: 10px 12px; }
-  
-  /* Disable hover effects that feel wrong on touch */
   .transactions-table tbody tr:hover { background: none; }
   .budget-card:hover { transform: none; }
 }
@@ -282,14 +349,15 @@
    ================================================ */
 @media print {
   .sidebar, .mobile-nav, .dashboard-header,
-  .fab-group, .ai-widget, .action-buttons,
-  .search-bar, .filter-panel, .formula-bar,
-  .bulk-bar, .actions-cell, .check-col { display: none !important; }
+  .fab-group, .ai-widget, .ai-toasts-container,
+  .action-buttons, .search-bar, .filter-panel,
+  .formula-bar, .bulk-bar, .actions-cell,
+  .check-col { display: none !important; }
 
   .dashboard-main { margin-left: 0 !important; }
   .dashboard-content { padding: 0 !important; }
-  .transactions-table-wrapper { border: 1px solid #ddd; }
   body { background: white; color: black; }
+  .transactions-table-wrapper { border: 1px solid #ddd; }
   .transactions-table th { background: #f5f5f5; color: #333; }
   .transactions-table td { border-bottom-color: #eee; color: #333; }
 }
