@@ -4,6 +4,7 @@ import { supabase } from '../lib/supabase';
 import { useCurrency } from '../context/CurrencyContext';
 import { parseReceiptText } from '../utils/receiptParser';
 import processReceiptImage from '../utils/imageProcessor';
+import { validateTransactionForm } from '../utils/validation';
 import {
   Plus, Filter, Download, Upload, X, ArrowUpCircle, ArrowDownCircle,
   Coffee, Home, Car, Zap, GraduationCap, ShoppingCart, Wallet, Briefcase,
@@ -41,6 +42,7 @@ const Transactions = () => {
     type: 'expense', amount: '', description: '',
     category: 'Food & Dining', date: new Date().toISOString().split('T')[0],
   });
+  const [formErrors, setFormErrors] = useState({});
 
   // Inline editing
   const [inlineEdit, setInlineEdit] = useState(null);
@@ -191,14 +193,21 @@ const Transactions = () => {
   // ========== CRUD ==========
   const handleSubmit = async (e) => {
     e.preventDefault();
+    // Validate
+    const { isValid, errors } = validateTransactionForm(formData, categories);
+    if (!isValid) {
+      setFormErrors(errors);
+      return;
+    }
+    setFormErrors({});
     try {
-      const p = { type: formData.type, amount: parseFloat(formData.amount), description: formData.description, category: formData.category, date: formData.date };
+      const p = { type: formData.type, amount: parseFloat(formData.amount), description: formData.description.trim(), category: formData.category, date: formData.date };
       if (editingTransaction) await supabase.from('transactions').update(p).eq('id', editingTransaction.id);
       else await supabase.from('transactions').insert({ ...p, user_id: user.id });
       setModalOpen(false); setEditingTransaction(null);
       setFormData({ type: 'expense', amount: '', description: '', category: 'Food & Dining', date: new Date().toISOString().split('T')[0] });
       fetchTransactions();
-    } catch (e) { console.error('Save error:', e); }
+    } catch (e) { console.error('Save error:', e); alert('Failed to save: ' + e.message); }
   };
 
   const handleDelete = async (id) => {
@@ -603,18 +612,34 @@ const Transactions = () => {
 
       {/* Add/Edit Modal */}
       {modalOpen && (
-        <div className="modal-overlay" onClick={() => { setModalOpen(false); setEditingTransaction(null); }}>
+        <div className="modal-overlay" onClick={() => { setModalOpen(false); setEditingTransaction(null); setFormErrors({}); }}>
           <div className="modal" onClick={e => e.stopPropagation()}>
-            <div className="modal-header"><h2>{editingTransaction ? 'Edit' : 'Add'} Transaction</h2><button className="modal-close" onClick={() => { setModalOpen(false); setEditingTransaction(null); }}><X size={20} /></button></div>
-            <form onSubmit={handleSubmit} className="modal-form">
+            <div className="modal-header"><h2>{editingTransaction ? 'Edit' : 'Add'} Transaction</h2><button className="modal-close" onClick={() => { setModalOpen(false); setEditingTransaction(null); setFormErrors({}); }}><X size={20} /></button></div>
+            <form onSubmit={handleSubmit} className="modal-form" noValidate>
               <div className="type-selector">
                 <button type="button" className={`type-btn ${formData.type === 'income' ? 'active income' : ''}`} onClick={() => setFormData({...formData, type: 'income'})}><ArrowUpCircle size={20} /> Income</button>
                 <button type="button" className={`type-btn ${formData.type === 'expense' ? 'active expense' : ''}`} onClick={() => setFormData({...formData, type: 'expense'})}><ArrowDownCircle size={20} /> Expense</button>
               </div>
-              <div className="form-group"><label>Amount (P)</label><input type="number" value={formData.amount} onChange={e => setFormData({...formData, amount: e.target.value})} placeholder="0.00" min="0" step="0.01" required /></div>
-              <div className="form-group"><label>Description</label><input type="text" value={formData.description} onChange={e => setFormData({...formData, description: e.target.value})} placeholder="Enter description" required /></div>
-              <div className="form-group"><label>Category</label><select value={formData.category} onChange={e => setFormData({...formData, category: e.target.value})}>{categories.map(c => <option key={c} value={c}>{c}</option>)}</select></div>
-              <div className="form-group"><label>Date</label><input type="date" value={formData.date} onChange={e => setFormData({...formData, date: e.target.value})} required /></div>
+              <div className={`form-group ${formErrors.amount ? 'has-error' : ''}`}>
+                <label>Amount (P)</label>
+                <input type="number" value={formData.amount} onChange={e => { setFormData({...formData, amount: e.target.value}); if (formErrors.amount) setFormErrors({...formErrors, amount: ''}); }} placeholder="0.00" min="0" step="0.01" />
+                {formErrors.amount && <span className="field-error">{formErrors.amount}</span>}
+              </div>
+              <div className={`form-group ${formErrors.description ? 'has-error' : ''}`}>
+                <label>Description</label>
+                <input type="text" value={formData.description} onChange={e => { setFormData({...formData, description: e.target.value}); if (formErrors.description) setFormErrors({...formErrors, description: ''}); }} placeholder="Enter description" maxLength={100} />
+                {formErrors.description && <span className="field-error">{formErrors.description}</span>}
+              </div>
+              <div className={`form-group ${formErrors.category ? 'has-error' : ''}`}>
+                <label>Category</label>
+                <select value={formData.category} onChange={e => setFormData({...formData, category: e.target.value})}>{categories.map(c => <option key={c} value={c}>{c}</option>)}</select>
+                {formErrors.category && <span className="field-error">{formErrors.category}</span>}
+              </div>
+              <div className={`form-group ${formErrors.date ? 'has-error' : ''}`}>
+                <label>Date</label>
+                <input type="date" value={formData.date} onChange={e => { setFormData({...formData, date: e.target.value}); if (formErrors.date) setFormErrors({...formErrors, date: ''}); }} />
+                {formErrors.date && <span className="field-error">{formErrors.date}</span>}
+              </div>
               <button type="submit" className="submit-btn">{editingTransaction ? 'Save Changes' : 'Add Transaction'}</button>
             </form>
           </div>

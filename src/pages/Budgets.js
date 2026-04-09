@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { supabase } from '../lib/supabase';
 import { useCurrency } from '../context/CurrencyContext';
+import { validateBudgetForm, validateGoalForm } from '../utils/validation';
 import {
   Plus, Edit, Trash2, X, AlertTriangle, CheckCircle, Target,
   TrendingUp, PiggyBank, Repeat, Zap, Award, ArrowRight
@@ -21,6 +22,7 @@ const Budgets = () => {
     allocated: '',
     month_year: new Date().toISOString().slice(0, 7),
   });
+  const [formErrors, setFormErrors] = useState({});
 
   // Savings goals (stored in localStorage since no DB table)
   const [goals, setGoals] = useState([]);
@@ -29,6 +31,7 @@ const Budgets = () => {
   const [goalForm, setGoalForm] = useState({
     name: '', target: '', saved: '', deadline: '', icon: '🎯',
   });
+  const [goalErrors, setGoalErrors] = useState({});
 
   const categories = [
     'Food & Dining', 'Transportation', 'Housing', 'Utilities',
@@ -85,6 +88,12 @@ const Budgets = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    const { isValid, errors } = validateBudgetForm(formData, categories);
+    if (!isValid) {
+      setFormErrors(errors);
+      return;
+    }
+    setFormErrors({});
     try {
       const payload = { category: formData.category, allocated: parseFloat(formData.allocated), month_year: formData.month_year };
       if (editingBudget) {
@@ -95,7 +104,7 @@ const Budgets = () => {
       setModalOpen(false); setEditingBudget(null);
       setFormData({ category: 'Food & Dining', allocated: '', month_year: new Date().toISOString().slice(0, 7) });
       fetchBudgets();
-    } catch (error) { console.error('Save error:', error); }
+    } catch (error) { console.error('Save error:', error); alert('Failed to save budget: ' + error.message); }
   };
 
   const handleDelete = async (id) => {
@@ -107,15 +116,22 @@ const Budgets = () => {
   const handleEdit = (b) => {
     setEditingBudget(b);
     setFormData({ category: b.category, allocated: b.allocated.toString(), month_year: b.month_year });
+    setFormErrors({});
     setModalOpen(true);
   };
 
   // Savings Goals
   const handleGoalSubmit = (e) => {
     e.preventDefault();
+    const { isValid, errors } = validateGoalForm(goalForm);
+    if (!isValid) {
+      setGoalErrors(errors);
+      return;
+    }
+    setGoalErrors({});
     const goal = {
       id: editingGoal ? editingGoal.id : Date.now().toString(),
-      name: goalForm.name,
+      name: goalForm.name.trim(),
       target: parseFloat(goalForm.target),
       saved: parseFloat(goalForm.saved) || 0,
       deadline: goalForm.deadline,
@@ -359,26 +375,29 @@ const Budgets = () => {
 
       {/* =================== BUDGET MODAL =================== */}
       {modalOpen && (
-        <div className="modal-overlay" onClick={() => { setModalOpen(false); setEditingBudget(null); }}>
+        <div className="modal-overlay" onClick={() => { setModalOpen(false); setEditingBudget(null); setFormErrors({}); }}>
           <div className="modal" onClick={e => e.stopPropagation()}>
             <div className="modal-header">
               <h2>{editingBudget ? 'Edit Budget' : 'Create Budget'}</h2>
-              <button className="modal-close" onClick={() => { setModalOpen(false); setEditingBudget(null); }}><X size={20} /></button>
+              <button className="modal-close" onClick={() => { setModalOpen(false); setEditingBudget(null); setFormErrors({}); }}><X size={20} /></button>
             </div>
-            <form onSubmit={handleSubmit} className="modal-form">
-              <div className="form-group">
+            <form onSubmit={handleSubmit} className="modal-form" noValidate>
+              <div className={`form-group ${formErrors.category ? 'has-error' : ''}`}>
                 <label>Category</label>
                 <select value={formData.category} onChange={e => setFormData({ ...formData, category: e.target.value })}>
                   {categories.map(c => <option key={c} value={c}>{c}</option>)}
                 </select>
+                {formErrors.category && <span className="field-error">{formErrors.category}</span>}
               </div>
-              <div className="form-group">
+              <div className={`form-group ${formErrors.allocated ? 'has-error' : ''}`}>
                 <label>Budget Amount (P)</label>
-                <input type="number" value={formData.allocated} onChange={e => setFormData({ ...formData, allocated: e.target.value })} placeholder="0.00" min="0" step="0.01" required />
+                <input type="number" value={formData.allocated} onChange={e => { setFormData({ ...formData, allocated: e.target.value }); if (formErrors.allocated) setFormErrors({...formErrors, allocated: ''}); }} placeholder="0.00" min="0" step="0.01" />
+                {formErrors.allocated && <span className="field-error">{formErrors.allocated}</span>}
               </div>
-              <div className="form-group">
+              <div className={`form-group ${formErrors.month_year ? 'has-error' : ''}`}>
                 <label>Month</label>
-                <input type="month" value={formData.month_year} onChange={e => setFormData({ ...formData, month_year: e.target.value })} required />
+                <input type="month" value={formData.month_year} onChange={e => { setFormData({ ...formData, month_year: e.target.value }); if (formErrors.month_year) setFormErrors({...formErrors, month_year: ''}); }} />
+                {formErrors.month_year && <span className="field-error">{formErrors.month_year}</span>}
               </div>
               <button type="submit" className="submit-btn">{editingBudget ? 'Save Changes' : 'Create Budget'}</button>
             </form>
@@ -388,13 +407,13 @@ const Budgets = () => {
 
       {/* =================== GOAL MODAL =================== */}
       {goalModal && (
-        <div className="modal-overlay" onClick={() => { setGoalModal(false); setEditingGoal(null); }}>
+        <div className="modal-overlay" onClick={() => { setGoalModal(false); setEditingGoal(null); setGoalErrors({}); }}>
           <div className="modal" onClick={e => e.stopPropagation()}>
             <div className="modal-header">
               <h2>{editingGoal ? 'Edit Goal' : 'New Savings Goal'}</h2>
-              <button className="modal-close" onClick={() => { setGoalModal(false); setEditingGoal(null); }}><X size={20} /></button>
+              <button className="modal-close" onClick={() => { setGoalModal(false); setEditingGoal(null); setGoalErrors({}); }}><X size={20} /></button>
             </div>
-            <form onSubmit={handleGoalSubmit} className="modal-form">
+            <form onSubmit={handleGoalSubmit} className="modal-form" noValidate>
               <div className="form-group">
                 <label>Icon</label>
                 <div className="icon-picker">
@@ -406,23 +425,27 @@ const Budgets = () => {
                   ))}
                 </div>
               </div>
-              <div className="form-group">
+              <div className={`form-group ${goalErrors.name ? 'has-error' : ''}`}>
                 <label>Goal Name</label>
-                <input type="text" value={goalForm.name} onChange={e => setGoalForm({ ...goalForm, name: e.target.value })} placeholder="e.g. Emergency Fund, Vacation, New Car" required />
+                <input type="text" value={goalForm.name} onChange={e => { setGoalForm({ ...goalForm, name: e.target.value }); if (goalErrors.name) setGoalErrors({...goalErrors, name: ''}); }} placeholder="e.g. Emergency Fund, Vacation, New Car" maxLength={50} />
+                {goalErrors.name && <span className="field-error">{goalErrors.name}</span>}
               </div>
               <div className="form-row">
-                <div className="form-group">
+                <div className={`form-group ${goalErrors.target ? 'has-error' : ''}`}>
                   <label>Target Amount (P)</label>
-                  <input type="number" value={goalForm.target} onChange={e => setGoalForm({ ...goalForm, target: e.target.value })} placeholder="0.00" min="0" step="0.01" required />
+                  <input type="number" value={goalForm.target} onChange={e => { setGoalForm({ ...goalForm, target: e.target.value }); if (goalErrors.target) setGoalErrors({...goalErrors, target: ''}); }} placeholder="0.00" min="0" step="0.01" />
+                  {goalErrors.target && <span className="field-error">{goalErrors.target}</span>}
                 </div>
-                <div className="form-group">
+                <div className={`form-group ${goalErrors.saved ? 'has-error' : ''}`}>
                   <label>Already Saved (P)</label>
-                  <input type="number" value={goalForm.saved} onChange={e => setGoalForm({ ...goalForm, saved: e.target.value })} placeholder="0.00" min="0" step="0.01" />
+                  <input type="number" value={goalForm.saved} onChange={e => { setGoalForm({ ...goalForm, saved: e.target.value }); if (goalErrors.saved) setGoalErrors({...goalErrors, saved: ''}); }} placeholder="0.00" min="0" step="0.01" />
+                  {goalErrors.saved && <span className="field-error">{goalErrors.saved}</span>}
                 </div>
               </div>
-              <div className="form-group">
+              <div className={`form-group ${goalErrors.deadline ? 'has-error' : ''}`}>
                 <label>Target Date (optional)</label>
-                <input type="date" value={goalForm.deadline} onChange={e => setGoalForm({ ...goalForm, deadline: e.target.value })} />
+                <input type="date" value={goalForm.deadline} onChange={e => { setGoalForm({ ...goalForm, deadline: e.target.value }); if (goalErrors.deadline) setGoalErrors({...goalErrors, deadline: ''}); }} />
+                {goalErrors.deadline && <span className="field-error">{goalErrors.deadline}</span>}
               </div>
               <button type="submit" className="submit-btn">{editingGoal ? 'Save Changes' : 'Create Goal'}</button>
             </form>

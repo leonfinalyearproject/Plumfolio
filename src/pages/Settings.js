@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useCurrency, CURRENCIES } from '../context/CurrencyContext';
 import { supabase } from '../lib/supabase';
+import { validateFullName, validateEmail } from '../utils/validation';
 import { User, Mail, Lock, Shield, Trash2, Save, Globe, Check, Search, KeyRound } from 'lucide-react';
 import './Settings.css';
 
@@ -13,7 +14,9 @@ const Settings = () => {
     fullName: user?.user_metadata?.full_name || profile?.full_name || '',
     email: user?.email || '',
   });
+  const [profileError, setProfileError] = useState('');
   const [resetEmail, setResetEmail] = useState(user?.email || '');
+  const [resetEmailError, setResetEmailError] = useState('');
   const [currencySearch, setCurrencySearch] = useState('');
   const [saving, setSaving] = useState(false);
   const [switchingTo, setSwitchingTo] = useState(null);
@@ -26,9 +29,15 @@ const Settings = () => {
   };
 
   const handleProfileSave = async () => {
+    const nameError = validateFullName(profileData.fullName);
+    if (nameError) {
+      setProfileError(nameError);
+      return;
+    }
+    setProfileError('');
     setSaving(true);
     try {
-      const { error } = await updateProfile({ full_name: profileData.fullName });
+      const { error } = await updateProfile({ full_name: profileData.fullName.trim() });
       if (error) throw error;
       showMessage('success', 'Profile updated');
     } catch (error) {
@@ -39,9 +48,12 @@ const Settings = () => {
   };
 
   const handlePasswordReset = async () => {
-    if (!resetEmail || !resetEmail.includes('@')) {
-      return showMessage('error', 'Please enter a valid email address');
+    const emailError = validateEmail(resetEmail);
+    if (emailError) {
+      setResetEmailError(emailError);
+      return;
     }
+    setResetEmailError('');
     setSaving(true);
     try {
       const { error } = await supabase.auth.resetPasswordForEmail(resetEmail, {
@@ -136,9 +148,10 @@ const Settings = () => {
               <p>Update your personal information.</p>
             </div>
             <div className="settings-form">
-              <div className="form-group">
+              <div className={`form-group ${profileError ? 'has-error' : ''}`}>
                 <label><User size={14} /> Full Name</label>
-                <input type="text" value={profileData.fullName} onChange={(e) => setProfileData({ ...profileData, fullName: e.target.value })} placeholder="Your full name" />
+                <input type="text" value={profileData.fullName} onChange={(e) => { setProfileData({ ...profileData, fullName: e.target.value }); if (profileError) setProfileError(''); }} placeholder="Your full name" maxLength={60} />
+                {profileError && <span className="field-error">{profileError}</span>}
               </div>
               <div className="form-group">
                 <label><Mail size={14} /> Email Address</label>
@@ -213,14 +226,16 @@ const Settings = () => {
                   <KeyRound size={32} className="reset-icon" />
                   <p>We'll send a password reset link to your email. Click the link in the email to set a new password.</p>
                 </div>
-                <div className="form-group">
+                <div className={`form-group ${resetEmailError ? 'has-error' : ''}`}>
                   <label><Mail size={14} /> Email Address</label>
                   <input
                     type="email"
                     value={resetEmail}
-                    onChange={(e) => setResetEmail(e.target.value)}
+                    onChange={(e) => { setResetEmail(e.target.value); if (resetEmailError) setResetEmailError(''); }}
                     placeholder="your@email.com"
+                    maxLength={254}
                   />
+                  {resetEmailError && <span className="field-error">{resetEmailError}</span>}
                 </div>
                 <button className="save-btn" onClick={handlePasswordReset} disabled={saving}>
                   {saving ? <span className="spinner" /> : <Mail size={16} />} Send Reset Link
