@@ -387,17 +387,17 @@ const Budgets = () => {
                 <select value={formData.category} onChange={e => setFormData({ ...formData, category: e.target.value })}>
                   {categories.map(c => <option key={c} value={c}>{c}</option>)}
                 </select>
-                {formErrors.category && <span className="field-error">{formErrors.category}</span>}
+                {formErrors.category ? <span className="field-error">{formErrors.category}</span> : <span className="field-hint">The spending category this budget tracks</span>}
               </div>
               <div className={`form-group ${formErrors.allocated ? 'has-error' : ''}`}>
                 <label>Budget Amount (P)</label>
                 <input type="number" value={formData.allocated} onChange={e => { setFormData({ ...formData, allocated: e.target.value }); if (formErrors.allocated) setFormErrors({...formErrors, allocated: ''}); }} placeholder="0.00" min="0" step="0.01" />
-                {formErrors.allocated && <span className="field-error">{formErrors.allocated}</span>}
+                {formErrors.allocated ? <span className="field-error">{formErrors.allocated}</span> : <span className="field-hint">Minimum P10, up to P10,000,000</span>}
               </div>
               <div className={`form-group ${formErrors.month_year ? 'has-error' : ''}`}>
                 <label>Month</label>
                 <input type="month" value={formData.month_year} onChange={e => { setFormData({ ...formData, month_year: e.target.value }); if (formErrors.month_year) setFormErrors({...formErrors, month_year: ''}); }} />
-                {formErrors.month_year && <span className="field-error">{formErrors.month_year}</span>}
+                {formErrors.month_year ? <span className="field-error">{formErrors.month_year}</span> : <span className="field-hint">The month this budget applies to</span>}
               </div>
               <button type="submit" className="submit-btn">{editingBudget ? 'Save Changes' : 'Create Budget'}</button>
             </form>
@@ -428,24 +428,24 @@ const Budgets = () => {
               <div className={`form-group ${goalErrors.name ? 'has-error' : ''}`}>
                 <label>Goal Name</label>
                 <input type="text" value={goalForm.name} onChange={e => { setGoalForm({ ...goalForm, name: e.target.value }); if (goalErrors.name) setGoalErrors({...goalErrors, name: ''}); }} placeholder="e.g. Emergency Fund, Vacation, New Car" maxLength={50} />
-                {goalErrors.name && <span className="field-error">{goalErrors.name}</span>}
+                {goalErrors.name ? <span className="field-error">{goalErrors.name}</span> : <span className="field-hint">2-50 characters describing what you're saving for</span>}
               </div>
               <div className="form-row">
                 <div className={`form-group ${goalErrors.target ? 'has-error' : ''}`}>
                   <label>Target Amount (P)</label>
                   <input type="number" value={goalForm.target} onChange={e => { setGoalForm({ ...goalForm, target: e.target.value }); if (goalErrors.target) setGoalErrors({...goalErrors, target: ''}); }} placeholder="0.00" min="0" step="0.01" />
-                  {goalErrors.target && <span className="field-error">{goalErrors.target}</span>}
+                  {goalErrors.target ? <span className="field-error">{goalErrors.target}</span> : <span className="field-hint">Min P10, realistic target</span>}
                 </div>
                 <div className={`form-group ${goalErrors.saved ? 'has-error' : ''}`}>
                   <label>Already Saved (P)</label>
                   <input type="number" value={goalForm.saved} onChange={e => { setGoalForm({ ...goalForm, saved: e.target.value }); if (goalErrors.saved) setGoalErrors({...goalErrors, saved: ''}); }} placeholder="0.00" min="0" step="0.01" />
-                  {goalErrors.saved && <span className="field-error">{goalErrors.saved}</span>}
+                  {goalErrors.saved ? <span className="field-error">{goalErrors.saved}</span> : <span className="field-hint">Optional, can't exceed target</span>}
                 </div>
               </div>
               <div className={`form-group ${goalErrors.deadline ? 'has-error' : ''}`}>
                 <label>Target Date (optional)</label>
                 <input type="date" value={goalForm.deadline} onChange={e => { setGoalForm({ ...goalForm, deadline: e.target.value }); if (goalErrors.deadline) setGoalErrors({...goalErrors, deadline: ''}); }} />
-                {goalErrors.deadline && <span className="field-error">{goalErrors.deadline}</span>}
+                {goalErrors.deadline ? <span className="field-error">{goalErrors.deadline}</span> : <span className="field-hint">When you want to reach this goal</span>}
               </div>
               <button type="submit" className="submit-btn">{editingGoal ? 'Save Changes' : 'Create Goal'}</button>
             </form>

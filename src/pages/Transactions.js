@@ -623,22 +623,22 @@ const Transactions = () => {
               <div className={`form-group ${formErrors.amount ? 'has-error' : ''}`}>
                 <label>Amount (P)</label>
                 <input type="number" value={formData.amount} onChange={e => { setFormData({...formData, amount: e.target.value}); if (formErrors.amount) setFormErrors({...formErrors, amount: ''}); }} placeholder="0.00" min="0" step="0.01" />
-                {formErrors.amount && <span className="field-error">{formErrors.amount}</span>}
+                {formErrors.amount ? <span className="field-error">{formErrors.amount}</span> : <span className="field-hint">Max 2 decimal places, up to P10,000,000</span>}
               </div>
               <div className={`form-group ${formErrors.description ? 'has-error' : ''}`}>
                 <label>Description</label>
                 <input type="text" value={formData.description} onChange={e => { setFormData({...formData, description: e.target.value}); if (formErrors.description) setFormErrors({...formErrors, description: ''}); }} placeholder="Enter description" maxLength={100} />
-                {formErrors.description && <span className="field-error">{formErrors.description}</span>}
+                {formErrors.description ? <span className="field-error">{formErrors.description}</span> : <span className="field-hint">2-100 characters describing this transaction</span>}
               </div>
               <div className={`form-group ${formErrors.category ? 'has-error' : ''}`}>
                 <label>Category</label>
                 <select value={formData.category} onChange={e => setFormData({...formData, category: e.target.value})}>{categories.map(c => <option key={c} value={c}>{c}</option>)}</select>
-                {formErrors.category && <span className="field-error">{formErrors.category}</span>}
+                {formErrors.category ? <span className="field-error">{formErrors.category}</span> : <span className="field-hint">Choose the closest match for better insights</span>}
               </div>
               <div className={`form-group ${formErrors.date ? 'has-error' : ''}`}>
                 <label>Date</label>
                 <input type="date" value={formData.date} onChange={e => { setFormData({...formData, date: e.target.value}); if (formErrors.date) setFormErrors({...formErrors, date: ''}); }} />
-                {formErrors.date && <span className="field-error">{formErrors.date}</span>}
+                {formErrors.date ? <span className="field-error">{formErrors.date}</span> : <span className="field-hint">Cannot be in the future or more than 10 years ago</span>}
               </div>
               <button type="submit" className="submit-btn">{editingTransaction ? 'Save Changes' : 'Add Transaction'}</button>
             </form>

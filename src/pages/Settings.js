@@ -151,11 +151,12 @@ const Settings = () => {
               <div className={`form-group ${profileError ? 'has-error' : ''}`}>
                 <label><User size={14} /> Full Name</label>
                 <input type="text" value={profileData.fullName} onChange={(e) => { setProfileData({ ...profileData, fullName: e.target.value }); if (profileError) setProfileError(''); }} placeholder="Your full name" maxLength={60} />
-                {profileError && <span className="field-error">{profileError}</span>}
+                {profileError ? <span className="field-error">{profileError}</span> : <span className="field-hint">Letters, spaces, hyphens and apostrophes only</span>}
               </div>
               <div className="form-group">
                 <label><Mail size={14} /> Email Address</label>
                 <input type="email" value={profileData.email} disabled />
+                <span className="field-hint">Email cannot be changed here</span>
               </div>
               <button className="save-btn" onClick={handleProfileSave} disabled={saving}>
                 {saving ? <span className="spinner" /> : <Save size={16} />} Save Changes
@@ -235,7 +236,7 @@ const Settings = () => {
                     placeholder="your@email.com"
                     maxLength={254}
                   />
-                  {resetEmailError && <span className="field-error">{resetEmailError}</span>}
+                  {resetEmailError ? <span className="field-error">{resetEmailError}</span> : <span className="field-hint">We'll send a secure reset link to this email</span>}
                 </div>
                 <button className="save-btn" onClick={handlePasswordReset} disabled={saving}>
                   {saving ? <span className="spinner" /> : <Mail size={16} />} Send Reset Link
