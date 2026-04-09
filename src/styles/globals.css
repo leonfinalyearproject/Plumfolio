@@ -311,3 +311,18 @@ input, textarea, select {
   color: #EF4444;
   margin-bottom: 12px;
 }
+
+/* ================================================
+   FIELD HINTS (validation guidance)
+   ================================================ */
+.field-hint {
+  font-size: 0.7rem;
+  color: rgba(255, 255, 255, 0.35);
+  margin-top: 3px;
+  display: block;
+  line-height: 1.35;
+}
+
+.form-group.has-error .field-hint {
+  display: none; /* Hide hint when error is showing */
+}
