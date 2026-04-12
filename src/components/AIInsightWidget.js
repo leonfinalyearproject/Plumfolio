@@ -15,7 +15,7 @@ import './AIInsightWidget.css';
  * Generate page-specific insights based on the current route
  * Each page gets its own analysis - the AI "mind" adapts to context
  */
-function getPageInsights(pathname, insights, predictions, formatCurrency) {
+function getPageInsights(pathname, insights, predictions, formatCurrency, crossSignals = []) {
   if (!insights || !insights.insights) {
     return { title: 'AI Insights', icon: Brain, items: [], summary: '' };
   }
@@ -29,13 +29,21 @@ function getPageInsights(pathname, insights, predictions, formatCurrency) {
   const totalForecast = predictions?.totalForecast || {};
   const budgetSuggestions = predictions?.budgetSuggestions || [];
 
+  // Cross-reference signals (compound warnings from multiple engines)
+  const compoundItems = (crossSignals || []).slice(0, 3).map(sig => ({
+    type: sig.type,
+    severity: sig.severity,
+    message: sig.message,
+    context: sig.title + ' (cross-referenced)',
+  }));
+
   // Normalise path
   const page = pathname.replace(/^\/Plumfolio/i, '').replace(/^\//, '') || 'dashboard';
 
   switch (page) {
     case 'dashboard': {
       // Dashboard: overall health, key alerts, savings rate, quick summary
-      const items = [];
+      const items = [...compoundItems];
 
       // Savings rate insight
       const savingsInsight = allInsights.find(i => i.type === 'savings_rate');
@@ -83,7 +91,7 @@ function getPageInsights(pathname, insights, predictions, formatCurrency) {
 
     case 'transactions': {
       // Transactions: anomalies, spending patterns, recurring detection
-      const items = [];
+      const items = [...compoundItems];
 
       // Anomalous transactions
       anomalies.slice(0, 3).forEach(a => {
@@ -133,7 +141,7 @@ function getPageInsights(pathname, insights, predictions, formatCurrency) {
 
     case 'budgets': {
       // Budgets: warnings, projected overspend, suggested allocations
-      const items = [];
+      const items = [...compoundItems];
 
       // Budget warnings (exceeded, projected, approaching)
       budgetWarnings.forEach(w => {
@@ -182,7 +190,7 @@ function getPageInsights(pathname, insights, predictions, formatCurrency) {
 
     case 'analytics': {
       // Analytics: trends, forecasts, category breakdowns
-      const items = [];
+      const items = [...compoundItems];
 
       // Total forecast
       if (totalForecast.predicted > 0) {
@@ -226,7 +234,7 @@ function getPageInsights(pathname, insights, predictions, formatCurrency) {
 
     case 'receipt-scanner': {
       // Receipt scanner: recent scan tips, spending context
-      const items = [];
+      const items = [...compoundItems];
 
       // Show recent spending context
       const topCat = allInsights.find(i => i.type === 'top_category');
@@ -299,6 +307,8 @@ function getPageInsights(pathname, insights, predictions, formatCurrency) {
 // === Toast Notifications ===
 export const AIToasts = () => {
   const { toasts, dismissToast } = useInsights();
+  const { symbol } = useCurrency();
+  const fmt = (msg) => (msg ? String(msg).replace(/¤/g, symbol) : msg);
   if (toasts.length === 0) return null;
 
   return (
@@ -309,8 +319,8 @@ export const AIToasts = () => {
             {toast.severity === 'high' ? <AlertTriangle size={16} /> : <Lightbulb size={16} />}
           </div>
           <div className="ai-toast-content">
-            <span className="ai-toast-title">{toast.title}</span>
-            <p className="ai-toast-message">{toast.message}</p>
+            <span className="ai-toast-title">{fmt(toast.title)}</span>
+            <p className="ai-toast-message">{fmt(toast.message)}</p>
           </div>
           <button className="ai-toast-close" onClick={() => dismissToast(toast.id)}>
             <X size={14} />
@@ -323,7 +333,7 @@ export const AIToasts = () => {
 
 // === Floating Widget ===
 const AIInsightWidget = () => {
-  const { insights, predictions, loading } = useInsights();
+  const { insights, predictions, crossSignals, loading } = useInsights();
   const { formatCurrency, symbol } = useCurrency();
   const fmt = (msg) => msg ? msg.replace(/¤/g, symbol) : msg;
   const [expanded, setExpanded] = useState(false);
@@ -333,8 +343,8 @@ const AIInsightWidget = () => {
 
   // Get page-specific insights
   const pageData = useMemo(() => {
-    return getPageInsights(location.pathname, insights, predictions, formatCurrency);
-  }, [location.pathname, insights, predictions, formatCurrency]);
+    return getPageInsights(location.pathname, insights, predictions, formatCurrency, crossSignals);
+  }, [location.pathname, insights, predictions, formatCurrency, crossSignals]);
 
   // Don't show widget on receipt scanner page
   const page = location.pathname.replace(/^\/Plumfolio/i, '').replace(/^\//, '') || 'dashboard';
