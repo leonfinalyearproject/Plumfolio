@@ -2,11 +2,21 @@
    SETTINGS — Lusion
    ================================================ */
 .settings-page {
-  max-width: 480px;
+  max-width: 420px;
+  width: 100%;
   margin: 0 auto;
 }
-.settings-section { width: 100%; box-sizing: border-box; }
-.settings-content { width: 100%; }
+.settings-page > * { width: 100%; }
+.settings-section {
+  width: 100% !important;
+  max-width: 100% !important;
+  box-sizing: border-box;
+  overflow: hidden;
+}
+.settings-content { width: 100%; max-width: 100%; }
+.settings-tabs { width: 100%; max-width: 100%; box-sizing: border-box; }
+/* Prevent currency items from forcing width */
+.currency-item, .currency-preview, .currency-search-box { max-width: 100%; box-sizing: border-box; }
 
 /* Tabs */
 .settings-tabs {

@@ -6,8 +6,30 @@ import { useInsights } from '../context/InsightsContext';
 import { validateBudgetForm, validateGoalForm } from '../utils/validation';
 import {
   Plus, Edit, Trash2, X, AlertTriangle, CheckCircle, Target,
-  TrendingUp, PiggyBank, Repeat, Zap, Award, ArrowRight
+  TrendingUp, PiggyBank, Repeat, Zap, Award, ArrowRight,
+  Home, Car, Plane, Laptop, Smartphone, GraduationCap, Wallet,
+  Dumbbell, Gamepad2, Baby, Gem, Umbrella, Music
 } from 'lucide-react';
+
+// Goal icon registry (key → component). Stored as string keys in DB.
+const GOAL_ICONS = {
+  target: Target, home: Home, car: Car, plane: Plane, laptop: Laptop,
+  phone: Smartphone, grad: GraduationCap, wallet: Wallet, gym: Dumbbell,
+  game: Gamepad2, baby: Baby, ring: Gem, beach: Umbrella, music: Music,
+};
+const GOAL_ICON_KEYS = Object.keys(GOAL_ICONS);
+// Backward-compat for saved emoji values
+const EMOJI_TO_KEY = {
+  '🎯': 'target', '🏠': 'home', '🚗': 'car', '✈️': 'plane', '💻': 'laptop',
+  '📱': 'phone', '🎓': 'grad', '💰': 'wallet', '🏋️': 'gym', '🎮': 'game',
+  '👶': 'baby', '💍': 'ring', '🏖️': 'beach', '🎸': 'music',
+};
+const getGoalIconComponent = (icon) => {
+  if (!icon) return Target;
+  if (GOAL_ICONS[icon]) return GOAL_ICONS[icon];
+  if (EMOJI_TO_KEY[icon]) return GOAL_ICONS[EMOJI_TO_KEY[icon]];
+  return Target;
+};
 import './Budgets.css';
 
 const Budgets = () => {
@@ -31,7 +53,7 @@ const Budgets = () => {
   const [goalModal, setGoalModal] = useState(false);
   const [editingGoal, setEditingGoal] = useState(null);
   const [goalForm, setGoalForm] = useState({
-    name: '', target: '', saved: '', deadline: '', icon: '🎯',
+    name: '', target: '', saved: '', deadline: '', icon: 'target',
   });
   const [goalErrors, setGoalErrors] = useState({});
 
@@ -42,7 +64,7 @@ const Budgets = () => {
     'Savings', 'Investments', 'Gifts & Donations', 'Other',
   ];
 
-  const goalIcons = ['🎯', '🏠', '🚗', '✈️', '💻', '📱', '🎓', '💰', '🏋️', '🎮', '👶', '💍', '🏖️', '🎸'];
+  // Goal icons now come from GOAL_ICONS registry above (Lucide icons)
 
   // Budget rules/formulas
   const budgetRules = [
@@ -140,13 +162,24 @@ const Budgets = () => {
       return;
     }
     setGoalErrors({});
+    const rawTarget = parseFloat(goalForm.target);
+    const rawSaved = parseFloat(goalForm.saved) || 0;
+    // Hard validation: target must be > 0, saved cannot exceed target, no negatives
+    if (!rawTarget || rawTarget <= 0) {
+      setGoalErrors({ ...errors, target: 'Target must be greater than 0' });
+      return;
+    }
+    if (rawSaved < 0) {
+      setGoalErrors({ ...errors, saved: 'Saved amount cannot be negative' });
+      return;
+    }
     const goal = {
       id: editingGoal ? editingGoal.id : Date.now().toString(),
       name: goalForm.name.trim(),
-      target: parseFloat(goalForm.target),
-      saved: parseFloat(goalForm.saved) || 0,
+      target: rawTarget,
+      saved: Math.min(rawSaved, rawTarget),
       deadline: goalForm.deadline,
-      icon: goalForm.icon,
+      icon: GOAL_ICON_KEYS.includes(goalForm.icon) ? goalForm.icon : 'target',
     };
     const wasEditGoal = !!editingGoal;
     if (editingGoal) {
@@ -155,7 +188,7 @@ const Budgets = () => {
       saveGoals([...goals, goal]);
     }
     setGoalModal(false); setEditingGoal(null);
-    setGoalForm({ name: '', target: '', saved: '', deadline: '', icon: '🎯' });
+    setGoalForm({ name: '', target: '', saved: '', deadline: '', icon: 'target' });
     if (addToast) addToast({
       type: 'success',
       title: wasEditGoal ? 'Goal Updated' : 'Goal Created',
@@ -171,16 +204,22 @@ const Budgets = () => {
 
   const addToGoal = (id, amount) => {
     const parsed = parseFloat(amount);
-    if (!parsed || parsed <= 0) return;
+    if (!parsed || parsed <= 0 || !isFinite(parsed)) return;
     const g = goals.find(x => x.id === id);
-    saveGoals(goals.map(g => g.id === id ? { ...g, saved: g.saved + parsed } : g));
-    if (addToast && g) {
-      const newSaved = g.saved + parsed;
+    if (!g) return;
+    // Clamp total saved to target — don't allow 640% of goal
+    const newSaved = Math.min(g.saved + parsed, g.target);
+    const actuallyAdded = newSaved - g.saved;
+    if (actuallyAdded <= 0) return;
+    saveGoals(goals.map(x => x.id === id ? { ...x, saved: newSaved } : x));
+    if (addToast) {
       const hit = newSaved >= g.target && g.saved < g.target;
       addToast({
         type: hit ? 'success' : 'info',
-        title: hit ? 'Goal Reached! 🎉' : 'Contribution Added',
-        message: hit ? `You've hit your ${g.name} target of ${formatCurrency(g.target)}!` : `${formatCurrency(parsed)} added to ${g.name}.`
+        title: hit ? 'Goal Reached!' : 'Contribution Added',
+        message: hit
+          ? `You've hit your ${g.name} target of ${formatCurrency(g.target)}.`
+          : `${formatCurrency(actuallyAdded)} added to ${g.name}.`
       });
     }
   };
@@ -345,7 +384,9 @@ const Budgets = () => {
                 return (
                   <div key={goal.id} className={`goal-card ${isComplete ? 'complete' : ''}`}>
                     <div className="goal-card-header">
-                      <div className="goal-icon">{goal.icon}</div>
+                      <div className="goal-icon">
+                        {(() => { const Ico = getGoalIconComponent(goal.icon); return <Ico size={22} />; })()}
+                      </div>
                       <div className="goal-info">
                         <h3>{goal.name}</h3>
                         {daysLeft !== null && !isComplete && (
@@ -360,7 +401,7 @@ const Budgets = () => {
                     </div>
 
                     <div className="goal-amounts">
-                      <span className="goal-saved">{formatCurrency(goal.saved)}</span>
+                      <span className="goal-saved">{formatCurrency(Math.min(goal.saved, goal.target))}</span>
                       <span className="goal-target">of {formatCurrency(goal.target)}</span>
                     </div>
 
@@ -378,6 +419,7 @@ const Budgets = () => {
                     {!isComplete && (
                       <div className="goal-add-funds">
                         <input type="number" placeholder="Add amount..." min="0" step="0.01"
+                          max={goal.target - goal.saved}
                           onKeyDown={(e) => { if (e.key === 'Enter') { addToGoal(goal.id, e.target.value); e.target.value = ''; }}}
                         />
                         <button onClick={(e) => {
@@ -451,12 +493,16 @@ const Budgets = () => {
               <div className="form-group">
                 <label>Icon</label>
                 <div className="icon-picker">
-                  {goalIcons.map(icon => (
-                    <button type="button" key={icon}
-                      className={`icon-option ${goalForm.icon === icon ? 'active' : ''}`}
-                      onClick={() => setGoalForm({ ...goalForm, icon })}
-                    >{icon}</button>
-                  ))}
+                  {GOAL_ICON_KEYS.map(key => {
+                    const Ico = GOAL_ICONS[key];
+                    return (
+                      <button type="button" key={key}
+                        className={`icon-option ${goalForm.icon === key ? 'active' : ''}`}
+                        onClick={() => setGoalForm({ ...goalForm, icon: key })}
+                        aria-label={key}
+                      ><Ico size={18} /></button>
+                    );
+                  })}
                 </div>
               </div>
               <div className={`form-group ${goalErrors.name ? 'has-error' : ''}`}>
