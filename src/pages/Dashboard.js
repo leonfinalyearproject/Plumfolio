@@ -16,11 +16,26 @@ import {
   ShoppingBag,
   ChevronRight,
   Plus,
-  PiggyBank
+  PiggyBank,
+  Target, Plane, Laptop, Smartphone, GraduationCap, Dumbbell,
+  Gamepad2, Baby, Gem, Umbrella, Music, Award, Sparkles
 } from 'lucide-react';
 import { Doughnut } from 'react-chartjs-2';
 import { Chart as ChartJS, ArcElement, Tooltip, Legend } from 'chart.js';
 import './Dashboard.css';
+
+// Goal icon registry (mirrors Budgets.js) — Lucide icon keys
+const GOAL_ICONS = {
+  target: Target, home: Home, car: Car, plane: Plane, laptop: Laptop,
+  phone: Smartphone, grad: GraduationCap, wallet: Wallet, gym: Dumbbell,
+  game: Gamepad2, baby: Baby, ring: Gem, beach: Umbrella, music: Music,
+};
+const EMOJI_TO_KEY = {
+  '🎯': 'target', '🏠': 'home', '🚗': 'car', '✈️': 'plane', '💻': 'laptop',
+  '📱': 'phone', '🎓': 'grad', '💰': 'wallet', '🏋️': 'gym', '🎮': 'game',
+  '👶': 'baby', '💍': 'ring', '🏖️': 'beach', '🎸': 'music',
+};
+const getGoalIcon = (icon) => GOAL_ICONS[icon] || GOAL_ICONS[EMOJI_TO_KEY[icon]] || Target;
 
 ChartJS.register(ArcElement, Tooltip, Legend);
 
@@ -34,10 +49,33 @@ const Dashboard = () => {
   });
   const [transactions, setTransactions] = useState([]);
   const [budgets, setBudgets] = useState([]);
+  const [goals, setGoals] = useState([]);
   const [expensesByCategory, setExpensesByCategory] = useState({});
   const [loading, setLoading] = useState(true);
 
   const userName = user?.user_metadata?.full_name?.split(' ')[0] || 'there';
+
+  // Load goals from localStorage whenever user changes
+  useEffect(() => {
+    if (!user?.id) { setGoals([]); return; }
+    try {
+      const raw = localStorage.getItem('plumfolio_goals_' + user.id);
+      setGoals(raw ? JSON.parse(raw) : []);
+    } catch { setGoals([]); }
+    // Re-read when window regains focus (in case Budgets page updated them)
+    const onFocus = () => {
+      try {
+        const raw = localStorage.getItem('plumfolio_goals_' + user.id);
+        setGoals(raw ? JSON.parse(raw) : []);
+      } catch {}
+    };
+    window.addEventListener('focus', onFocus);
+    window.addEventListener('storage', onFocus);
+    return () => {
+      window.removeEventListener('focus', onFocus);
+      window.removeEventListener('storage', onFocus);
+    };
+  }, [user?.id]);
 
   useEffect(() => {
     console.log("[EFFECT] user:", user?.id, "user obj:", !!user);
@@ -348,6 +386,92 @@ const Dashboard = () => {
                 <Link to="/budgets" className="empty-action">
                   <Plus size={16} />
                   Create your first budget
+                </Link>
+              </div>
+            </div>
+          )}
+        </div>
+        {/* Savings Goals */}
+        <div className="card wide">
+          <div className="card-top">
+            <h2>Savings Goals</h2>
+            <Link to="/budgets" className="card-link">
+              Manage <ChevronRight size={16} />
+            </Link>
+          </div>
+
+          {goals.length > 0 ? (() => {
+            const completed = goals.filter(g => g.saved >= g.target);
+            const inProgress = goals.filter(g => g.saved < g.target);
+            // Sort: recently created first (assuming id is timestamp)
+            const recent = [...inProgress].sort((a, b) => Number(b.id) - Number(a.id)).slice(0, 3);
+            const recentCompleted = [...completed].sort((a, b) => Number(b.id) - Number(a.id)).slice(0, 3);
+
+            return (
+              <div className="goals-dashboard">
+                {recentCompleted.length > 0 && (
+                  <div className="goals-dashboard-group">
+                    <div className="goals-dashboard-label">
+                      <Award size={13} /> Completed ({completed.length})
+                    </div>
+                    <div className="goals-dashboard-list">
+                      {recentCompleted.map(g => {
+                        const Ico = getGoalIcon(g.icon);
+                        return (
+                          <div key={g.id} className="goal-chip complete">
+                            <div className="goal-chip-icon"><Ico size={16} /></div>
+                            <div className="goal-chip-info">
+                              <span className="goal-chip-name">{g.name}</span>
+                              <span className="goal-chip-amount">{formatCurrency(g.target)}</span>
+                            </div>
+                            <Award size={14} className="goal-chip-badge" />
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
+                {recent.length > 0 && (
+                  <div className="goals-dashboard-group">
+                    <div className="goals-dashboard-label">
+                      <Sparkles size={13} /> In Progress ({inProgress.length})
+                    </div>
+                    <div className="goals-dashboard-list">
+                      {recent.map(g => {
+                        const Ico = getGoalIcon(g.icon);
+                        const pct = Math.min((g.saved / g.target) * 100, 100);
+                        return (
+                          <div key={g.id} className="goal-chip">
+                            <div className="goal-chip-icon"><Ico size={16} /></div>
+                            <div className="goal-chip-info">
+                              <div className="goal-chip-row">
+                                <span className="goal-chip-name">{g.name}</span>
+                                <span className="goal-chip-pct">{pct.toFixed(0)}%</span>
+                              </div>
+                              <div className="goal-chip-bar">
+                                <div className="goal-chip-fill" style={{ width: `${pct}%` }} />
+                              </div>
+                              <span className="goal-chip-amount">
+                                {formatCurrency(Math.min(g.saved, g.target))} of {formatCurrency(g.target)}
+                              </span>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+              </div>
+            );
+          })() : (
+            <div className="empty-state horizontal">
+              <Target size={40} strokeWidth={1} />
+              <div>
+                <p>No savings goals yet</p>
+                <Link to="/budgets" className="empty-action">
+                  <Plus size={16} />
+                  Create your first goal
                 </Link>
               </div>
             </div>
