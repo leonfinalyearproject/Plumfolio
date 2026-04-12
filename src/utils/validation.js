@@ -1,46 +1,68 @@
 // src/utils/validation.js
 // Comprehensive validation rules for all Plumfolio forms
 
+// ========== HELPERS ==========
+// Normalize user-entered numbers: strip whitespace, commas, and currency symbols.
+// Returns the cleaned string or null if clearly invalid.
+const normalizeNumericInput = (value) => {
+  if (value === '' || value === null || value === undefined) return null;
+  const str = String(value).trim().replace(/[,\s]/g, '').replace(/[^0-9.\-]/g, '');
+  if (!str) return null;
+  // Reject multiple decimal points or dashes
+  if ((str.match(/\./g) || []).length > 1) return null;
+  if ((str.match(/-/g) || []).length > 1) return null;
+  if (str.indexOf('-') > 0) return null; // minus only allowed at start
+  return str;
+};
+
 // ========== NUMERIC VALIDATION ==========
 export const validateAmount = (value) => {
   if (value === '' || value === null || value === undefined) return 'Amount is required';
-  const num = parseFloat(value);
-  if (isNaN(num)) return 'Enter a valid number';
+  const str = normalizeNumericInput(value);
+  if (str === null) return 'Enter a valid number';
+  const num = parseFloat(str);
+  if (isNaN(num) || !isFinite(num)) return 'Enter a valid number';
   if (num <= 0) return 'Amount must be greater than 0';
-  if (num > 10000000) return 'Amount is unrealistically high (max P10,000,000)';
-  const str = value.toString();
+  if (num > 10000000) return 'Amount is unrealistically high (max 10,000,000)';
   if (str.includes('.') && str.split('.')[1]?.length > 2) return 'Maximum 2 decimal places';
-  if (!/^-?\d+(\.\d+)?$/.test(str)) return 'Only numbers allowed';
   return '';
 };
 
 export const validateBudgetAmount = (value) => {
   if (value === '' || value === null || value === undefined) return 'Budget amount is required';
-  const num = parseFloat(value);
-  if (isNaN(num)) return 'Enter a valid number';
+  const str = normalizeNumericInput(value);
+  if (str === null) return 'Enter a valid number';
+  const num = parseFloat(str);
+  if (isNaN(num) || !isFinite(num)) return 'Enter a valid number';
   if (num <= 0) return 'Budget must be greater than 0';
-  if (num < 10) return 'Budget must be at least P10';
+  if (num < 10) return 'Budget must be at least 10';
   if (num > 10000000) return 'Budget is unrealistically high';
-  const str = value.toString();
   if (str.includes('.') && str.split('.')[1]?.length > 2) return 'Maximum 2 decimal places';
   return '';
 };
 
 export const validateGoalTarget = (value) => {
   if (value === '' || value === null || value === undefined) return 'Target amount is required';
-  const num = parseFloat(value);
-  if (isNaN(num)) return 'Enter a valid number';
-  if (num < 10) return 'Target must be at least P10';
+  const str = normalizeNumericInput(value);
+  if (str === null) return 'Enter a valid number';
+  const num = parseFloat(str);
+  if (isNaN(num) || !isFinite(num)) return 'Enter a valid number';
+  if (num < 10) return 'Target must be at least 10';
   if (num > 100000000) return 'Target is unrealistically high';
+  if (str.includes('.') && str.split('.')[1]?.length > 2) return 'Maximum 2 decimal places';
   return '';
 };
 
 export const validateSavedAmount = (value, target) => {
   if (value === '' || value === null || value === undefined) return '';
-  const num = parseFloat(value);
-  if (isNaN(num)) return 'Enter a valid number';
+  const str = normalizeNumericInput(value);
+  if (str === null) return 'Enter a valid number';
+  const num = parseFloat(str);
+  if (isNaN(num) || !isFinite(num)) return 'Enter a valid number';
   if (num < 0) return 'Saved amount cannot be negative';
-  if (target && num > parseFloat(target)) return 'Saved cannot exceed target';
+  const tgt = parseFloat(normalizeNumericInput(target) || 'NaN');
+  if (!isNaN(tgt) && num > tgt) return 'Saved cannot exceed target';
+  if (str.includes('.') && str.split('.')[1]?.length > 2) return 'Maximum 2 decimal places';
   return '';
 };
 
@@ -50,7 +72,9 @@ export const validateDescription = (value) => {
   const trimmed = value.trim();
   if (trimmed.length < 2) return 'Description too short (min 2 characters)';
   if (trimmed.length > 100) return 'Description too long (max 100 characters)';
-  if (/<script|javascript:|onerror=/i.test(trimmed)) return 'Invalid characters in description';
+  // eslint-disable-next-line no-control-regex
+  if (/[\u0000-\u001F\u007F]/.test(trimmed)) return 'Invalid characters in description';
+  if (/<\s*script|javascript:|on\w+\s*=|<\s*iframe/i.test(trimmed)) return 'Invalid characters in description';
   return '';
 };
 
@@ -59,7 +83,9 @@ export const validateGoalName = (value) => {
   const trimmed = value.trim();
   if (trimmed.length < 2) return 'Name too short (min 2 characters)';
   if (trimmed.length > 50) return 'Name too long (max 50 characters)';
-  if (/<script|javascript:|onerror=/i.test(trimmed)) return 'Invalid characters';
+  // eslint-disable-next-line no-control-regex
+  if (/[\u0000-\u001F\u007F]/.test(trimmed)) return 'Invalid characters';
+  if (/<\s*script|javascript:|on\w+\s*=|<\s*iframe/i.test(trimmed)) return 'Invalid characters';
   return '';
 };
 
@@ -78,10 +104,10 @@ export const validateDate = (value) => {
   const date = new Date(value);
   if (isNaN(date.getTime())) return 'Invalid date';
   const now = new Date();
-  const tenYearsAgo = new Date(now.getFullYear() - 10, 0, 1);
-  const tomorrow = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
-  if (date < tenYearsAgo) return 'Date cannot be more than 10 years ago';
-  if (date > tomorrow) return 'Date cannot be in the future';
+  now.setHours(23, 59, 59, 999);
+  const fiveYearsAgo = new Date(now.getFullYear() - 5, 0, 1);
+  if (date < fiveYearsAgo) return 'Date cannot be more than 5 years ago';
+  if (date > now) return 'Date cannot be in the future';
   return '';
 };
 
@@ -92,7 +118,7 @@ export const validateFutureDate = (value) => {
   const now = new Date();
   now.setHours(0, 0, 0, 0);
   if (date < now) return 'Deadline must be in the future';
-  const tenYearsLater = new Date(now.getFullYear() + 10, 0, 1);
+  const tenYearsLater = new Date(now.getFullYear() + 10, 11, 31);
   if (date > tenYearsLater) return 'Deadline too far in the future';
   return '';
 };
@@ -101,8 +127,13 @@ export const validateMonth = (value) => {
   if (!value) return 'Month is required';
   if (!/^\d{4}-\d{2}$/.test(value)) return 'Invalid month format';
   const [year, month] = value.split('-').map(Number);
-  if (year < 2020 || year > 2035) return 'Year must be between 2020 and 2035';
   if (month < 1 || month > 12) return 'Invalid month';
+  const now = new Date();
+  const target = new Date(year, month - 1, 1);
+  const minDate = new Date(now.getFullYear(), now.getMonth() - 12, 1);
+  const maxDate = new Date(now.getFullYear(), now.getMonth() + 12, 1);
+  if (target < minDate) return 'Month cannot be more than 12 months in the past';
+  if (target > maxDate) return 'Month cannot be more than 12 months in the future';
   return '';
 };
 
