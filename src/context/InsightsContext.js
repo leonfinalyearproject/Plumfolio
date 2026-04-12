@@ -4,6 +4,7 @@ import { useAuth } from './AuthContext';
 import { supabase } from '../lib/supabase';
 import { generateInsights } from '../utils/insightsEngine';
 import { generatePredictions } from '../utils/predictionsEngine';
+import { generateCrossReferenceSignals } from '../utils/crossRefEngine';
 
 const InsightsContext = createContext();
 
@@ -13,6 +14,7 @@ export const useInsights = () => {
     return {
       insights: null,
       predictions: null,
+      crossSignals: [],
       toasts: [],
       loading: true,
       refreshInsights: () => {},
@@ -28,6 +30,8 @@ export const InsightsProvider = ({ children }) => {
   const [budgets, setBudgets] = useState([]);
   const [insights, setInsights] = useState(null);
   const [predictions, setPredictions] = useState(null);
+  const [crossSignals, setCrossSignals] = useState([]);
+  const prevSignalIdsRef = useRef(new Set());
   const [toasts, setToasts] = useState([]);
   const [loading, setLoading] = useState(true);
   const prevInsightsRef = useRef(null);
@@ -110,6 +114,33 @@ export const InsightsProvider = ({ children }) => {
       prevInsightsRef.current = newInsights;
       setInsights(newInsights);
       setPredictions(newPredictions);
+
+      // ---- Cross-reference compound signals ----
+      const signals = generateCrossReferenceSignals(newInsights, newPredictions, { transactions: txns, budgets: budgs });
+      setCrossSignals(signals);
+
+      // Emit toasts for newly-surfaced compound signals (high/medium only)
+      const prevIds = prevSignalIdsRef.current;
+      const currentIds = new Set();
+      signals.forEach(sig => {
+        currentIds.add(sig.id);
+        if (!prevIds.has(sig.id) && (sig.severity === 'high' || sig.severity === 'medium')) {
+          const id = ++toastIdRef.current;
+          setToasts(prev => [...prev, {
+            id,
+            timestamp: Date.now(),
+            type: sig.severity === 'high' ? 'warning' : 'info',
+            title: sig.title,
+            message: sig.message,
+            severity: sig.severity,
+            crossRef: true,
+          }]);
+          setTimeout(() => {
+            setToasts(prev => prev.filter(t => t.id !== id));
+          }, 10000);
+        }
+      });
+      prevSignalIdsRef.current = currentIds;
     } catch (err) {
       console.error('InsightsContext fetch error:', err);
     } finally {
@@ -140,8 +171,10 @@ export const InsightsProvider = ({ children }) => {
       setPredictions(null);
       setTransactions([]);
       setBudgets([]);
+      setCrossSignals([]);
       setLoading(false);
       prevInsightsRef.current = null;
+      prevSignalIdsRef.current = new Set();
     }
   }, [user?.id, fetchAndAnalyse]);
 
@@ -187,6 +220,7 @@ export const InsightsProvider = ({ children }) => {
   const value = {
     insights,
     predictions,
+    crossSignals,
     transactions,
     budgets,
     toasts,
