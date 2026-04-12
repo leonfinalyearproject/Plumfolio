@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { supabase } from '../lib/supabase';
 import { useCurrency } from '../context/CurrencyContext';
+import { useInsights } from '../context/InsightsContext';
 import { parseReceiptText } from '../utils/receiptParser';
 import processReceiptImage from '../utils/imageProcessor';
 import { validateTransactionForm } from '../utils/validation';
@@ -18,6 +19,7 @@ import './Transactions.css';
 const Transactions = () => {
   const { user } = useAuth();
   const { formatCurrency, symbol } = useCurrency();
+  const { addToast, refreshInsights } = useInsights();
   const [transactions, setTransactions] = useState([]);
   const [loading, setLoading] = useState(true);
 
@@ -202,18 +204,27 @@ const Transactions = () => {
     setFormErrors({});
     try {
       const p = { type: formData.type, amount: parseFloat(formData.amount), description: formData.description.trim(), category: formData.category, date: formData.date };
+      const wasEdit = !!editingTransaction;
       if (editingTransaction) await supabase.from('transactions').update(p).eq('id', editingTransaction.id);
       else await supabase.from('transactions').insert({ ...p, user_id: user.id });
       setModalOpen(false); setEditingTransaction(null);
       setFormData({ type: 'expense', amount: '', description: '', category: 'Food & Dining', date: new Date().toISOString().split('T')[0] });
       fetchTransactions();
-    } catch (e) { console.error('Save error:', e); alert('Failed to save: ' + e.message); }
+      if (addToast) addToast({
+        type: 'success',
+        title: wasEdit ? 'Transaction Updated' : (p.type === 'expense' ? 'Expense Added' : 'Income Added'),
+        message: `${p.description} — ${formatCurrency(p.amount)}`
+      });
+      if (refreshInsights) refreshInsights();
+    } catch (e) { console.error('Save error:', e); if (addToast) addToast({ type: 'warning', title: 'Save Failed', message: e.message }); }
   };
 
   const handleDelete = async (id) => {
     if (!window.confirm('Delete this transaction?')) return;
     await supabase.from('transactions').delete().eq('id', id);
     fetchTransactions();
+    if (addToast) addToast({ type: 'info', title: 'Transaction Deleted', message: 'The transaction has been removed.' });
+    if (refreshInsights) refreshInsights();
   };
 
   const handleEdit = (t) => {
@@ -243,9 +254,12 @@ const Transactions = () => {
   const bulkDelete = async () => {
     if (!window.confirm(`Delete ${selected.size} transactions?`)) return;
     const ids = Array.from(selected);
+    const count = ids.length;
     await supabase.from('transactions').delete().in('id', ids);
     setSelected(new Set()); setShowBulkBar(false);
     fetchTransactions();
+    if (addToast) addToast({ type: 'info', title: 'Bulk Delete Complete', message: `${count} transactions removed.` });
+    if (refreshInsights) refreshInsights();
   };
 
   // ========== INLINE EDITING ==========
@@ -435,6 +449,12 @@ const Transactions = () => {
     if (!extractedData || !user || extractedData.total <= 0) return;
     await supabase.from('transactions').insert({ user_id: user.id, type: 'expense', amount: extractedData.total, category: extractedData.category, description: extractedData.merchant, date: extractedData.date });
     setScanSuccess('Saved!'); fetchTransactions();
+    if (addToast) addToast({
+      type: 'success',
+      title: 'Receipt Scanned & Added',
+      message: `${extractedData.merchant} — ${formatCurrency(extractedData.total)} logged to ${extractedData.category}.`
+    });
+    if (refreshInsights) refreshInsights();
     setTimeout(closeScanner, 1500);
   };
 

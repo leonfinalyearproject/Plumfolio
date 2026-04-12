@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { supabase } from '../lib/supabase';
 import { useCurrency } from '../context/CurrencyContext';
+import { useInsights } from '../context/InsightsContext';
 import { validateBudgetForm, validateGoalForm } from '../utils/validation';
 import {
   Plus, Edit, Trash2, X, AlertTriangle, CheckCircle, Target,
@@ -11,6 +12,7 @@ import './Budgets.css';
 
 const Budgets = () => {
   const { formatCurrency } = useCurrency();
+  const { addToast, refreshInsights } = useInsights();
   const { user } = useAuth();
   const [budgets, setBudgets] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -96,6 +98,7 @@ const Budgets = () => {
     setFormErrors({});
     try {
       const payload = { category: formData.category, allocated: parseFloat(formData.allocated), month_year: formData.month_year };
+      const wasEdit = !!editingBudget;
       if (editingBudget) {
         await supabase.from('budgets').update(payload).eq('id', editingBudget.id);
       } else {
@@ -104,13 +107,21 @@ const Budgets = () => {
       setModalOpen(false); setEditingBudget(null);
       setFormData({ category: 'Food & Dining', allocated: '', month_year: new Date().toISOString().slice(0, 7) });
       fetchBudgets();
-    } catch (error) { console.error('Save error:', error); alert('Failed to save budget: ' + error.message); }
+      if (addToast) addToast({
+        type: 'success',
+        title: wasEdit ? 'Budget Updated' : 'Budget Created',
+        message: `${payload.category} — ${formatCurrency(payload.allocated)} allocated.`
+      });
+      if (refreshInsights) refreshInsights();
+    } catch (error) { console.error('Save error:', error); if (addToast) addToast({ type: 'warning', title: 'Save Failed', message: error.message }); }
   };
 
   const handleDelete = async (id) => {
     if (!window.confirm('Delete this budget?')) return;
     await supabase.from('budgets').delete().eq('id', id);
     fetchBudgets();
+    if (addToast) addToast({ type: 'info', title: 'Budget Deleted', message: 'The budget has been removed.' });
+    if (refreshInsights) refreshInsights();
   };
 
   const handleEdit = (b) => {
@@ -137,6 +148,7 @@ const Budgets = () => {
       deadline: goalForm.deadline,
       icon: goalForm.icon,
     };
+    const wasEditGoal = !!editingGoal;
     if (editingGoal) {
       saveGoals(goals.map(g => g.id === goal.id ? goal : g));
     } else {
@@ -144,17 +156,33 @@ const Budgets = () => {
     }
     setGoalModal(false); setEditingGoal(null);
     setGoalForm({ name: '', target: '', saved: '', deadline: '', icon: '🎯' });
+    if (addToast) addToast({
+      type: 'success',
+      title: wasEditGoal ? 'Goal Updated' : 'Goal Created',
+      message: `${goal.name} — target ${formatCurrency(goal.target)}.`
+    });
   };
 
   const deleteGoal = (id) => {
     if (!window.confirm('Delete this goal?')) return;
     saveGoals(goals.filter(g => g.id !== id));
+    if (addToast) addToast({ type: 'info', title: 'Goal Deleted', message: 'The savings goal has been removed.' });
   };
 
   const addToGoal = (id, amount) => {
     const parsed = parseFloat(amount);
     if (!parsed || parsed <= 0) return;
+    const g = goals.find(x => x.id === id);
     saveGoals(goals.map(g => g.id === id ? { ...g, saved: g.saved + parsed } : g));
+    if (addToast && g) {
+      const newSaved = g.saved + parsed;
+      const hit = newSaved >= g.target && g.saved < g.target;
+      addToast({
+        type: hit ? 'success' : 'info',
+        title: hit ? 'Goal Reached! 🎉' : 'Contribution Added',
+        message: hit ? `You've hit your ${g.name} target of ${formatCurrency(g.target)}!` : `${formatCurrency(parsed)} added to ${g.name}.`
+      });
+    }
   };
 
   // Budget Rules
@@ -173,7 +201,13 @@ const Budgets = () => {
       await supabase.from('budgets').insert(inserts);
       setShowRuleModal(false); setSelectedRule(null); setRuleIncome('');
       fetchBudgets();
-    } catch (e) { console.error('Rule error:', e); }
+      if (addToast) addToast({
+        type: 'success',
+        title: 'Budget Rule Applied',
+        message: `${rule.labels.length} budgets created from ${formatCurrency(income)} income.`
+      });
+      if (refreshInsights) refreshInsights();
+    } catch (e) { console.error('Rule error:', e); if (addToast) addToast({ type: 'warning', title: 'Rule Failed', message: e.message }); }
   };
 
   const getProgress = (spent, allocated) => Math.min((spent / allocated) * 100, 100);

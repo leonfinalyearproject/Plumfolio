@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useCurrency, CURRENCIES } from '../context/CurrencyContext';
+import { useInsights } from '../context/InsightsContext';
 import { supabase } from '../lib/supabase';
 import { validateFullName, validateEmail } from '../utils/validation';
 import { User, Mail, Lock, Shield, Trash2, Save, Globe, Check, Search, KeyRound } from 'lucide-react';
@@ -9,6 +10,7 @@ import './Settings.css';
 const Settings = () => {
   const { user, profile, updateProfile } = useAuth();
   const { currencyCode, formatCurrency, rate, ratesLoaded } = useCurrency();
+  const { addToast } = useInsights();
   const [activeTab, setActiveTab] = useState('profile');
   const [profileData, setProfileData] = useState({
     fullName: user?.user_metadata?.full_name || profile?.full_name || '',
@@ -40,6 +42,7 @@ const Settings = () => {
       const { error } = await updateProfile({ full_name: profileData.fullName.trim() });
       if (error) throw error;
       showMessage('success', 'Profile updated');
+      if (addToast) addToast({ type: 'success', title: 'Profile Updated', message: 'Your profile changes have been saved.' });
     } catch (error) {
       showMessage('error', 'Failed: ' + error.message);
     } finally {
@@ -62,6 +65,7 @@ const Settings = () => {
       if (error) throw error;
       setResetSent(true);
       showMessage('success', 'Password reset link sent! Check your email.');
+      if (addToast) addToast({ type: 'info', title: 'Reset Link Sent', message: `Password reset email sent to ${resetEmail}.` });
     } catch (error) {
       showMessage('error', 'Failed to send reset email: ' + error.message);
     } finally {
@@ -78,6 +82,7 @@ const Settings = () => {
         showMessage('error', 'Failed to switch currency');
       } else {
         showMessage('success', 'Switched to ' + code);
+        if (addToast) addToast({ type: 'success', title: 'Currency Changed', message: `All amounts now display in ${code}.` });
       }
     } catch (err) {
       showMessage('error', 'Failed to switch currency');
