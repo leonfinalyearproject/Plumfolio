@@ -355,7 +355,28 @@ const Transactions = () => {
         setScanProgress(60);
         try {
           // Extract base64 payload from the data URL preview
-          const base64 = preview.replace(/^data:image\/\w+;base64,/, '');
+          // Downscale the image before sending. Gemini doesn't need a 4k
+          // photo to read a receipt — 1200px on the long edge is more than
+          // enough, and it avoids 502 Bad Gateway errors from oversized
+          // payloads. JPEG quality 0.85 keeps text crisp.
+          const downscaled = await new Promise((resolve, reject) => {
+            const img = new Image();
+            img.onload = () => {
+              const MAX = 1200;
+              const ratio = Math.min(MAX / img.width, MAX / img.height, 1);
+              const w = Math.round(img.width * ratio);
+              const h = Math.round(img.height * ratio);
+              const canvas = document.createElement('canvas');
+              canvas.width = w; canvas.height = h;
+              const ctx = canvas.getContext('2d');
+              ctx.drawImage(img, 0, 0, w, h);
+              resolve(canvas.toDataURL('image/jpeg', 0.85));
+            };
+            img.onerror = () => reject(new Error('Image load failed'));
+            img.src = preview;
+          });
+
+          const base64 = downscaled.replace(/^data:image\/\w+;base64,/, '');
 
           // Get the current session JWT explicitly. supabase.functions.invoke
           // usually picks this up automatically but some versions/setups miss
