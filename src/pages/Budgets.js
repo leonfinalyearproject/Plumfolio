@@ -619,7 +619,65 @@ const Budgets = () => {
               </div>
               <div className={`form-group ${goalErrors.deadline ? 'has-error' : ''}`}>
                 <label>Target Date (optional)</label>
-                <input type="date" value={goalForm.deadline} onChange={e => { setGoalForm({ ...goalForm, deadline: e.target.value }); if (goalErrors.deadline) setGoalErrors({...goalErrors, deadline: ''}); }} />
+                <div className="date-picker-trio">
+                  <select
+                    value={goalForm.deadline ? goalForm.deadline.slice(8, 10) : ''}
+                    onChange={e => {
+                      const parts = (goalForm.deadline || '----').split('-');
+                      const y = parts[0] && parts[0] !== '----' ? parts[0] : String(new Date().getFullYear());
+                      const m = parts[1] || '01';
+                      const d = e.target.value;
+                      const newDate = d ? `${y}-${m}-${d}` : '';
+                      setGoalForm({ ...goalForm, deadline: newDate });
+                      if (goalErrors.deadline) setGoalErrors({ ...goalErrors, deadline: '' });
+                    }}
+                    className="date-select"
+                  >
+                    <option value="">Day</option>
+                    {Array.from({ length: 31 }, (_, i) => {
+                      const d = String(i + 1).padStart(2, '0');
+                      return <option key={d} value={d}>{d}</option>;
+                    })}
+                  </select>
+                  <select
+                    value={goalForm.deadline ? goalForm.deadline.slice(5, 7) : ''}
+                    onChange={e => {
+                      const parts = (goalForm.deadline || '----').split('-');
+                      const y = parts[0] && parts[0] !== '----' ? parts[0] : String(new Date().getFullYear());
+                      const d = parts[2] || '01';
+                      const m = e.target.value;
+                      const newDate = m ? `${y}-${m}-${d}` : '';
+                      setGoalForm({ ...goalForm, deadline: newDate });
+                      if (goalErrors.deadline) setGoalErrors({ ...goalErrors, deadline: '' });
+                    }}
+                    className="date-select"
+                  >
+                    <option value="">Month</option>
+                    {['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'].map((n, i) => {
+                      const m = String(i + 1).padStart(2, '0');
+                      return <option key={m} value={m}>{n}</option>;
+                    })}
+                  </select>
+                  <select
+                    value={goalForm.deadline ? goalForm.deadline.slice(0, 4) : ''}
+                    onChange={e => {
+                      const parts = (goalForm.deadline || '----').split('-');
+                      const m = parts[1] || '01';
+                      const d = parts[2] || '01';
+                      const y = e.target.value;
+                      const newDate = y ? `${y}-${m}-${d}` : '';
+                      setGoalForm({ ...goalForm, deadline: newDate });
+                      if (goalErrors.deadline) setGoalErrors({ ...goalErrors, deadline: '' });
+                    }}
+                    className="date-select"
+                  >
+                    <option value="">Year</option>
+                    {Array.from({ length: 11 }, (_, i) => {
+                      const y = String(new Date().getFullYear() + i);
+                      return <option key={y} value={y}>{y}</option>;
+                    })}
+                  </select>
+                </div>
                 {goalErrors.deadline ? <span className="field-error">{goalErrors.deadline}</span> : <span className="field-hint">When you want to reach this goal</span>}
               </div>
               <button type="submit" className="submit-btn">{editingGoal ? 'Save Changes' : 'Create Goal'}</button>
