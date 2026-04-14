@@ -326,3 +326,41 @@ input, textarea, select {
 .form-group.has-error .field-hint {
   display: none; /* Hide hint when error is showing */
 }
+
+/* ============================================================
+   Native date/time picker icons — global visibility fix
+   ============================================================
+   On dark themes, Chrome/Edge render the calendar/clock icons
+   as near-black SVGs that disappear into the background. This
+   inverts them to white across the entire app so users can see
+   what to click. Also applied to month, time, week, datetime-local. */
+input[type="date"]::-webkit-calendar-picker-indicator,
+input[type="month"]::-webkit-calendar-picker-indicator,
+input[type="week"]::-webkit-calendar-picker-indicator,
+input[type="time"]::-webkit-calendar-picker-indicator,
+input[type="datetime-local"]::-webkit-calendar-picker-indicator {
+  filter: invert(1) opacity(0.7);
+  cursor: pointer;
+  padding: 2px;
+  border-radius: 4px;
+  transition: opacity 0.15s, background 0.15s;
+}
+
+input[type="date"]:hover::-webkit-calendar-picker-indicator,
+input[type="month"]:hover::-webkit-calendar-picker-indicator,
+input[type="week"]:hover::-webkit-calendar-picker-indicator,
+input[type="time"]:hover::-webkit-calendar-picker-indicator,
+input[type="datetime-local"]:hover::-webkit-calendar-picker-indicator {
+  filter: invert(1) opacity(1);
+  background: rgba(255, 255, 255, 0.08);
+}
+
+/* Firefox renders the picker indicator differently — colour-scheme tells it
+   the input lives on a dark background, which makes it auto-style icons. */
+input[type="date"],
+input[type="month"],
+input[type="week"],
+input[type="time"],
+input[type="datetime-local"] {
+  color-scheme: dark;
+}
