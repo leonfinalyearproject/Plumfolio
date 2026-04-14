@@ -235,10 +235,136 @@ export function detectRecurringTransactions(transactions) {
 }
 
 /**
+ * Analyse savings goals for deadline risk, pace, and progress.
+ * @param {Array} goals - [{ id, name, target, saved, deadline, icon }]
+ * @param {Array} transactions - used for context (monthly savings rate)
+ * @returns {Array} insights
+ */
+export function analyseGoals(goals, transactions) {
+  if (!Array.isArray(goals) || goals.length === 0) return [];
+
+  const insights = [];
+  const now = new Date();
+  const todayMs = now.getTime();
+
+  // Estimate monthly net savings from last 90 days
+  const ninetyDaysAgo = new Date(now);
+  ninetyDaysAgo.setDate(now.getDate() - 90);
+  const recent = (transactions || []).filter(t => new Date(t.date) >= ninetyDaysAgo);
+  const recentExpenses = recent.filter(t => t.type === 'expense')
+    .reduce((s, t) => s + Math.abs(parseFloat(t.amount)), 0);
+  const recentIncome = recent.filter(t => t.type === 'income')
+    .reduce((s, t) => s + Math.abs(parseFloat(t.amount)), 0);
+  const monthlyNet = Math.max(0, (recentIncome - recentExpenses) / 3);
+
+  goals.forEach(g => {
+    const target = parseFloat(g.target) || 0;
+    const saved = parseFloat(g.saved) || 0;
+    if (target <= 0) return;
+
+    const remaining = Math.max(0, target - saved);
+    const progress = saved / target;
+
+    if (saved >= target) {
+      insights.push({
+        type: 'goal_completed',
+        severity: 'positive',
+        goalId: g.id,
+        goalName: g.name,
+        message: `"${g.name}" reached — target of ¤${target.toFixed(2)} saved.`,
+      });
+      return;
+    }
+
+    if (!g.deadline) {
+      if (progress < 0.1 && saved < 10) {
+        insights.push({
+          type: 'goal_progress',
+          severity: 'info',
+          goalId: g.id,
+          goalName: g.name,
+          message: `Haven't started on "${g.name}" yet. Add a Savings transaction with "${g.name}" in the description to contribute automatically.`,
+        });
+      }
+      return;
+    }
+
+    const deadline = new Date(g.deadline);
+    if (isNaN(deadline.getTime())) return;
+    const daysLeft = Math.ceil((deadline.getTime() - todayMs) / (1000 * 60 * 60 * 24));
+
+    if (daysLeft < 0) {
+      insights.push({
+        type: 'goal_overdue',
+        severity: 'high',
+        goalId: g.id,
+        goalName: g.name,
+        message: `"${g.name}" deadline passed ${Math.abs(daysLeft)} days ago — ¤${remaining.toFixed(2)} still needed. Extend the deadline or adjust the target.`,
+      });
+      return;
+    }
+
+    if (daysLeft <= 7) {
+      insights.push({
+        type: 'goal_deadline_urgent',
+        severity: 'high',
+        goalId: g.id,
+        goalName: g.name,
+        daysLeft,
+        message: `"${g.name}" deadline in ${daysLeft} day${daysLeft === 1 ? '' : 's'} — ¤${remaining.toFixed(2)} left to save.`,
+      });
+    } else if (daysLeft <= 14) {
+      insights.push({
+        type: 'goal_deadline_soon',
+        severity: 'medium',
+        goalId: g.id,
+        goalName: g.name,
+        daysLeft,
+        message: `"${g.name}" deadline in ${daysLeft} days — ¤${remaining.toFixed(2)} left to save.`,
+      });
+    } else if (daysLeft <= 30) {
+      insights.push({
+        type: 'goal_deadline_approaching',
+        severity: 'info',
+        goalId: g.id,
+        goalName: g.name,
+        daysLeft,
+        message: `"${g.name}" deadline in ${daysLeft} days.`,
+      });
+    }
+
+    if (daysLeft > 0 && remaining > 0) {
+      const monthsLeft = Math.max(1, daysLeft / 30);
+      const neededPerMonth = remaining / monthsLeft;
+
+      if (monthlyNet > 0 && neededPerMonth > monthlyNet * 1.5) {
+        insights.push({
+          type: 'goal_behind_pace',
+          severity: 'medium',
+          goalId: g.id,
+          goalName: g.name,
+          message: `To hit "${g.name}" on time you'd need ¤${neededPerMonth.toFixed(0)}/month. You're averaging ¤${monthlyNet.toFixed(0)}/month — consider cutting spending or extending the deadline.`,
+        });
+      } else if (monthlyNet > 0 && neededPerMonth < monthlyNet * 0.5 && progress > 0.3) {
+        insights.push({
+          type: 'goal_ahead_of_pace',
+          severity: 'positive',
+          goalId: g.id,
+          goalName: g.name,
+          message: `You're on track for "${g.name}" — only ¤${neededPerMonth.toFixed(0)}/month needed, well within your savings rate.`,
+        });
+      }
+    }
+  });
+
+  return insights;
+}
+
+/**
  * FR-5.4: Generate personalised dashboard insights
  * Combines all analysis into a prioritised list of insights
  */
-export function generateInsights(transactions) {
+export function generateInsights(transactions, goals) {
   if (!transactions || transactions.length === 0) {
     return {
       insights: [],
@@ -305,9 +431,12 @@ export function generateInsights(transactions) {
     });
   }
 
+  const goalInsights = analyseGoals(goals, transactions);
+
   // Combine all insights, sorted by severity
   const severityOrder = { high: 0, medium: 1, positive: 2, info: 3 };
   const allInsights = [
+    ...goalInsights,
     ...summaryInsights,
     ...spendingPatterns,
     ...anomalies.slice(0, 3), // Top 3 anomalies only
@@ -319,10 +448,12 @@ export function generateInsights(transactions) {
     spendingPatterns,
     anomalies,
     recurring,
+    goalInsights,
     summary: {
       totalInsights: allInsights.length,
       hasAnomalies: anomalies.length > 0,
       hasRecurring: recurring.length > 0,
+      hasGoalAlerts: goalInsights.some(g => g.severity === 'high' || g.severity === 'medium'),
       savingsRate: totalIncome > 0 ? Math.round(((totalIncome - totalExpenses) / totalIncome) * 100) : 0,
     },
   };
