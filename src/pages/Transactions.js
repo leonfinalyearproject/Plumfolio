@@ -474,6 +474,18 @@ const Transactions = () => {
 
   if (loading) return <div className="tx-loading"><Loader size={32} className="spin" /></div>;
 
+  // Period label for the summary cards — makes it explicit WHICH transactions
+  // are being summed (all-time vs filtered range vs search).
+  const summaryPeriodLabel = (() => {
+    if (searchQuery) return `matching "${searchQuery}"`;
+    if (dateFrom && dateTo) return `${dateFrom} → ${dateTo}`;
+    if (dateFrom) return `from ${dateFrom}`;
+    if (dateTo) return `up to ${dateTo}`;
+    if (categoryFilter !== 'all') return `${categoryFilter} only`;
+    if (filter !== 'all') return `${filter} only`;
+    return 'All time';
+  })();
+
   return (
     <div className="tx-page">
       {/* Summary Cards */}
@@ -481,21 +493,21 @@ const Transactions = () => {
         <div className="tx-card income">
           <div className="tx-card-icon"><TrendingUp size={20} /></div>
           <div className="tx-card-info">
-            <span className="tx-card-label">Income</span>
+            <span className="tx-card-label">Income <span style={{ fontSize: '0.65rem', color: 'var(--text-muted)', fontWeight: 400, marginLeft: 4 }}>· {summaryPeriodLabel}</span></span>
             <span className="tx-card-value">+{formatCurrency(totalIncome)}</span>
           </div>
         </div>
         <div className="tx-card expense">
           <div className="tx-card-icon"><TrendingDown size={20} /></div>
           <div className="tx-card-info">
-            <span className="tx-card-label">Expenses</span>
+            <span className="tx-card-label">Expenses <span style={{ fontSize: '0.65rem', color: 'var(--text-muted)', fontWeight: 400, marginLeft: 4 }}>· {summaryPeriodLabel}</span></span>
             <span className="tx-card-value">-{formatCurrency(totalExpenses)}</span>
           </div>
         </div>
         <div className="tx-card net">
           <div className="tx-card-icon"><Wallet size={20} /></div>
           <div className="tx-card-info">
-            <span className="tx-card-label">Net</span>
+            <span className="tx-card-label">Net <span style={{ fontSize: '0.65rem', color: 'var(--text-muted)', fontWeight: 400, marginLeft: 4 }}>· {summaryPeriodLabel}</span></span>
             <span className={`tx-card-value ${netAmount >= 0 ? 'pos' : 'neg'}`}>
               {netAmount >= 0 ? '+' : ''}{formatCurrency(netAmount)}
             </span>

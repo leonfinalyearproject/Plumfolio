@@ -127,11 +127,15 @@ const Analytics = () => {
   const totalExpenses = transactions
     .filter(t => t.type === 'expense')
     .reduce((sum, t) => sum + parseFloat(t.amount), 0);
-  
-  // Calculate months with data for accurate average
-  const monthsWithData = monthlyData.filter(m => m.income > 0 || m.expenses > 0).length;
-  const avgMonthlyIncome = monthsWithData > 0 ? totalIncome / monthsWithData : 0;
-  const avgMonthlyExpenses = monthsWithData > 0 ? totalExpenses / monthsWithData : 0;
+
+  // Average over the 6-month window we're actually displaying. Dividing by
+  // "months with data" inflated the average when the user had gaps — a user
+  // with one P20k month showed "P20k/mo average" which is misleading.
+  // Totals in last 6 months only (not all-time):
+  const last6IncomeTotal = monthlyData.reduce((s, m) => s + m.income, 0);
+  const last6ExpenseTotal = monthlyData.reduce((s, m) => s + m.expenses, 0);
+  const avgMonthlyIncome = last6IncomeTotal / 6;
+  const avgMonthlyExpenses = last6ExpenseTotal / 6;
 
   // Chart configs
   const lineChartData = {
@@ -314,7 +318,7 @@ const Analytics = () => {
             <TrendingUp size={20} />
           </div>
           <div className="stat-content">
-            <span className="stat-label">Avg. Monthly Income</span>
+            <span className="stat-label">Avg. Monthly Income <span style={{ fontSize: '0.65rem', color: 'var(--text-muted)', fontWeight: 400 }}>· last 6 months</span></span>
             <span className="stat-value">{formatCurrency(avgMonthlyIncome)}</span>
           </div>
         </div>
@@ -323,7 +327,7 @@ const Analytics = () => {
             <TrendingDown size={20} />
           </div>
           <div className="stat-content">
-            <span className="stat-label">Avg. Monthly Expenses</span>
+            <span className="stat-label">Avg. Monthly Expenses <span style={{ fontSize: '0.65rem', color: 'var(--text-muted)', fontWeight: 400 }}>· last 6 months</span></span>
             <span className="stat-value">{formatCurrency(avgMonthlyExpenses)}</span>
           </div>
         </div>
@@ -333,7 +337,7 @@ const Analytics = () => {
           </div>
           <div className="stat-content">
             <span className="stat-label">Analysis Period</span>
-            <span className="stat-value">Last 6 Months</span>
+            <span className="stat-value">{months[0].label} {months[0].year} – {months[5].label} {months[5].year}</span>
           </div>
         </div>
       </div>

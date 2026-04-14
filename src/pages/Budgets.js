@@ -47,6 +47,9 @@ const Budgets = () => {
     month_year: new Date().toISOString().slice(0, 7),
   });
   const [formErrors, setFormErrors] = useState({});
+  // Which month the Budgets view is currently showing. Defaults to current.
+  // Users flip between months to see historical plans vs future plans.
+  const [viewMonth, setViewMonth] = useState(() => new Date().toISOString().slice(0, 7));
 
   // Savings goals (stored in localStorage since no DB table)
   const [goals, setGoals] = useState([]);
@@ -408,11 +411,15 @@ const Budgets = () => {
 
   if (loading) return <div className="budgets-loading"><div className="spinner" /></div>;
 
+  // Only show budgets for the currently-selected month. This prevents the
+  // summary totals from adding up April + May + … which was confusing users.
+  const visibleBudgets = budgets.filter(b => b.month_year === viewMonth);
+
   // Hierarchical totals: bucket budgets "own" their child categories so we don't
   // double-count. For each individual-category budget, if a bucket that contains
   // that category exists, the individual budget is a sub-limit (already counted
   // by its parent bucket). Only orphan categories (no parent bucket) add to totals.
-  const bucketBudgetCategories = budgets
+  const bucketBudgetCategories = visibleBudgets
     .filter(b => BUCKET_MAP[b.category])
     .map(b => b.category);
 
@@ -431,9 +438,18 @@ const Budgets = () => {
     return parentBucketOf(b.category) === null;
   };
 
-  const totalAllocated = budgets.filter(countsInTotal).reduce((s, b) => s + parseFloat(b.allocated), 0);
-  const totalSpent     = budgets.filter(countsInTotal).reduce((s, b) => s + b.spent, 0);
+  const totalAllocated = visibleBudgets.filter(countsInTotal).reduce((s, b) => s + parseFloat(b.allocated), 0);
+  const totalSpent     = visibleBudgets.filter(countsInTotal).reduce((s, b) => s + b.spent, 0);
   const remaining = totalAllocated - totalSpent;
+
+  // Human-friendly label for the selected month
+  const viewMonthLabel = new Date(viewMonth + '-01').toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+
+  // List of months that actually have budgets, for the month picker
+  const availableMonths = Array.from(new Set(budgets.map(b => b.month_year))).sort();
+  // Always include the current month even if no budgets exist yet
+  if (!availableMonths.includes(currentMonthKey)) availableMonths.push(currentMonthKey);
+  availableMonths.sort();
 
   return (
     <div className="budgets-page">
@@ -450,18 +466,54 @@ const Budgets = () => {
       {/* =================== BUDGETS TAB =================== */}
       {activeTab === 'budgets' && (
         <>
-          {budgets.length > 0 && (
+          {/* Month selector — makes it unambiguous WHICH month you're viewing */}
+          <div style={{
+            display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16,
+            flexWrap: 'wrap',
+          }}>
+            <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>Viewing:</span>
+            <input
+              type="month"
+              value={viewMonth}
+              onChange={e => setViewMonth(e.target.value)}
+              style={{
+                background: 'var(--bg-elevated)',
+                color: 'var(--text-primary)',
+                border: '1px solid var(--border-color)',
+                borderRadius: 8, padding: '6px 10px',
+                fontSize: '0.85rem',
+                fontFamily: 'inherit',
+              }}
+            />
+            {viewMonth === currentMonthKey && (
+              <span style={{ fontSize: '0.7rem', color: '#22C55E', background: 'rgba(34,197,94,0.1)', padding: '2px 8px', borderRadius: 6 }}>
+                Current month
+              </span>
+            )}
+            {viewMonth < currentMonthKey && (
+              <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', background: 'rgba(255,255,255,0.04)', padding: '2px 8px', borderRadius: 6 }}>
+                Historical
+              </span>
+            )}
+            {viewMonth > currentMonthKey && (
+              <span style={{ fontSize: '0.7rem', color: 'var(--plum-glow)', background: 'rgba(168,85,247,0.1)', padding: '2px 8px', borderRadius: 6 }}>
+                Future plan
+              </span>
+            )}
+          </div>
+
+          {visibleBudgets.length > 0 && (
             <div className="budget-summary">
               <div className="summary-card">
-                <span className="summary-label">Total Budget</span>
+                <span className="summary-label">Budget · {viewMonthLabel}</span>
                 <span className="summary-value">{formatCurrency(totalAllocated)}</span>
               </div>
               <div className="summary-card">
-                <span className="summary-label">Total Spent</span>
+                <span className="summary-label">Spent · {viewMonthLabel}</span>
                 <span className="summary-value spent">{formatCurrency(totalSpent)}</span>
               </div>
               <div className="summary-card">
-                <span className="summary-label">Remaining</span>
+                <span className="summary-label">Remaining · {viewMonthLabel}</span>
                 <span className={`summary-value ${remaining >= 0 ? 'positive' : 'negative'}`}>
                   {formatCurrency(remaining)}
                 </span>
@@ -469,22 +521,17 @@ const Budgets = () => {
             </div>
           )}
 
-          {/* Sanity check: do your budgets fit inside your typical income?
-              Silently skipped when we don't have enough income history or
-              when budgets are only for future months (summary mixes months). */}
-          {budgets.length > 0 && typicalMonthlyIncome > 0 && (() => {
-            // Use only current-month budgets for this comparison so we're
-            // comparing like-with-like (1 month of budget vs 1 month of income).
-            const thisMonthBudgets = budgets.filter(b => b.month_year === currentMonthKey);
-            if (thisMonthBudgets.length === 0) return null;
-
-            const thisMonthAllocated = thisMonthBudgets
+          {/* Sanity check: do the visible-month budgets fit inside your
+              typical monthly income? Only runs for current/future months
+              because historical ones are records, not plans. */}
+          {visibleBudgets.length > 0 && typicalMonthlyIncome > 0 && viewMonth >= currentMonthKey && (() => {
+            const monthAllocated = visibleBudgets
               .filter(b => BUCKET_MAP[b.category] || !parentBucketOf(b.category))
               .reduce((s, b) => s + parseFloat(b.allocated), 0);
 
-            if (thisMonthAllocated <= typicalMonthlyIncome * 1.02) return null; // within 2% is fine
+            if (monthAllocated <= typicalMonthlyIncome * 1.02) return null; // within 2% is fine
 
-            const overBy = thisMonthAllocated - typicalMonthlyIncome;
+            const overBy = monthAllocated - typicalMonthlyIncome;
             return (
               <div style={{
                 background: 'rgba(239,68,68,0.08)',
@@ -498,27 +545,27 @@ const Budgets = () => {
               }}>
                 <AlertTriangle size={14} />
                 <span>
-                  Your {currentMonthKey} budgets total <strong>{formatCurrency(thisMonthAllocated)}</strong>, which is <strong>{formatCurrency(overBy)}</strong> more than your typical monthly income of {formatCurrency(Math.round(typicalMonthlyIncome))}. Either trim a budget or revise your expected income.
+                  Your {viewMonthLabel} budgets total <strong>{formatCurrency(monthAllocated)}</strong>, which is <strong>{formatCurrency(overBy)}</strong> more than your typical monthly income of {formatCurrency(Math.round(typicalMonthlyIncome))}. Either trim a budget or revise your expected income.
                 </span>
               </div>
             );
           })()}
 
           <div className="budgets-header">
-            <h2>Your Budgets</h2>
+            <h2>Your Budgets — {viewMonthLabel}</h2>
             <div className="budgets-header-actions">
               <button className="rule-btn" onClick={() => { setRuleIncome(typicalMonthlyIncome > 0 ? Math.round(typicalMonthlyIncome).toString() : ''); setShowRuleModal(true); }}>
                 <Zap size={16} /> Budget Formula
               </button>
-              <button className="add-budget-btn" onClick={() => { setFormData({ category: 'Food & Dining', allocated: '', month_year: currentMonthKey }); setFormErrors({}); setEditingBudget(null); setModalOpen(true); }}>
+              <button className="add-budget-btn" onClick={() => { setFormData({ category: 'Food & Dining', allocated: '', month_year: viewMonth >= currentMonthKey ? viewMonth : currentMonthKey }); setFormErrors({}); setEditingBudget(null); setModalOpen(true); }}>
                 <Plus size={18} /> Add Budget
               </button>
             </div>
           </div>
 
-          {budgets.length > 0 ? (
+          {visibleBudgets.length > 0 ? (
             <div className="budget-grid">
-              {budgets.map(budget => {
+              {visibleBudgets.map(budget => {
                 const progress = getProgress(budget.spent, budget.allocated);
                 const status = getStatus(budget.spent, budget.allocated);
                 return (
@@ -565,16 +612,24 @@ const Budgets = () => {
             <div className="empty-state-container">
               <div className="empty-state">
                 <Target size={64} strokeWidth={1} />
-                <h3>No budgets yet</h3>
-                <p>Set budgets to track spending, or use a formula to get started quickly</p>
-                <div className="empty-state-actions">
-                  <button className="empty-action-btn" onClick={() => { setRuleIncome(typicalMonthlyIncome > 0 ? Math.round(typicalMonthlyIncome).toString() : ''); setShowRuleModal(true); }}>
-                    <Zap size={18} /> Use a Formula
-                  </button>
-                  <button className="empty-action-btn primary" onClick={() => { setFormData({ category: 'Food & Dining', allocated: '', month_year: currentMonthKey }); setFormErrors({}); setEditingBudget(null); setModalOpen(true); }}>
-                    <Plus size={18} /> Create Budget
-                  </button>
-                </div>
+                <h3>No budgets for {viewMonthLabel}</h3>
+                <p>
+                  {viewMonth < currentMonthKey
+                    ? `You didn't set any budgets for ${viewMonthLabel}. Switch to the current month to start planning.`
+                    : budgets.length === 0
+                      ? 'Set budgets to track spending, or use a formula to get started quickly'
+                      : `No budgets for this month yet. You have budgets in ${availableMonths.filter(m => m !== viewMonth).join(', ')}.`}
+                </p>
+                {viewMonth >= currentMonthKey && (
+                  <div className="empty-state-actions">
+                    <button className="empty-action-btn" onClick={() => { setRuleIncome(typicalMonthlyIncome > 0 ? Math.round(typicalMonthlyIncome).toString() : ''); setShowRuleModal(true); }}>
+                      <Zap size={18} /> Use a Formula
+                    </button>
+                    <button className="empty-action-btn primary" onClick={() => { setFormData({ category: 'Food & Dining', allocated: '', month_year: viewMonth }); setFormErrors({}); setEditingBudget(null); setModalOpen(true); }}>
+                      <Plus size={18} /> Create Budget
+                    </button>
+                  </div>
+                )}
               </div>
             </div>
           )}
