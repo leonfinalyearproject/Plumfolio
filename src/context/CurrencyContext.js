@@ -106,25 +106,26 @@ export const CurrencyProvider = ({ children }) => {
   const info = getCurrencyInfo(code);
   const [rate, setRate] = useState(1);
   const [ratesLoaded, setRatesLoaded] = useState(code === 'BWP');
+  const [allRates, setAllRates] = useState(null); // full BWP → X rate table
 
   useEffect(() => {
-    if (code === 'BWP') {
-      setRate(1);
-      setRatesLoaded(true);
-      return;
-    }
-
     let cancelled = false;
-    setRatesLoaded(false);
 
+    // Always load rates (even if display is BWP) so imports can convert
     fetchRates().then((rates) => {
       if (cancelled) return;
-      if (rates && rates[code.toLowerCase()]) {
-        setRate(rates[code.toLowerCase()]);
+      if (rates) setAllRates(rates);
+      if (code === 'BWP') {
+        setRate(1);
+        setRatesLoaded(true);
       } else {
-        setRate(1); // fallback: no conversion
+        if (rates && rates[code.toLowerCase()]) {
+          setRate(rates[code.toLowerCase()]);
+        } else {
+          setRate(1);
+        }
+        setRatesLoaded(true);
       }
-      setRatesLoaded(true);
     });
 
     return () => { cancelled = true; };
@@ -138,6 +139,24 @@ export const CurrencyProvider = ({ children }) => {
     return formatNum(converted, info);
   }, [rate, info]);
 
+  /** Convert an amount from `fromCode` (ISO) to BWP (what we store). */
+  const convertToBwp = useCallback((amount, fromCode) => {
+    if (amount === null || amount === undefined || isNaN(amount)) return 0;
+    const n = parseFloat(amount);
+    if (!fromCode || fromCode.toUpperCase() === 'BWP') return n;
+    if (!allRates) return n; // no rates loaded; fail open (store as-is)
+    const r = allRates[fromCode.toLowerCase()];
+    if (!r || r === 0) return n;
+    return n / r;
+  }, [allRates]);
+
+  /** Convenience: get a specific BWP → X rate */
+  const getRate = useCallback((toCode) => {
+    if (!toCode || toCode.toUpperCase() === 'BWP') return 1;
+    if (!allRates) return null;
+    return allRates[toCode.toLowerCase()] || null;
+  }, [allRates]);
+
   return (
     <CurrencyContext.Provider value={{
       currencyCode: code,
@@ -146,6 +165,9 @@ export const CurrencyProvider = ({ children }) => {
       symbol: info.symbol,
       rate,
       ratesLoaded,
+      convertToBwp,
+      getRate,
+      allRates,
     }}>
       {children}
     </CurrencyContext.Provider>
