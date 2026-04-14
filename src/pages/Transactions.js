@@ -212,7 +212,6 @@ const Transactions = () => {
   // Refresh when the scanner modal opens
   useEffect(() => {
     if (scannerOpen) fetchAiScansToday();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [scannerOpen, user]);
 
   // A ticker so the reset countdown updates every minute
