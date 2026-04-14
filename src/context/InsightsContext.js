@@ -18,6 +18,8 @@ export const useInsights = () => {
       goals: [],
       toasts: [],
       loading: true,
+      monthlyIncome: 0,
+      currentMonthKey: '',
       refreshInsights: () => {},
       dismissToast: () => {},
     };
@@ -33,6 +35,11 @@ export const InsightsProvider = ({ children }) => {
   const [insights, setInsights] = useState(null);
   const [predictions, setPredictions] = useState(null);
   const [crossSignals, setCrossSignals] = useState([]);
+  const [monthlyIncome, setMonthlyIncome] = useState(0);
+  const [currentMonthKey, setCurrentMonthKey] = useState(() => {
+    const now = new Date();
+    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+  });
   const prevSignalIdsRef = useRef(new Set());
   const [toasts, setToasts] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -92,6 +99,20 @@ export const InsightsProvider = ({ children }) => {
       setTransactions(txns);
       setBudgets(budgs);
       setGoals(gls);
+
+      // Calculate current month's income from transactions
+      const now = new Date();
+      const monthKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+      setCurrentMonthKey(monthKey);
+      
+      const currentMonthIncome = txns
+        .filter(t => {
+          if (t.type !== 'income') return false;
+          const txnMonth = t.date ? t.date.slice(0, 7) : null;
+          return txnMonth === monthKey;
+        })
+        .reduce((sum, t) => sum + Math.abs(parseFloat(t.amount)), 0);
+      setMonthlyIncome(currentMonthIncome);
 
       // Run AI engines
       const newInsights = generateInsights(txns, gls);
@@ -242,6 +263,8 @@ export const InsightsProvider = ({ children }) => {
     goals,
     toasts,
     loading,
+    monthlyIncome,
+    currentMonthKey,
     refreshInsights,
     dismissToast,
     addToast,
