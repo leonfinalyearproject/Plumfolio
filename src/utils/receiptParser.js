@@ -555,30 +555,53 @@ function extractAmountsAndTotal(lines, rawText, cleaned) {
     /^total$/i,
   ];
 
-  // Lines to skip when looking for totals (these are NOT the grand total)
-  const skipTotalPatterns = /\b(sub-?total|subtotal|v\.?a\.?t\.?|tax\s*group|gst|hst|discount|saving|change|cash\s*back|cashback|rounding|tip|gratuity|service\s*charge)\b/i;
+  // Lines to skip - these contain amounts but are NOT the grand total
+  const notTotalPatterns = /\b(sub-?total|subtotal|v\.?a\.?t\.?|tax|gst|hst|discount|saving|change|cash\s*back|cashback|rounding|tip|gratuity|service|charge|item|qty|quantity|unit|price)\b/i;
 
-  // IMPROVED: Multi-pass total detection
-  // Pass 1: Look for EXACT "Total" line with amount (most reliable for receipts like Hoco)
-  // Pattern: "Total    200.00 P" or "Total    P 200.00"
+  // STRICT Total Detection - Only extract from lines with the word "Total"
+  // Step 1: Find ALL lines that contain the word "Total" (case insensitive)
+  const totalLines = [];
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
-    const lineClean = stripDates(line);
+    const lineLower = line.toLowerCase();
     
-    // Skip lines that are subtotals, VAT, tax, change, etc.
-    if (skipTotalPatterns.test(lineClean)) continue;
+    // Must contain "total" but NOT "subtotal"
+    if (lineLower.includes('total') && !lineLower.includes('subtotal') && !lineLower.includes('sub-total') && !lineLower.includes('sub total')) {
+      // Skip VAT/tax lines
+      if (notTotalPatterns.test(line) && !/\bgrand\s*total\b/i.test(line)) continue;
+      
+      totalLines.push({ line, index: i });
+    }
+  }
+
+  // Step 2: From the total lines, extract amounts
+  for (const { line, index } of totalLines) {
+    // Extract all numbers that look like amounts (with optional decimals)
+    const amountMatches = line.match(/\d+[.,]\d{2}|\d+[.,]\d{1}(?!\d)|\b\d{2,}\b/g);
     
-    // Match lines that START with "Total" (not "Subtotal")
-    // This catches: "Total    200.00 P", "Total: P200", "Total 200.00", etc.
-    const totalLineMatch = lineClean.match(/^\s*total\s*[:\s]*(.+)$/i);
-    if (totalLineMatch) {
-      const restOfLine = totalLineMatch[1];
-      // Extract all numbers from the rest of the line
-      const amounts = restOfLine.match(/\d+[.,]?\d*/g);
-      if (amounts) {
-        const vals = amounts.map(a => normaliseAmount(a)).filter(v => v > 0 && v < 10000000);
+    if (amountMatches) {
+      const vals = amountMatches
+        .map(a => normaliseAmount(a))
+        .filter(v => v > 0 && v < 10000000);
+      
+      if (vals.length > 0) {
+        // If multiple amounts on the line, take the one that appears after "total"
+        // Usually the total amount is the largest or the last one
+        total = Math.max(...vals);
+        foundTotal = true;
+        break;
+      }
+    }
+    
+    // If no amount on this line, check the next line
+    if (!foundTotal && index < lines.length - 1) {
+      const nextLine = lines[index + 1];
+      const nextAmounts = nextLine.match(/\d+[.,]\d{2}|\d+[.,]\d{1}(?!\d)|\b\d{2,}\b/g);
+      if (nextAmounts) {
+        const vals = nextAmounts
+          .map(a => normaliseAmount(a))
+          .filter(v => v > 0 && v < 10000000);
         if (vals.length > 0) {
-          // Take the largest amount on the Total line
           total = Math.max(...vals);
           foundTotal = true;
           break;
@@ -587,105 +610,14 @@ function extractAmountsAndTotal(lines, rawText, cleaned) {
     }
   }
 
-  // Pass 1b: Look for explicit "Total" with amount on same line (pattern matching)
+  // Step 3: If still no total, look for "Card" or "Paid" or "Payment" lines (payment confirmation)
   if (!foundTotal) {
     for (let i = 0; i < lines.length; i++) {
-      const line = stripDates(lines[i]);
-      
-      // Skip lines that are subtotals, tax, change, etc.
-      if (skipTotalPatterns.test(line) && !/grand\s*total/i.test(line)) continue;
-      // Skip "change" lines (money returned)
-      if (/\b(change|cashback|cash\s*back|vuelto|monnaie|rückgeld)\b/i.test(line)) continue;
-
-      for (const pattern of totalPatterns) {
-        if (pattern.source === '^total$') continue; // Handle separately
-        const match = line.match(pattern);
-        if (match && match[1]) {
-          const val = normaliseAmount(match[1]);
-          if (val > 0 && val < 10000000) {
-            total = val;
-            foundTotal = true;
-            break;
-          }
-        }
-      }
-      if (foundTotal) break;
-    }
-  }
-
-  // Pass 2: Look for "TOTAL" on its own line, with amount on the next line
-  if (!foundTotal) {
-    for (let i = 0; i < lines.length - 1; i++) {
-      const line = lines[i].trim();
-      const lineClean = stripDates(line);
-      
-      // Check if this line is just "TOTAL" or "Grand Total"
-      if (/^(?:grand\s*)?total$/i.test(lineClean.replace(/[^a-zA-Z\s]/g, '').trim())) {
-        // Look at the same line for an amount first
-        const sameLineAmounts = lineClean.match(amountRegex);
-        if (sameLineAmounts) {
-          const vals = sameLineAmounts.map(normaliseAmount).filter(v => v > 0);
-          if (vals.length > 0) {
-            total = Math.max(...vals);
-            foundTotal = true;
-            break;
-          }
-        }
-        
-        // Then check the next line
-        const nextLine = stripDates(lines[i + 1]);
-        const nextAmounts = nextLine.match(amountRegex);
-        if (nextAmounts) {
-          const vals = nextAmounts.map(normaliseAmount).filter(v => v > 0);
-          if (vals.length > 0) {
-            total = Math.max(...vals);
-            foundTotal = true;
-            break;
-          }
-        }
-      }
-    }
-  }
-
-  // Pass 3: Look for lines containing "total" with amounts
-  if (!foundTotal) {
-    for (let i = 0; i < lines.length; i++) {
-      const line = stripDates(lines[i]);
-      if (/\btotal\b/i.test(line) && !/sub-?total/i.test(line) && !/change/i.test(line)) {
-        const lineAmounts = line.match(amountRegex);
-        if (lineAmounts) {
-          const vals = lineAmounts.map(normaliseAmount).filter(v => v > 0);
-          if (vals.length > 0) {
-            // Take the last amount on the line (usually the total is rightmost)
-            total = vals[vals.length - 1];
-            foundTotal = true;
-            break;
-          }
-        }
-        // Check next line too
-        if (i + 1 < lines.length) {
-          const nextAmounts = stripDates(lines[i + 1]).match(amountRegex);
-          if (nextAmounts) {
-            const vals = nextAmounts.map(normaliseAmount).filter(v => v > 0);
-            if (vals.length > 0) {
-              total = vals[0];
-              foundTotal = true;
-              break;
-            }
-          }
-        }
-      }
-    }
-  }
-
-  // Pass 4: Look for "Amount Due", "Payment", "Paid" patterns
-  if (!foundTotal) {
-    for (let i = 0; i < lines.length; i++) {
-      const line = stripDates(lines[i]);
-      if (/\b(amount\s*due|payment|paid|balance\s*due)\b/i.test(line)) {
-        const lineAmounts = line.match(amountRegex);
-        if (lineAmounts) {
-          const vals = lineAmounts.map(normaliseAmount).filter(v => v > 0);
+      const line = lines[i];
+      if (/\b(card|paid|payment|amount\s*due|balance\s*due)\b/i.test(line) && !/change/i.test(line)) {
+        const amounts = line.match(/\d+[.,]\d{2}/g);
+        if (amounts) {
+          const vals = amounts.map(a => normaliseAmount(a)).filter(v => v > 0);
           if (vals.length > 0) {
             total = Math.max(...vals);
             foundTotal = true;
