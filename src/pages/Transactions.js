@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import ReactDOM from 'react-dom';
 import { useAuth } from '../context/AuthContext';
-import { supabase } from '../lib/supabase';
+import { supabase, SUPABASE_ANON_KEY } from '../lib/supabase';
 import { useCurrency } from '../context/CurrencyContext';
 import { useInsights } from '../context/InsightsContext';
 import { parseReceiptText, detectCategory as receiptDetectCategory } from '../utils/receiptParser';
@@ -357,8 +357,22 @@ const Transactions = () => {
           // Extract base64 payload from the data URL preview
           const base64 = preview.replace(/^data:image\/\w+;base64,/, '');
 
+          // Get the current session JWT explicitly. supabase.functions.invoke
+          // usually picks this up automatically but some versions/setups miss
+          // it, leading to 401s. Being explicit here removes that ambiguity.
+          const { data: { session } } = await supabase.auth.getSession();
+          if (!session) throw new Error('Not signed in');
+
+          // Supabase's edge-function gateway requires BOTH the user's JWT
+          // (Authorization) AND the project anon key (apikey). Some builds
+          // drop the apikey header when calling via .invoke() — passing it
+          // explicitly prevents the 401-before-function-runs problem.
           const { data: aiResult, error: fnError } = await supabase.functions.invoke('scan-receipt', {
             body: { imageBase64: base64 },
+            headers: {
+              Authorization: `Bearer ${session.access_token}`,
+              apikey: SUPABASE_ANON_KEY,
+            },
           });
 
           if (fnError) throw new Error(fnError.message || 'AI scan failed');
