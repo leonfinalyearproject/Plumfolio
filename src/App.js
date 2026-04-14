@@ -54,8 +54,8 @@ const ProtectedRoute = ({ children }) => {
 const GlobalAIWidget = () => {
   const { user } = useAuth();
   const location = useLocation();
-  const authPages = ['/', '/signin', '/signup', '/verified', '/forgot-password', '/reset-password'];
-  if (!user || authPages.includes(location.pathname)) return null;
+  const hiddenPages = ['/', '/signin', '/signup', '/verified', '/forgot-password', '/reset-password', '/settings'];
+  if (!user || hiddenPages.includes(location.pathname)) return null;
   return <AIInsightWidget />;
 };
 
