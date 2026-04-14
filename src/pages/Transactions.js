@@ -8,7 +8,7 @@ import { detectCategory as receiptDetectCategory } from '../utils/receiptParser'
 import processReceiptImage from '../utils/imageProcessor';
 import { validateTransactionForm } from '../utils/validation';
 import {
-  parseImportRows, SAMPLE_TEMPLATE_ROWS, buildHistoryIndex, setReceiptDetectCategory,
+  parseImportRows, SAMPLE_TEMPLATE_ROWS, buildHistoryIndex, setReceiptDetectCategory, smartCategorise,
 } from '../utils/importParser';
 
 // Inject the merchant database as the cold-start fallback for import categorisation
@@ -544,6 +544,21 @@ const Transactions = () => {
       if (!results[0].text || results[0].score < 0) { setScanError('Could not read receipt.'); return; }
       const parsed = parseReceiptText(results[0].text);
       if (!parsed) { setScanError('Could not extract details.'); return; }
+
+      // Apply the same smart categorisation waterfall as the import feature:
+      // 1) user history (learns YOUR merchants)  2) generic keywords  3) merchant DB (already in parsed.category)
+      // If the receipt parser already got a good category, keep it. Only try to improve on "Other".
+      const historyIndex = buildHistoryIndex(transactions);
+      const descForCategorisation = `${parsed.merchant || ''} ${parsed.rawText || ''}`.trim();
+      const smart = smartCategorise(descForCategorisation, historyIndex);
+      if (smart && categories.includes(smart.category)) {
+        // History-based match always wins (user's own labelling is most reliable)
+        if (smart.source.startsWith('history') || !parsed.category || parsed.category === 'Other') {
+          parsed.category = smart.category;
+          parsed._categorySource = smart.source;
+        }
+      }
+
       setExtractedData(parsed);
     } catch (err) { setScanError('Scan failed: ' + err.message); }
     finally { setScanning(false); setScanProgress(0); setScanStatus(''); }
