@@ -5,6 +5,7 @@ import { supabase } from '../lib/supabase';
 import { useCurrency } from '../context/CurrencyContext';
 import { useInsights } from '../context/InsightsContext';
 import { parseReceiptText, detectCategory as receiptDetectCategory } from '../utils/receiptParser';
+import { parseReceiptStrict } from '../utils/receiptParserStrict';
 import processReceiptImage from '../utils/imageProcessor';
 import { validateTransactionForm } from '../utils/validation';
 import { parseImportRows, SAMPLE_TEMPLATE_ROWS, buildHistoryIndex, setReceiptDetectCategory } from '../utils/importParser';
@@ -304,67 +305,126 @@ const Transactions = () => {
     if (!preview || !window.Tesseract) return;
     setScanning(true); setScanError(''); setScanProgress(0); setScanStatus('Processing...');
     try {
+      // =======================================================
+      // PHASE 1: LOCAL OCR (fast, free, offline)
+      // =======================================================
+      // Always try Tesseract first. It's instant on clean receipts and
+      // costs nothing — no reason to burn Gemini quota when a straight
+      // receipt can be parsed locally.
       const processedVersions = await processReceiptImage(preview);
-      setScanStatus('Reading...'); setScanProgress(20);
-      
-      // Try each processed version and pick the one with best text extraction
-      let bestResult = null;
+      setScanStatus('Reading locally...'); setScanProgress(10);
+
+      const confidenceRank = { high: 3, medium: 2, low: 1, none: 0 };
       let bestParsed = null;
-      
+
       for (let i = 0; i < processedVersions.length; i++) {
         const version = processedVersions[i];
         setScanStatus(`Reading (${version.label})...`);
-        setScanProgress(20 + Math.round((i / processedVersions.length) * 50));
-        
-        // PSM 6 = "Assume a single uniform block of text" — best for receipts
-        // which are vertical lists of text. Char whitelist biases Tesseract
-        // toward the characters we actually need: letters, digits, currency
-        // punctuation, slashes/dashes for dates.
+        setScanProgress(10 + Math.round((i / processedVersions.length) * 40));
+
         const result = await window.Tesseract.recognize(version.data, 'eng', {
           logger: (m) => {
             if (m.status === 'recognizing text') {
-              const baseProgress = 20 + Math.round((i / processedVersions.length) * 50);
-              setScanProgress(baseProgress + Math.round(m.progress * (50 / processedVersions.length)));
+              const baseProgress = 10 + Math.round((i / processedVersions.length) * 40);
+              setScanProgress(baseProgress + Math.round(m.progress * (40 / processedVersions.length)));
             }
           },
           tessedit_pageseg_mode: 6,
-          tessedit_char_whitelist: 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789.,:/-$£€¥PR ',
+          tessedit_char_whitelist: 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789.,:/-$£€¥PR*@ ',
         });
-        
-        const parsed = parseReceiptText(result.data.text);
-        
-        // Pick version that extracts a total (most important field)
-        if (parsed && parsed.total > 0) {
-          bestResult = result;
-          bestParsed = parsed;
-          break; // Found a good result, stop trying
-        } else if (!bestResult || (result.data.text.length > (bestResult?.data?.text?.length || 0))) {
-          bestResult = result;
+
+        const parsed = parseReceiptStrict(result.data.text);
+        if (!bestParsed || confidenceRank[parsed.confidence] > confidenceRank[bestParsed.confidence]) {
           bestParsed = parsed;
         }
+        // Stop Tesseract loop early only if we got high confidence — we'll
+        // skip the AI step entirely in that case.
+        if (parsed.confidence === 'high') break;
       }
-      
+
+      // =======================================================
+      // PHASE 2: AI FALLBACK (only if local was not high-confidence)
+      // =======================================================
+      // Route to Gemini for anything below 'high' — it's dramatically
+      // better on crumpled / angled / faded receipts. Uses Supabase Edge
+      // Function so the API key stays server-side.
+      const shouldUseAI = !bestParsed || bestParsed.confidence !== 'high';
+
+      if (shouldUseAI) {
+        setScanStatus('Using AI for better accuracy...');
+        setScanProgress(60);
+        try {
+          // Extract base64 payload from the data URL preview
+          const base64 = preview.replace(/^data:image\/\w+;base64,/, '');
+
+          const { data: aiResult, error: fnError } = await supabase.functions.invoke('scan-receipt', {
+            body: { imageBase64: base64 },
+          });
+
+          if (fnError) throw new Error(fnError.message || 'AI scan failed');
+
+          if (aiResult && !aiResult.error) {
+            // AI returned something — prefer it over the local result if its
+            // confidence is >= the local result (AI is more reliable on hard
+            // receipts, and this is the branch where local wasn't 'high').
+            const aiRank = confidenceRank[aiResult.confidence] ?? 0;
+            const localRank = confidenceRank[bestParsed?.confidence] ?? 0;
+            if (aiRank >= localRank) {
+              bestParsed = {
+                merchant: aiResult.merchant,
+                date: aiResult.date,
+                total: aiResult.total,
+                category: aiResult.category,
+                confidence: aiResult.confidence,
+                source: 'ai',
+              };
+            }
+          } else if (aiResult?.error === 'not_a_receipt') {
+            setScanError("This doesn't look like a receipt. Please upload a clear receipt photo.");
+            return;
+          } else if (aiResult?.error === 'quota_exhausted' || aiResult?.error === 'rate_limit') {
+            // AI unavailable — fall back to whatever Tesseract gave us with
+            // a note that accuracy may be lower.
+            console.warn('AI scan unavailable:', aiResult?.message);
+          }
+        } catch (aiErr) {
+          // Edge function unreachable (network issue, function not deployed,
+          // etc). Fall back silently to the local result — user still gets
+          // whatever Tesseract extracted.
+          console.warn('AI scan failed, using local result:', aiErr.message);
+        }
+        setScanProgress(90);
+      }
+
+      // =======================================================
+      // PHASE 3: SURFACE RESULTS
+      // =======================================================
       setScanProgress(95); setScanStatus('Extracting...');
-      
-      if (bestParsed && bestParsed.total > 0) {
-        setExtractedData({
-          merchant: bestParsed.merchant || 'Unknown',
-          date: bestParsed.date || new Date().toISOString().split('T')[0],
-          total: bestParsed.total || 0,
-          category: bestParsed.category || 'Other',
-        });
-        setScanSuccess('Receipt scanned!');
-      } else if (bestParsed) {
-        // Got some data but no total - let user fill it in
-        setExtractedData({
-          merchant: bestParsed.merchant || 'Unknown',
-          date: bestParsed.date || new Date().toISOString().split('T')[0],
-          total: 0,
-          category: bestParsed.category || 'Other',
-        });
-        setScanSuccess('Partial scan - please enter the total');
-      } else { 
-        setScanError('Could not extract data'); 
+
+      if (!bestParsed || bestParsed.confidence === 'none') {
+        setScanError("Couldn't read the receipt. Try a clearer photo or enter the details manually.");
+        return;
+      }
+
+      const missing = [];
+      if (!bestParsed.merchant) missing.push('merchant');
+      if (!bestParsed.date) missing.push('date');
+      if (!bestParsed.total) missing.push('total');
+
+      setExtractedData({
+        merchant: bestParsed.merchant || '',
+        date: bestParsed.date || '',
+        total: bestParsed.total || 0,
+        category: bestParsed.category || 'Other',
+      });
+
+      const sourceLabel = bestParsed.source === 'ai' ? ' (AI)' : '';
+      if (bestParsed.confidence === 'high') {
+        setScanSuccess(`Receipt scanned${sourceLabel} — review and save.`);
+      } else if (bestParsed.confidence === 'medium') {
+        setScanSuccess(`Partial scan${sourceLabel} — please fill in ${missing.join(', ')}.`);
+      } else {
+        setScanSuccess(`Low confidence${sourceLabel} — please check ${missing.join(', ')} carefully.`);
       }
     } catch (err) { setScanError('Scan failed: ' + err.message); }
     finally { setScanning(false); setScanProgress(100); }
