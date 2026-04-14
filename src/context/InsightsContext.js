@@ -21,6 +21,9 @@ export const useInsights = () => {
       monthlyIncome: 0,
       typicalMonthlyIncome: 0,
       incomeBreakdown: { last3Months: [], monthsUsed: 0, confidence: 'low' },
+      cashOnHand: 0,
+      totalIncomeReceived: 0,
+      totalExpensesPaid: 0,
       currentMonthKey: '',
       refreshInsights: () => {},
       dismissToast: () => {},
@@ -40,6 +43,12 @@ export const InsightsProvider = ({ children }) => {
   const [monthlyIncome, setMonthlyIncome] = useState(0);
   const [typicalMonthlyIncome, setTypicalMonthlyIncome] = useState(0);
   const [incomeBreakdown, setIncomeBreakdown] = useState({ last3Months: [], monthsUsed: 0, confidence: 'low' });
+  // Cash on hand = all-time income received − all-time expenses paid.
+  // This is the real money available to budget against (per supervisor
+  // feedback: budget with what you actually have, not estimates).
+  const [cashOnHand, setCashOnHand] = useState(0);
+  const [totalIncomeReceived, setTotalIncomeReceived] = useState(0);
+  const [totalExpensesPaid, setTotalExpensesPaid] = useState(0);
   const [currentMonthKey, setCurrentMonthKey] = useState(() => {
     const now = new Date();
     return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
@@ -122,7 +131,30 @@ export const InsightsProvider = ({ children }) => {
       const currentMonthIncome = sumIncomeForMonth(monthKey);
       setMonthlyIncome(currentMonthIncome);
 
-      // Last 3 COMPLETE months (excluding the current partial one)
+      // --- Available funds: the ACTUAL money in the pot ---
+      // Principle (per supervisor feedback): budgets must be anchored to money
+      // already received, not to estimates/averages/forecasts.
+      //
+      // availableFunds = all-time income received − all-time expenses − budgets
+      //                  allocated to OTHER months (those funds are earmarked).
+      //
+      // The "budgets for other months" subtraction is done lazily per-caller
+      // because it depends on which month they're currently editing. Here we
+      // publish the two base numbers and let consumers subtract as needed.
+      const totalIncomeReceived = txns
+        .filter(t => t.type === 'income')
+        .reduce((s, t) => s + parseFloat(t.amount || 0), 0);
+      const totalExpensesPaid = txns
+        .filter(t => t.type === 'expense')
+        .reduce((s, t) => s + parseFloat(t.amount || 0), 0);
+      const cashOnHand = totalIncomeReceived - totalExpensesPaid;
+      setCashOnHand(cashOnHand);
+      setTotalIncomeReceived(totalIncomeReceived);
+      setTotalExpensesPaid(totalExpensesPaid);
+
+      // --- Typical monthly income (reference only — NOT a budget ceiling) ---
+      // We still compute this for display (Dashboard/Analytics "avg income"
+      // labels) but it must never gate budget creation. Keep it informational.
       const last3Months = [];
       for (let i = 1; i <= 3; i++) {
         const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
@@ -133,7 +165,7 @@ export const InsightsProvider = ({ children }) => {
       const monthsWithIncome = last3Months.filter(m => m.income > 0);
       const typicalMonthlyIncome = monthsWithIncome.length > 0
         ? monthsWithIncome.reduce((s, m) => s + m.income, 0) / monthsWithIncome.length
-        : currentMonthIncome;  // fallback: new user, use whatever's there
+        : currentMonthIncome;
       setTypicalMonthlyIncome(typicalMonthlyIncome);
       setIncomeBreakdown({
         last3Months,
@@ -293,6 +325,9 @@ export const InsightsProvider = ({ children }) => {
     monthlyIncome,
     typicalMonthlyIncome,
     incomeBreakdown,
+    cashOnHand,
+    totalIncomeReceived,
+    totalExpensesPaid,
     currentMonthKey,
     refreshInsights,
     dismissToast,
