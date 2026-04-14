@@ -19,6 +19,7 @@ import {
   Coffee, Home, Car, Zap, GraduationCap, ShoppingCart, Wallet, Briefcase,
   Heart, Film, MoreHorizontal, Trash2, Edit, Receipt, Camera, FileText,
   Check, Loader, AlertCircle, Image, ScanLine, Tag, Calendar, DollarSign,
+  Star, Sparkles, Users,
   Search, ArrowUp, ArrowDown, RefreshCw, ChevronDown, Save, CheckSquare,
   Square, FileSpreadsheet, Calculator, XCircle
 } from 'lucide-react';
@@ -289,6 +290,7 @@ const Transactions = () => {
     await supabase.from('transactions').update(update).eq('id', id);
     setTransactions(prev => prev.map(t => t.id === id ? { ...t, ...update } : t));
     setInlineEdit(null);
+    if (refreshInsights) refreshInsights();
   };
   const handleInlineKey = (e) => { if (e.key === 'Enter') saveInlineEdit(); if (e.key === 'Escape') setInlineEdit(null); };
 
@@ -1030,19 +1032,19 @@ const Transactions = () => {
                                     <span className="import-remap-note" title={`Original: "${r._originalCategory}"`}>↺</span>
                                   )}
                                   {r._categorySource === 'history-exact' && (
-                                    <span className="import-cat-badge badge-history" title="Learned from your past transactions (exact match)">⭐ history</span>
+                                    <span className="import-cat-badge badge-history" title="Learned from your past transactions (exact match)"><Star size={11} /> history</span>
                                   )}
                                   {r._categorySource === 'history-fuzzy' && (
-                                    <span className="import-cat-badge badge-history" title="Pattern-matched from your past transactions">⭐ history</span>
+                                    <span className="import-cat-badge badge-history" title="Pattern-matched from your past transactions"><Star size={11} /> history</span>
                                   )}
                                   {r._categorySource === 'keyword' && (
-                                    <span className="import-cat-badge badge-keyword" title="Detected from description keywords">✨ auto</span>
+                                    <span className="import-cat-badge badge-keyword" title="Detected from description keywords"><Sparkles size={11} /> auto</span>
                                   )}
                                   {r._categorySource === 'community' && (
-                                    <span className="import-cat-badge badge-community" title="Crowd-learned from other Plumfolio users">👥 community</span>
+                                    <span className="import-cat-badge badge-community" title="Crowd-learned from other Plumfolio users"><Users size={11} /> community</span>
                                   )}
                                   {r._categorySource === 'merchant-db' && (
-                                    <span className="import-cat-badge badge-merchant" title="Matched against known merchants">🏷 known</span>
+                                    <span className="import-cat-badge badge-merchant" title="Matched against known merchants"><Tag size={11} /> known</span>
                                   )}
                                 </td>
                                 <td><span className={`type-badge ${r.type}`}>{r.type}</span></td>
