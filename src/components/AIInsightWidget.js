@@ -24,6 +24,7 @@ function getPageInsights(pathname, insights, predictions, formatCurrency, crossS
   const anomalies = insights.anomalies || [];
   const recurring = insights.recurring || [];
   const spendingPatterns = insights.spendingPatterns || [];
+  const goalInsights = insights.goalInsights || [];
   const budgetWarnings = predictions?.budgetWarnings || [];
   const categoryForecasts = predictions?.categoryForecasts || {};
   const totalForecast = predictions?.totalForecast || {};
@@ -44,6 +45,12 @@ function getPageInsights(pathname, insights, predictions, formatCurrency, crossS
     case 'dashboard': {
       // Dashboard: overall health, key alerts, savings rate, quick summary
       const items = [...compoundItems];
+
+      // Urgent goal alerts surface first (deadline approaching, overdue, behind pace)
+      goalInsights
+        .filter(g => g.severity === 'high' || g.severity === 'medium')
+        .slice(0, 2)
+        .forEach(g => items.push({ ...g, context: 'Savings goal alert' }));
 
       // Savings rate insight
       const savingsInsight = allInsights.find(i => i.type === 'savings_rate');
@@ -140,8 +147,13 @@ function getPageInsights(pathname, insights, predictions, formatCurrency, crossS
     }
 
     case 'budgets': {
-      // Budgets: warnings, projected overspend, suggested allocations
+      // Budgets: warnings, projected overspend, suggested allocations, savings goals
       const items = [...compoundItems];
+
+      // All goal insights surface on Budgets page (this is where goals live)
+      goalInsights.slice(0, 4).forEach(g => {
+        items.push({ ...g, context: 'Savings goal' });
+      });
 
       // Budget warnings (exceeded, projected, approaching)
       budgetWarnings.forEach(w => {
@@ -176,14 +188,19 @@ function getPageInsights(pathname, insights, predictions, formatCurrency, crossS
       });
 
       const exceededCount = budgetWarnings.filter(w => w.type === 'exceeded').length;
+      const urgentGoals = goalInsights.filter(g => g.severity === 'high').length;
       return {
         title: 'Budget Intelligence',
         icon: Target,
         items: items.slice(0, 5),
         summary: exceededCount > 0
           ? `${exceededCount} budget${exceededCount > 1 ? 's' : ''} exceeded!`
+          : urgentGoals > 0
+          ? `${urgentGoals} urgent savings goal alert${urgentGoals > 1 ? 's' : ''}`
           : budgetWarnings.length > 0
           ? `${budgetWarnings.length} budget warning${budgetWarnings.length > 1 ? 's' : ''}`
+          : goalInsights.length > 0
+          ? 'Budgets on track — check your savings goals'
           : 'All budgets on track',
       };
     }
