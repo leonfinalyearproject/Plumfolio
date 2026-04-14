@@ -184,6 +184,14 @@ const Budgets = () => {
   const currentMonthKey = new Date().toISOString().slice(0, 7);
   const isPastMonth = (my) => my && my < currentMonthKey;
 
+  // Budget Formula vs Manual budgets — mutually exclusive.
+  // The two ways of setting up a month are (a) click the formula and let
+  // it auto-split your income, OR (b) add budgets one by one manually.
+  // If the user has already started doing (b), we lock (a) so the formula
+  // doesn't steamroll over their manual choices. If they want to start over,
+  // they can delete their existing budgets and the formula re-enables.
+  const hasManualBudgetsThisMonth = budgets.some(b => b.month_year === currentMonthKey);
+
   // =============================================================
   // AVAILABLE TO BUDGET — per-month rule
   // =============================================================
@@ -419,6 +427,17 @@ const Budgets = () => {
     const rule = budgetRules[selectedRule];
     // Always apply formulas to the current month (you can't plan the past).
     const monthYear = new Date().toISOString().slice(0, 7);
+
+    // Belt-and-braces: refuse if manual budgets already exist this month.
+    // The button should already be disabled, but never trust the UI.
+    if (hasManualBudgetsThisMonth) {
+      if (addToast) addToast({
+        type: 'warning',
+        title: 'Formula not available',
+        message: 'You already have manual budgets for this month. Delete them first if you want to use the formula instead.',
+      });
+      return;
+    }
 
     // Hard block: can only allocate what came in this month, minus what's
     // already been budgeted for this month.
@@ -656,7 +675,15 @@ const Budgets = () => {
           <div className="budgets-header">
             <h2>Your Budgets — {viewMonthLabel}</h2>
             <div className="budgets-header-actions">
-              <button className="rule-btn" onClick={() => { const avail = Math.max(0, incomeForMonth(currentMonthKey) - allocatedForMonth(currentMonthKey)); setRuleIncome(avail > 0 ? avail.toFixed(0) : ''); setShowRuleModal(true); }}>
+              <button
+                className="rule-btn"
+                onClick={() => { const avail = Math.max(0, incomeForMonth(currentMonthKey) - allocatedForMonth(currentMonthKey)); setRuleIncome(avail > 0 ? avail.toFixed(0) : ''); setShowRuleModal(true); }}
+                disabled={hasManualBudgetsThisMonth}
+                title={hasManualBudgetsThisMonth
+                  ? "You've already created budgets manually for this month. Delete them first if you want to use the formula instead."
+                  : "Auto-split your income into category budgets"}
+                style={hasManualBudgetsThisMonth ? { opacity: 0.5, cursor: 'not-allowed' } : {}}
+              >
                 <Zap size={16} /> Budget Formula
               </button>
               <button className="add-budget-btn" onClick={() => { setFormData({ category: 'Food & Dining', allocated: '', month_year: viewMonth >= currentMonthKey ? viewMonth : currentMonthKey }); setFormErrors({}); setEditingBudget(null); setModalOpen(true); }}>
@@ -664,6 +691,31 @@ const Budgets = () => {
               </button>
             </div>
           </div>
+
+          {/* Explainer when the formula is locked — sits between the header
+              and the budget grid so users immediately understand why the
+              formula button is dimmed. */}
+          {hasManualBudgetsThisMonth && viewMonth === currentMonthKey && (
+            <div style={{
+              background: 'rgba(168,85,247,0.04)',
+              border: '1px solid rgba(168,85,247,0.15)',
+              borderRadius: 10,
+              padding: '8px 12px',
+              marginBottom: 12,
+              fontSize: '0.78rem',
+              color: 'var(--text-secondary)',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 8,
+              lineHeight: 1.5,
+            }}>
+              <Zap size={13} style={{ color: 'var(--plum-glow)', flexShrink: 0 }} />
+              <span>
+                <strong style={{ color: 'var(--text-primary)' }}>Budget Formula is locked.</strong>{' '}
+                You're using manual budgets for {viewMonthLabel}. To switch to a formula, delete your existing budgets first.
+              </span>
+            </div>
+          )}
 
           {visibleBudgets.length > 0 ? (
             <div className="budget-grid">
@@ -724,7 +776,15 @@ const Budgets = () => {
                 </p>
                 {viewMonth >= currentMonthKey && (
                   <div className="empty-state-actions">
-                    <button className="empty-action-btn" onClick={() => { const avail = Math.max(0, incomeForMonth(currentMonthKey) - allocatedForMonth(currentMonthKey)); setRuleIncome(avail > 0 ? avail.toFixed(0) : ''); setShowRuleModal(true); }}>
+                    <button
+                      className="empty-action-btn"
+                      onClick={() => { const avail = Math.max(0, incomeForMonth(currentMonthKey) - allocatedForMonth(currentMonthKey)); setRuleIncome(avail > 0 ? avail.toFixed(0) : ''); setShowRuleModal(true); }}
+                      disabled={hasManualBudgetsThisMonth}
+                      title={hasManualBudgetsThisMonth
+                        ? "You've already created budgets manually for this month. Delete them first to use the formula."
+                        : ""}
+                      style={hasManualBudgetsThisMonth ? { opacity: 0.5, cursor: 'not-allowed' } : {}}
+                    >
                       <Zap size={18} /> Use a Formula
                     </button>
                     <button className="empty-action-btn primary" onClick={() => { setFormData({ category: 'Food & Dining', allocated: '', month_year: viewMonth }); setFormErrors({}); setEditingBudget(null); setModalOpen(true); }}>
