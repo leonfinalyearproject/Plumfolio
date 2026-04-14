@@ -560,6 +560,39 @@ export function setReceiptDetectCategory(fn) {
   _receiptDetectCategory = fn;
 }
 
+/** Community layer: async function that asks Supabase for a crowd-learned category.
+ *  Injected by the consumer so this parser stays framework-agnostic. */
+let _communityLookup = null;
+export function setCommunityLookup(fn) {
+  _communityLookup = fn;
+}
+
+/** Bulk prefetch: given an array of descriptions, lets the consumer pre-fill
+ *  a map of {merchant → {category, confidence}} so we can do a sync lookup.
+ *  Caller injects the resolved map before calling smartCategorise. */
+let _communityMap = null;
+export function setCommunityMap(map) {
+  _communityMap = map;  // { normalisedMerchant: { category, confidence, votes } }
+}
+
+function normaliseForCommunity(s) {
+  if (!s) return '';
+  return String(s).toLowerCase()
+    .replace(/[0-9]+/g, ' ')
+    .replace(/[^a-z\s&-]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function categoriseFromCommunity(description) {
+  if (!description || !_communityMap) return null;
+  const key = normaliseForCommunity(description);
+  if (!key || key.length < 3) return null;
+  const hit = _communityMap[key];
+  if (!hit) return null;
+  return { category: hit.category, source: 'community', confidence: hit.confidence };
+}
+
 function categoriseFromMerchantDB(description) {
   if (!_receiptDetectCategory || !description) return null;
   try {
@@ -573,17 +606,21 @@ function categoriseFromMerchantDB(description) {
 
 /**
  * Full categorisation waterfall.
+ * Priority: history → keywords → community (crowd-learned) → merchant DB → null
  * @returns {{category, source, confidence} | null}
  */
 export function smartCategorise(description, historyIndex) {
   if (!description) return null;
-  // 1. User history
+  // 1. User's own history
   const fromHistory = categoriseFromHistory(description, historyIndex);
   if (fromHistory) return fromHistory;
-  // 2. Keywords (generic, merchant-agnostic)
+  // 2. Generic keywords
   const fromKeywords = categoriseFromKeywords(description);
   if (fromKeywords) return fromKeywords;
-  // 3. Merchant database
+  // 3. Community crowd-learned (requires _communityMap to be pre-populated)
+  const fromCommunity = categoriseFromCommunity(description);
+  if (fromCommunity) return fromCommunity;
+  // 4. Hardcoded merchant database fallback
   const fromMerchant = categoriseFromMerchantDB(description);
   if (fromMerchant) return fromMerchant;
   return null;
