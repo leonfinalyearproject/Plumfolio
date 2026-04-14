@@ -263,25 +263,65 @@ const Transactions = () => {
   };
 
   const scanReceipt = async () => {
-    if (!selectedFile || !window.Tesseract) return;
+    if (!preview || !window.Tesseract) return;
     setScanning(true); setScanError(''); setScanProgress(0); setScanStatus('Processing...');
     try {
-      const processedBlob = await processReceiptImage(selectedFile);
-      setScanStatus('Reading...'); setScanProgress(30);
-      const result = await window.Tesseract.recognize(processedBlob, 'eng', {
-        logger: (m) => { if (m.status === 'recognizing text') setScanProgress(30 + Math.round(m.progress * 60)); },
-      });
+      const processedVersions = await processReceiptImage(preview);
+      setScanStatus('Reading...'); setScanProgress(20);
+      
+      // Try each processed version and pick the one with best text extraction
+      let bestResult = null;
+      let bestParsed = null;
+      
+      for (let i = 0; i < processedVersions.length; i++) {
+        const version = processedVersions[i];
+        setScanStatus(`Reading (${version.label})...`);
+        setScanProgress(20 + Math.round((i / processedVersions.length) * 50));
+        
+        const result = await window.Tesseract.recognize(version.data, 'eng', {
+          logger: (m) => { 
+            if (m.status === 'recognizing text') {
+              const baseProgress = 20 + Math.round((i / processedVersions.length) * 50);
+              setScanProgress(baseProgress + Math.round(m.progress * (50 / processedVersions.length))); 
+            }
+          },
+        });
+        
+        const parsed = parseReceiptText(result.data.text);
+        
+        // Pick version that extracts a total (most important field)
+        if (parsed && parsed.total > 0) {
+          bestResult = result;
+          bestParsed = parsed;
+          break; // Found a good result, stop trying
+        } else if (!bestResult || (result.data.text.length > (bestResult?.data?.text?.length || 0))) {
+          bestResult = result;
+          bestParsed = parsed;
+        }
+      }
+      
       setScanProgress(95); setScanStatus('Extracting...');
-      const parsed = parseReceiptText(result.data.text);
-      if (parsed) {
+      
+      if (bestParsed && bestParsed.total > 0) {
         setExtractedData({
-          merchant: parsed.merchant || 'Unknown',
-          date: parsed.date || new Date().toISOString().split('T')[0],
-          total: parsed.total || 0,
-          category: parsed.category || 'Other',
+          merchant: bestParsed.merchant || 'Unknown',
+          date: bestParsed.date || new Date().toISOString().split('T')[0],
+          total: bestParsed.total || 0,
+          category: bestParsed.category || 'Other',
         });
         setScanSuccess('Receipt scanned!');
-      } else { setScanError('Could not extract data'); }
+      } else if (bestParsed) {
+        // Got some data but no total - let user fill it in
+        setExtractedData({
+          merchant: bestParsed.merchant || 'Unknown',
+          date: bestParsed.date || new Date().toISOString().split('T')[0],
+          total: 0,
+          category: bestParsed.category || 'Other',
+        });
+        setScanSuccess('Partial scan - please enter the total');
+      } else { 
+        setScanError('Could not extract data'); 
+      }
     } catch (err) { setScanError('Scan failed: ' + err.message); }
     finally { setScanning(false); setScanProgress(100); }
   };

@@ -34,7 +34,7 @@ import './Budgets.css';
 
 const Budgets = () => {
   const { formatCurrency } = useCurrency();
-  const { addToast, refreshInsights } = useInsights();
+  const { addToast, refreshInsights, monthlyIncome } = useInsights();
   const { user } = useAuth();
   const [budgets, setBudgets] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -130,13 +130,24 @@ const Budgets = () => {
         supabase.from('budgets').select('*').eq('user_id', user.id),
         supabase.from('transactions').select('*').eq('user_id', user.id).eq('type', 'expense'),
       ]);
-      const spentByCategory = (txnRes.data || []).reduce((acc, t) => {
-        acc[t.category] = (acc[t.category] || 0) + parseFloat(t.amount);
-        return acc;
-      }, {});
-      const budgetsWithSpent = (budgetsRes.data || []).map(b => ({
-        ...b, spent: calcSpent(b.category, spentByCategory),
-      }));
+      const allExpenses = txnRes.data || [];
+      
+      // Calculate spent per budget, filtered by that budget's month_year
+      const budgetsWithSpent = (budgetsRes.data || []).map(b => {
+        // Filter transactions to only those matching this budget's month
+        const monthExpenses = allExpenses.filter(t => {
+          const txnMonth = t.date ? t.date.slice(0, 7) : null; // Extract YYYY-MM from date
+          return txnMonth === b.month_year;
+        });
+        
+        // Build spending map for this month only
+        const spentByCategory = monthExpenses.reduce((acc, t) => {
+          acc[t.category] = (acc[t.category] || 0) + parseFloat(t.amount);
+          return acc;
+        }, {});
+        
+        return { ...b, spent: calcSpent(b.category, spentByCategory) };
+      });
       setBudgets(budgetsWithSpent);
     } catch (error) {
       console.error('Error:', error);
@@ -384,7 +395,7 @@ const Budgets = () => {
           <div className="budgets-header">
             <h2>Your Budgets</h2>
             <div className="budgets-header-actions">
-              <button className="rule-btn" onClick={() => setShowRuleModal(true)}>
+              <button className="rule-btn" onClick={() => { setRuleIncome(monthlyIncome > 0 ? monthlyIncome.toString() : ''); setShowRuleModal(true); }}>
                 <Zap size={16} /> Budget Formula
               </button>
               <button className="add-budget-btn" onClick={() => setModalOpen(true)}>
@@ -445,7 +456,7 @@ const Budgets = () => {
                 <h3>No budgets yet</h3>
                 <p>Set budgets to track spending, or use a formula to get started quickly</p>
                 <div className="empty-state-actions">
-                  <button className="empty-action-btn" onClick={() => setShowRuleModal(true)}>
+                  <button className="empty-action-btn" onClick={() => { setRuleIncome(monthlyIncome > 0 ? monthlyIncome.toString() : ''); setShowRuleModal(true); }}>
                     <Zap size={18} /> Use a Formula
                   </button>
                   <button className="empty-action-btn primary" onClick={() => setModalOpen(true)}>
@@ -696,6 +707,12 @@ const Budgets = () => {
             </div>
             <div className="modal-form">
               <p className="rule-desc">Choose a formula and enter your monthly income to auto-create budgets.</p>
+              {monthlyIncome > 0 && (
+                <div className="income-detected" style={{ background: 'rgba(34,197,94,0.1)', border: '1px solid rgba(34,197,94,0.3)', borderRadius: '8px', padding: '12px', marginBottom: '16px', fontSize: '13px', color: '#22c55e' }}>
+                  <CheckCircle size={14} style={{ marginRight: '6px', verticalAlign: 'middle' }} />
+                  Detected {formatCurrency(monthlyIncome)} income this month from your transactions
+                </div>
+              )}
               <div className="rule-options">
                 {budgetRules.map((rule, i) => (
                   <button key={i} type="button"
@@ -729,7 +746,7 @@ const Budgets = () => {
               </div>
               {selectedRule !== null && (
                 <div className="form-group">
-                  <label>Monthly Income (P)</label>
+                  <label>Monthly Income (P){monthlyIncome > 0 && <span style={{ fontWeight: 'normal', opacity: 0.7 }}> — pre-filled from transactions</span>}</label>
                   <input type="number" value={ruleIncome} onChange={e => setRuleIncome(e.target.value)} placeholder="Enter your monthly income" min="0" step="0.01" />
                 </div>
               )}
