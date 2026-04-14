@@ -42,8 +42,16 @@ const Transactions = () => {
   });
   const [formErrors, setFormErrors] = useState({});
 
-  // Start with all categories collapsed - will be populated after transactions load
-  const [collapsedCategories, setCollapsedCategories] = useState(new Set(categories));
+  // Categories list - defined before state that uses it
+  const categories = [
+    'Food & Dining', 'Transportation', 'Housing', 'Utilities',
+    'Entertainment', 'Shopping', 'Health & Fitness', 'Education',
+    'Groceries', 'Subscriptions', 'Savings', 'Investments',
+    'Gifts & Donations', 'Personal Care', 'Travel', 'Income', 'Other',
+  ];
+
+  // Start with all categories collapsed
+  const [collapsedCategories, setCollapsedCategories] = useState(() => new Set(categories));
 
   const [importModalOpen, setImportModalOpen] = useState(false);
   const [importData, setImportData] = useState(null);
@@ -64,13 +72,6 @@ const Transactions = () => {
   const [isMobile, setIsMobile] = useState(false);
   const fileInputRef = useRef(null);
   const cameraInputRef = useRef(null);
-
-  const categories = [
-    'Food & Dining', 'Transportation', 'Housing', 'Utilities',
-    'Entertainment', 'Shopping', 'Health & Fitness', 'Education',
-    'Groceries', 'Subscriptions', 'Savings', 'Investments',
-    'Gifts & Donations', 'Personal Care', 'Travel', 'Income', 'Other',
-  ];
 
   const categoryConfig = {
     'Food & Dining': { icon: Coffee, color: '#F59E0B', bg: 'rgba(245,158,11,0.1)' },
