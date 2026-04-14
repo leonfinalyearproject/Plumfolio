@@ -84,6 +84,11 @@ const Transactions = () => {
   const [scanSuccess, setScanSuccess] = useState('');
   const [tesseractReady, setTesseractReady] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
+  // AI scan credits — tracks how many Gemini calls the user has made today
+  // so we can show a "X of 50 remaining" badge + reset countdown.
+  // Tesseract scans don't count (they're free and unlimited).
+  const [aiScansToday, setAiScansToday] = useState(null); // null = loading
+  const AI_SCANS_PER_DAY = 50;
   const fileInputRef = useRef(null);
   const cameraInputRef = useRef(null);
 
@@ -154,6 +159,84 @@ const Transactions = () => {
     };
     fetchTransactions();
   }, [user]);
+
+  // =============================================================
+  // AI SCAN CREDITS — counts Gemini calls since the last Pacific
+  // midnight (when Google's free-tier quota resets). We refresh
+  // when the scanner opens and again after each successful AI scan.
+  // =============================================================
+  // Computes the ISO timestamp of the most recent midnight in Pacific time.
+  // Gemini quota resets at 00:00 US/Pacific. We convert that wall-clock
+  // moment to a UTC ISO string so our `gte(...)` SQL query is correct.
+  const lastPacificMidnightIso = () => {
+    // Pacific offset: -08:00 standard, -07:00 daylight. A robust way to
+    // find "today at midnight Pacific" is to use the Intl formatter with
+    // the America/Los_Angeles zone.
+    const now = new Date();
+    const fmt = new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'America/Los_Angeles',
+      year: 'numeric', month: '2-digit', day: '2-digit',
+    });
+    const pacificDate = fmt.format(now); // "2026-04-14"
+    // Parse "2026-04-14 00:00" as America/Los_Angeles, then get its UTC value.
+    // Trick: build an ISO string with the offset by round-tripping.
+    const probe = new Date(`${pacificDate}T00:00:00-08:00`); // works for PST
+    // If daylight saving is active, the above is 1h off. Correct by checking
+    // what time this probe prints in Pacific:
+    const probePac = new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'America/Los_Angeles',
+      hour: '2-digit', hourCycle: 'h23',
+    }).format(probe);
+    if (probePac !== '00') {
+      // probe reads as 01:00 Pacific, meaning we're in PDT (UTC-7).
+      return new Date(`${pacificDate}T00:00:00-07:00`).toISOString();
+    }
+    return probe.toISOString();
+  };
+
+  const fetchAiScansToday = async () => {
+    if (!user) return;
+    try {
+      const { count } = await supabase
+        .from('scan_usage')
+        .select('*', { count: 'exact', head: true })
+        .eq('user_id', user.id)
+        .gte('created_at', lastPacificMidnightIso());
+      setAiScansToday(count ?? 0);
+    } catch (e) {
+      console.warn('Could not fetch AI scan usage:', e?.message);
+      setAiScansToday(0); // fail-open: assume 0 used rather than blocking
+    }
+  };
+
+  // Refresh when the scanner modal opens
+  useEffect(() => {
+    if (scannerOpen) fetchAiScansToday();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [scannerOpen, user]);
+
+  // A ticker so the reset countdown updates every minute
+  const [nowTick, setNowTick] = useState(Date.now());
+  useEffect(() => {
+    if (!scannerOpen) return;
+    const id = setInterval(() => setNowTick(Date.now()), 60000);
+    return () => clearInterval(id);
+  }, [scannerOpen]);
+
+  // Time until next Pacific midnight, formatted "Xh Ym"
+  const resetCountdown = () => {
+    const next = new Date(lastPacificMidnightIso());
+    next.setUTCDate(next.getUTCDate() + 1);
+    const diffMs = next.getTime() - nowTick;
+    if (diffMs <= 0) return 'soon';
+    const hours = Math.floor(diffMs / 3_600_000);
+    const mins = Math.floor((diffMs % 3_600_000) / 60_000);
+    if (hours === 0) return `${mins}m`;
+    return `${hours}h ${mins}m`;
+  };
+
+  const aiScansRemaining = aiScansToday === null ? null : Math.max(0, AI_SCANS_PER_DAY - aiScansToday);
+
 
   const hasFilters = filter !== 'all' || categoryFilter !== 'all' || dateFrom || dateTo || searchQuery;
 
@@ -347,8 +430,10 @@ const Transactions = () => {
       // =======================================================
       // Route to Gemini for anything below 'high' — it's dramatically
       // better on crumpled / angled / faded receipts. Uses Supabase Edge
-      // Function so the API key stays server-side.
-      const shouldUseAI = !bestParsed || bestParsed.confidence !== 'high';
+      // Function so the API key stays server-side. Skipped entirely if
+      // the user has used all 50 of their daily AI credits.
+      const hasAiCredits = aiScansRemaining === null || aiScansRemaining > 0;
+      const shouldUseAI = (!bestParsed || bestParsed.confidence !== 'high') && hasAiCredits;
 
       if (shouldUseAI) {
         setScanStatus('Using AI for better accuracy...');
@@ -356,9 +441,11 @@ const Transactions = () => {
         try {
           // Extract base64 payload from the data URL preview
           // Downscale the image before sending. Gemini doesn't need a 4k
-          // photo to read a receipt — 1200px on the long edge is more than
-          // enough, and it avoids 502 Bad Gateway errors from oversized
-          // payloads. JPEG quality 0.85 keeps text crisp.
+          // photo to read a receipt, but we DO need enough resolution to
+          // keep tiny receipt text legible — especially on phone photos
+          // taken at an angle or under poor lighting. 1600px on the long
+          // edge at JPEG quality 0.92 is the sweet spot: small enough to
+          // upload fast, large enough that total/date text stays crisp.
           //
           // Using document.createElement('img') instead of `new Image()`
           // because the minified production build was clashing `Image` with
@@ -366,15 +453,19 @@ const Transactions = () => {
           const downscaled = await new Promise((resolve, reject) => {
             const img = document.createElement('img');
             img.onload = () => {
-              const MAX = 1200;
+              const MAX = 1600;
               const ratio = Math.min(MAX / img.width, MAX / img.height, 1);
               const w = Math.round(img.width * ratio);
               const h = Math.round(img.height * ratio);
               const canvas = document.createElement('canvas');
               canvas.width = w; canvas.height = h;
               const ctx = canvas.getContext('2d');
+              // High-quality resampling (default on modern Chrome/Safari
+              // but setting explicitly for safety)
+              ctx.imageSmoothingEnabled = true;
+              ctx.imageSmoothingQuality = 'high';
               ctx.drawImage(img, 0, 0, w, h);
-              resolve(canvas.toDataURL('image/jpeg', 0.85));
+              resolve(canvas.toDataURL('image/jpeg', 0.92));
             };
             img.onerror = () => reject(new Error('Image load failed'));
             img.src = preview;
@@ -432,6 +523,9 @@ const Transactions = () => {
           // whatever Tesseract extracted.
           console.warn('AI scan failed, using local result:', aiErr.message);
         }
+        // Refresh the credits badge after any AI attempt — successful or not,
+        // a row was logged in scan_usage so the count went up by 1.
+        fetchAiScansToday();
         setScanProgress(90);
       }
 
@@ -740,13 +834,47 @@ const Transactions = () => {
           {searchQuery && <button onClick={() => setSearchQuery('')}><X size={14} /></button>}
         </div>
         <div className="tx-btns">
-          <button className={`tx-btn ${showFilters ? 'on' : ''}`} onClick={() => setShowFilters(!showFilters)}>
+          <button
+            className={`tx-btn ${showFilters ? 'on' : ''}`}
+            onClick={() => setShowFilters(!showFilters)}
+            title={showFilters ? 'Hide filters' : 'Show filters'}
+            aria-label="Toggle filters"
+          >
             <Filter size={16} />{hasFilters && <span className="dot" />}
           </button>
-          <button className="tx-btn" onClick={() => xlsxInputRef.current?.click()}><Upload size={16} /></button>
-          <button className="tx-btn" onClick={exportCSV} disabled={filtered.length === 0}><Download size={16} /></button>
-          <button className="tx-btn scan" onClick={openScanner}><ScanLine size={16} /></button>
-          <button className="tx-btn add" onClick={() => setModalOpen(true)}><Plus size={18} /></button>
+          <button
+            className="tx-btn"
+            onClick={() => xlsxInputRef.current?.click()}
+            title="Import from Excel/CSV"
+            aria-label="Import transactions"
+          >
+            <Upload size={16} />
+          </button>
+          <button
+            className="tx-btn"
+            onClick={exportCSV}
+            disabled={filtered.length === 0}
+            title="Export to CSV"
+            aria-label="Export transactions"
+          >
+            <Download size={16} />
+          </button>
+          <button
+            className="tx-btn scan"
+            onClick={openScanner}
+            title="Scan a receipt"
+            aria-label="Scan receipt"
+          >
+            <ScanLine size={16} />
+          </button>
+          <button
+            className="tx-btn add"
+            onClick={() => setModalOpen(true)}
+            title="Add a new transaction"
+            aria-label="Add transaction"
+          >
+            <Plus size={18} />
+          </button>
         </div>
         <input ref={xlsxInputRef} type="file" accept=".xlsx,.xls,.csv" onChange={handleXLSXFile} hidden />
       </div>
@@ -942,6 +1070,42 @@ const Transactions = () => {
               <button onClick={closeScanner}><X size={20} /></button>
             </div>
             <div className="tx-scanner-body">
+              {/* AI credits badge — shows how many Gemini scans the user has
+                  left today and when the quota resets. Tesseract is free and
+                  unlimited, so we only count AI calls. */}
+              {aiScansToday !== null && (
+                <div style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  gap: 10,
+                  padding: '8px 12px',
+                  marginBottom: 10,
+                  borderRadius: 8,
+                  fontSize: '0.78rem',
+                  background: aiScansRemaining === 0 ? 'rgba(239,68,68,0.08)'
+                              : aiScansRemaining <= 10 ? 'rgba(245,158,11,0.08)'
+                              : 'rgba(168,85,247,0.06)',
+                  border: `1px solid ${aiScansRemaining === 0 ? 'rgba(239,68,68,0.25)'
+                              : aiScansRemaining <= 10 ? 'rgba(245,158,11,0.25)'
+                              : 'rgba(168,85,247,0.18)'}`,
+                  color: aiScansRemaining === 0 ? '#EF4444'
+                              : aiScansRemaining <= 10 ? '#F59E0B'
+                              : 'var(--text-secondary)',
+                }}>
+                  <span>
+                    {aiScansRemaining === 0 ? (
+                      <>Out of AI scans · local-only mode</>
+                    ) : (
+                      <><strong style={{ color: 'var(--text-primary)' }}>{aiScansRemaining}</strong> of {AI_SCANS_PER_DAY} AI scans left today</>
+                    )}
+                  </span>
+                  <span style={{ fontSize: '0.7rem', opacity: 0.85 }}>
+                    Resets in {resetCountdown()}
+                  </span>
+                </div>
+              )}
+
               {scanSuccess && <div className="tx-msg success"><Check size={16} />{scanSuccess}</div>}
               {scanError && <div className="tx-msg error"><AlertCircle size={16} />{scanError}</div>}
               

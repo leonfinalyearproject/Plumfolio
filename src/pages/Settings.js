@@ -1,10 +1,10 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useCurrency, CURRENCIES } from '../context/CurrencyContext';
 import { useInsights } from '../context/InsightsContext';
 import { supabase } from '../lib/supabase';
 import { validateFullName, validateEmail } from '../utils/validation';
-import { User, Mail, Lock, Shield, Trash2, Save, Globe, Check, Search, KeyRound } from 'lucide-react';
+import { User, Mail, Lock, Shield, Trash2, Save, Globe, Check, Search, KeyRound, Activity, ScanLine } from 'lucide-react';
 import './Settings.css';
 
 const Settings = () => {
@@ -24,6 +24,74 @@ const Settings = () => {
   const [switchingTo, setSwitchingTo] = useState(null);
   const [message, setMessage] = useState({ type: '', text: '' });
   const [resetSent, setResetSent] = useState(false);
+
+  // AI scan usage — mirror of the logic in Transactions.js. We query
+  // scan_usage directly (RLS already restricts to the current user) and
+  // compute hours remaining until the next Pacific-midnight quota reset.
+  const AI_SCANS_PER_DAY = 50;
+  const [aiScansToday, setAiScansToday] = useState(null);
+  const [recentScans, setRecentScans] = useState([]);
+  const [nowTick, setNowTick] = useState(Date.now());
+
+  const lastPacificMidnightIso = () => {
+    const now = new Date();
+    const pacificDate = new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'America/Los_Angeles',
+      year: 'numeric', month: '2-digit', day: '2-digit',
+    }).format(now);
+    const probe = new Date(`${pacificDate}T00:00:00-08:00`);
+    const probeHour = new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'America/Los_Angeles',
+      hour: '2-digit', hourCycle: 'h23',
+    }).format(probe);
+    if (probeHour !== '00') {
+      return new Date(`${pacificDate}T00:00:00-07:00`).toISOString();
+    }
+    return probe.toISOString();
+  };
+
+  const resetCountdown = () => {
+    const next = new Date(lastPacificMidnightIso());
+    next.setUTCDate(next.getUTCDate() + 1);
+    const diffMs = next.getTime() - nowTick;
+    if (diffMs <= 0) return 'soon';
+    const hours = Math.floor(diffMs / 3_600_000);
+    const mins = Math.floor((diffMs % 3_600_000) / 60_000);
+    if (hours === 0) return `${mins}m`;
+    return `${hours}h ${mins}m`;
+  };
+
+  useEffect(() => {
+    if (activeTab !== 'usage' || !user) return;
+    const fetch = async () => {
+      try {
+        const midnight = lastPacificMidnightIso();
+        const { count } = await supabase
+          .from('scan_usage')
+          .select('*', { count: 'exact', head: true })
+          .eq('user_id', user.id)
+          .gte('created_at', midnight);
+        setAiScansToday(count ?? 0);
+        const { data } = await supabase
+          .from('scan_usage')
+          .select('created_at, confidence, succeeded')
+          .eq('user_id', user.id)
+          .order('created_at', { ascending: false })
+          .limit(10);
+        setRecentScans(data || []);
+      } catch (e) {
+        console.warn('Failed to load scan usage:', e?.message);
+        setAiScansToday(0);
+      }
+    };
+    fetch();
+    const id = setInterval(() => setNowTick(Date.now()), 60000);
+    return () => clearInterval(id);
+  }, [activeTab, user]);
+
+  const aiScansRemaining = aiScansToday === null ? null : Math.max(0, AI_SCANS_PER_DAY - aiScansToday);
+  const usagePct = aiScansToday === null ? 0 : Math.min(100, (aiScansToday / AI_SCANS_PER_DAY) * 100);
+
 
   const showMessage = (type, text) => {
     setMessage({ type, text });
@@ -106,6 +174,7 @@ const Settings = () => {
   const tabs = [
     { id: 'profile', label: 'Profile', icon: User },
     { id: 'currency', label: 'Currency', icon: Globe },
+    { id: 'usage', label: 'Usage', icon: Activity },
     { id: 'security', label: 'Security', icon: Shield },
   ];
 
@@ -213,6 +282,114 @@ const Settings = () => {
               <div className="currency-group">
                 {!currencySearch && <div className="currency-group-label">International</div>}
                 <div className="currency-list">{internationalList.map(renderCurrencyItem)}</div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* USAGE — AI scan credits tracker */}
+        {activeTab === 'usage' && (
+          <div className="settings-section">
+            <div className="section-header">
+              <h2>AI Scan Credits</h2>
+              <p>Plumfolio uses Google's Gemini AI to read tricky receipts. You get 50 AI scans per day — regular (Tesseract) scanning is always unlimited and free.</p>
+            </div>
+
+            {aiScansToday === null ? (
+              <div style={{ color: 'var(--text-secondary)', padding: 16 }}>Loading usage…</div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
+                {/* Big credit counter */}
+                <div style={{
+                  background: aiScansRemaining === 0 ? 'rgba(239,68,68,0.08)'
+                              : aiScansRemaining <= 10 ? 'rgba(245,158,11,0.08)'
+                              : 'rgba(168,85,247,0.06)',
+                  border: `1px solid ${aiScansRemaining === 0 ? 'rgba(239,68,68,0.25)'
+                              : aiScansRemaining <= 10 ? 'rgba(245,158,11,0.25)'
+                              : 'rgba(168,85,247,0.18)'}`,
+                  borderRadius: 12,
+                  padding: '18px 20px',
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 10, flexWrap: 'wrap', gap: 8 }}>
+                    <div>
+                      <div style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 2 }}>
+                        AI Scans Remaining Today
+                      </div>
+                      <div style={{ fontSize: '1.8rem', fontWeight: 700, color: aiScansRemaining === 0 ? '#EF4444' : aiScansRemaining <= 10 ? '#F59E0B' : 'var(--text-primary)' }}>
+                        {aiScansRemaining} <span style={{ fontSize: '1rem', fontWeight: 400, color: 'var(--text-muted)' }}>of {AI_SCANS_PER_DAY}</span>
+                      </div>
+                    </div>
+                    <div style={{ textAlign: 'right', fontSize: '0.78rem', color: 'var(--text-secondary)' }}>
+                      <div>Resets in <strong style={{ color: 'var(--text-primary)' }}>{resetCountdown()}</strong></div>
+                      <div style={{ fontSize: '0.7rem', opacity: 0.7, marginTop: 2 }}>Midnight Pacific time</div>
+                    </div>
+                  </div>
+
+                  {/* Progress bar */}
+                  <div style={{ height: 6, borderRadius: 3, background: 'rgba(255,255,255,0.06)', overflow: 'hidden' }}>
+                    <div style={{
+                      width: `${usagePct}%`,
+                      height: '100%',
+                      background: aiScansRemaining === 0 ? '#EF4444' : aiScansRemaining <= 10 ? '#F59E0B' : '#A855F7',
+                      transition: 'width 400ms ease',
+                    }} />
+                  </div>
+                  <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: 6 }}>
+                    Used {aiScansToday} today
+                  </div>
+                </div>
+
+                {/* How it works explainer */}
+                <div style={{
+                  border: '1px solid var(--border-color)',
+                  borderRadius: 12,
+                  padding: '14px 18px',
+                  fontSize: '0.82rem',
+                  color: 'var(--text-secondary)',
+                  lineHeight: 1.6,
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8, color: 'var(--text-primary)', fontWeight: 600 }}>
+                    <ScanLine size={15} /> How scanning works
+                  </div>
+                  Every receipt you scan is first processed locally on your device with Tesseract OCR — that's fast, free, and doesn't count toward any limit. If the local scan can't read the receipt confidently (crumpled, angled, faded), Plumfolio automatically falls back to Gemini AI for better accuracy. Only the AI fallback counts as a credit. When you're out of AI credits, scanning still works — it just uses local OCR only.
+                </div>
+
+                {/* Recent scans list */}
+                {recentScans.length > 0 && (
+                  <div>
+                    <div style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 8 }}>
+                      Recent AI scans
+                    </div>
+                    <div style={{ border: '1px solid var(--border-color)', borderRadius: 10, overflow: 'hidden' }}>
+                      {recentScans.map((s, i) => {
+                        const dt = new Date(s.created_at);
+                        const when = dt.toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+                        const confColor = s.confidence === 'high' ? '#22C55E' : s.confidence === 'medium' ? '#F59E0B' : s.confidence === 'low' ? '#F59E0B' : '#9CA3AF';
+                        return (
+                          <div key={i} style={{
+                            display: 'flex',
+                            justifyContent: 'space-between',
+                            alignItems: 'center',
+                            padding: '10px 14px',
+                            borderTop: i === 0 ? 'none' : '1px solid var(--border-color)',
+                            fontSize: '0.8rem',
+                          }}>
+                            <span style={{ color: 'var(--text-secondary)' }}>{when}</span>
+                            <span style={{
+                              color: confColor,
+                              fontSize: '0.72rem',
+                              textTransform: 'uppercase',
+                              letterSpacing: '0.04em',
+                              fontWeight: 600,
+                            }}>
+                              {s.confidence || 'unknown'}
+                            </span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
               </div>
             )}
           </div>
