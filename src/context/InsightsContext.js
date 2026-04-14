@@ -19,6 +19,8 @@ export const useInsights = () => {
       toasts: [],
       loading: true,
       monthlyIncome: 0,
+      typicalMonthlyIncome: 0,
+      incomeBreakdown: { last3Months: [], monthsUsed: 0, confidence: 'low' },
       currentMonthKey: '',
       refreshInsights: () => {},
       dismissToast: () => {},
@@ -36,6 +38,8 @@ export const InsightsProvider = ({ children }) => {
   const [predictions, setPredictions] = useState(null);
   const [crossSignals, setCrossSignals] = useState([]);
   const [monthlyIncome, setMonthlyIncome] = useState(0);
+  const [typicalMonthlyIncome, setTypicalMonthlyIncome] = useState(0);
+  const [incomeBreakdown, setIncomeBreakdown] = useState({ last3Months: [], monthsUsed: 0, confidence: 'low' });
   const [currentMonthKey, setCurrentMonthKey] = useState(() => {
     const now = new Date();
     return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
@@ -100,19 +104,42 @@ export const InsightsProvider = ({ children }) => {
       setBudgets(budgs);
       setGoals(gls);
 
-      // Calculate current month's income from transactions
+      // --- Income calculations (separated for clarity) ---
+      // Three different concepts the UI consumes:
+      //   1. currentMonthIncome   — what you've earned THIS month so far (partial)
+      //   2. typicalMonthlyIncome — average of your last 3 COMPLETE months
+      //                             (stable anchor for forward-looking budgets)
+      //   3. incomeBreakdown      — the 3 months that went into the average,
+      //                             so we can show the user where the number came from
       const now = new Date();
       const monthKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
       setCurrentMonthKey(monthKey);
-      
-      const currentMonthIncome = txns
-        .filter(t => {
-          if (t.type !== 'income') return false;
-          const txnMonth = t.date ? t.date.slice(0, 7) : null;
-          return txnMonth === monthKey;
-        })
+
+      const sumIncomeForMonth = (key) => txns
+        .filter(t => t.type === 'income' && (t.date || '').slice(0, 7) === key)
         .reduce((sum, t) => sum + Math.abs(parseFloat(t.amount)), 0);
+
+      const currentMonthIncome = sumIncomeForMonth(monthKey);
       setMonthlyIncome(currentMonthIncome);
+
+      // Last 3 COMPLETE months (excluding the current partial one)
+      const last3Months = [];
+      for (let i = 1; i <= 3; i++) {
+        const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+        const k = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+        const income = sumIncomeForMonth(k);
+        last3Months.push({ monthKey: k, income });
+      }
+      const monthsWithIncome = last3Months.filter(m => m.income > 0);
+      const typicalMonthlyIncome = monthsWithIncome.length > 0
+        ? monthsWithIncome.reduce((s, m) => s + m.income, 0) / monthsWithIncome.length
+        : currentMonthIncome;  // fallback: new user, use whatever's there
+      setTypicalMonthlyIncome(typicalMonthlyIncome);
+      setIncomeBreakdown({
+        last3Months,
+        monthsUsed: monthsWithIncome.length,
+        confidence: monthsWithIncome.length >= 3 ? 'high' : monthsWithIncome.length >= 1 ? 'medium' : 'low',
+      });
 
       // Run AI engines
       const newInsights = generateInsights(txns, gls);
@@ -137,7 +164,7 @@ export const InsightsProvider = ({ children }) => {
                      insight.type === 'goal_deadline_soon' ? 'Goal Deadline Approaching' :
                      insight.type === 'goal_behind_pace' ? 'Savings Pace Alert' :
                      insight.type === 'goal_completed' ? 'Goal Reached!' :
-                     'AI Insight',
+                     'Forecast Insight',
               message: insight.message,
               severity: insight.severity,
             }]);
@@ -264,6 +291,8 @@ export const InsightsProvider = ({ children }) => {
     toasts,
     loading,
     monthlyIncome,
+    typicalMonthlyIncome,
+    incomeBreakdown,
     currentMonthKey,
     refreshInsights,
     dismissToast,
