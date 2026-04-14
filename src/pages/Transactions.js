@@ -9,6 +9,7 @@ import processReceiptImage from '../utils/imageProcessor';
 import { validateTransactionForm } from '../utils/validation';
 import {
   parseImportRows, SAMPLE_TEMPLATE_ROWS, buildHistoryIndex, setReceiptDetectCategory, smartCategorise,
+  setCommunityMap,
 } from '../utils/importParser';
 
 // Inject the merchant database as the cold-start fallback for import categorisation
@@ -220,6 +221,10 @@ const Transactions = () => {
       const wasEdit = !!editingTransaction;
       if (editingTransaction) await supabase.from('transactions').update(p).eq('id', editingTransaction.id);
       else await supabase.from('transactions').insert({ ...p, user_id: user.id });
+      // Contribute a community vote (privacy filters applied server-side)
+      if (p.description && p.category && p.category !== 'Other') {
+        contributeCommunityVote(p.description, p.category);
+      }
       setModalOpen(false); setEditingTransaction(null);
       setFormData({ type: 'expense', amount: '', description: '', category: 'Food & Dining', date: new Date().toISOString().split('T')[0] });
       fetchTransactions();
@@ -390,11 +395,66 @@ const Transactions = () => {
     e.target.value = '';
   };
 
+  // ========== COMMUNITY LEARNING HELPERS ==========
+  // Normalise a merchant string the same way the SQL function does.
+  const normaliseMerchantToken = (s) => {
+    if (!s) return '';
+    return String(s).toLowerCase()
+      .replace(/[0-9]+/g, ' ')
+      .replace(/[^a-z\s&-]/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+  };
+
+  // Ask Supabase for crowd-learned categories. Builds a lookup map keyed by normalised merchant.
+  // Fails silently if the DB function isn't available yet (e.g. migration not run).
+  const prefetchCommunityCategories = async (descriptions) => {
+    const map = {};
+    const unique = [...new Set(
+      descriptions.map(normaliseMerchantToken).filter(t => t.length >= 3)
+    )];
+    if (unique.length === 0) { setCommunityMap(map); return map; }
+    // Fire in parallel, cap concurrency to 10
+    const lookup = async (token) => {
+      try {
+        const { data, error } = await supabase.rpc('lookup_merchant_category', { raw_merchant: token });
+        if (!error && data && data.length > 0) {
+          map[token] = { category: data[0].category, confidence: parseFloat(data[0].confidence), votes: data[0].votes };
+        }
+      } catch (e) { /* silently ignore — migration may not be applied */ }
+    };
+    const chunks = [];
+    for (let i = 0; i < unique.length; i += 10) chunks.push(unique.slice(i, i + 10));
+    for (const chunk of chunks) {
+      await Promise.all(chunk.map(lookup));
+    }
+    setCommunityMap(map);
+    return map;
+  };
+
+  // Cast one vote for a merchant → category pairing. Fires and forgets.
+  const contributeCommunityVote = (merchant, category) => {
+    if (!merchant || !category) return;
+    try {
+      supabase.rpc('vote_for_merchant_category', {
+        raw_merchant: merchant,
+        raw_category: category,
+      }).catch(() => { /* ignore */ });
+    } catch (e) { /* ignore */ }
+  };
+
   // ========== SHARED: parse + open review modal ==========
-  const processImportRows = (rawRows, source) => {
+  const processImportRows = async (rawRows, source) => {
     // Build a learning index from the user's existing transactions so we can
     // auto-categorise new descriptions based on past behaviour.
     const historyIndex = buildHistoryIndex(transactions);
+
+    // Prefetch crowd-learned categories from the DB so smartCategorise can use them synchronously.
+    const descriptions = rawRows.map(r => {
+      // Pull the description from whatever column the parser will detect
+      return Object.values(r).find(v => typeof v === 'string' && v.length >= 3) || '';
+    });
+    await prefetchCommunityCategories(descriptions);
 
     const result = parseImportRows(rawRows, categories, historyIndex);
     setImportData(result.rows);
@@ -490,6 +550,13 @@ const Transactions = () => {
         };
       });
       await supabase.from('transactions').insert(inserts);
+      // Contribute community votes for each merchant the user accepted/edited.
+      // This is async but we don't await — fire and forget, no blocking the UI.
+      inserts.forEach(t => {
+        if (t.description && t.category && t.category !== 'Other') {
+          contributeCommunityVote(t.description, t.category);
+        }
+      });
       if (addToast) addToast({ type: 'success', title: 'Import Complete', message: `${inserts.length} transactions imported.` });
       setImportModalOpen(false); setImportData(null); setImportPreview([]);
       setImportStats(null); setImportErrors([]); setImportWarnings([]); setImportDetected({});
@@ -546,14 +613,15 @@ const Transactions = () => {
       if (!parsed) { setScanError('Could not extract details.'); return; }
 
       // Apply the same smart categorisation waterfall as the import feature:
-      // 1) user history (learns YOUR merchants)  2) generic keywords  3) merchant DB (already in parsed.category)
-      // If the receipt parser already got a good category, keep it. Only try to improve on "Other".
+      // 1) user history  2) generic keywords  3) community crowd-learned  4) merchant DB
       const historyIndex = buildHistoryIndex(transactions);
       const descForCategorisation = `${parsed.merchant || ''} ${parsed.rawText || ''}`.trim();
+      // Prefetch community data for this merchant before running the waterfall
+      await prefetchCommunityCategories([descForCategorisation]);
       const smart = smartCategorise(descForCategorisation, historyIndex);
       if (smart && categories.includes(smart.category)) {
-        // History-based match always wins (user's own labelling is most reliable)
-        if (smart.source.startsWith('history') || !parsed.category || parsed.category === 'Other') {
+        // History/community wins (users' real labels beat any heuristic)
+        if (smart.source.startsWith('history') || smart.source === 'community' || !parsed.category || parsed.category === 'Other') {
           parsed.category = smart.category;
           parsed._categorySource = smart.source;
         }
@@ -567,6 +635,10 @@ const Transactions = () => {
   const saveScanned = async () => {
     if (!extractedData || !user || extractedData.total <= 0) return;
     await supabase.from('transactions').insert({ user_id: user.id, type: 'expense', amount: extractedData.total, category: extractedData.category, description: extractedData.merchant, date: extractedData.date });
+    // Contribute community vote for this merchant → category pairing
+    if (extractedData.merchant && extractedData.category && extractedData.category !== 'Other') {
+      contributeCommunityVote(extractedData.merchant, extractedData.category);
+    }
     setScanSuccess('Saved!'); fetchTransactions();
     if (addToast) addToast({
       type: 'success',
@@ -965,6 +1037,9 @@ const Transactions = () => {
                                   )}
                                   {r._categorySource === 'keyword' && (
                                     <span className="import-cat-badge badge-keyword" title="Detected from description keywords">✨ auto</span>
+                                  )}
+                                  {r._categorySource === 'community' && (
+                                    <span className="import-cat-badge badge-community" title="Crowd-learned from other Plumfolio users">👥 community</span>
                                   )}
                                   {r._categorySource === 'merchant-db' && (
                                     <span className="import-cat-badge badge-merchant" title="Matched against known merchants">🏷 known</span>
