@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
+import ReactDOM from 'react-dom';
 import { useAuth } from '../context/AuthContext';
 import { supabase } from '../lib/supabase';
 import { useCurrency, CURRENCIES } from '../context/CurrencyContext';
@@ -876,8 +877,8 @@ const Transactions = () => {
         <button className="fab fab-add" onClick={() => setModalOpen(true)}><Plus size={24} /></button>
       </div>
 
-      {/* Add/Edit Modal */}
-      {modalOpen && (
+      {/* Add/Edit Modal - rendered via Portal */}
+      {modalOpen && ReactDOM.createPortal(
         <div className="modal-overlay" onClick={() => { setModalOpen(false); setEditingTransaction(null); setFormErrors({}); }}>
           <div className="modal" onClick={e => e.stopPropagation()}>
             <div className="modal-header"><h2>{editingTransaction ? 'Edit' : 'Add'} Transaction</h2><button className="modal-close" onClick={() => { setModalOpen(false); setEditingTransaction(null); setFormErrors({}); }}><X size={20} /></button></div>
@@ -909,11 +910,12 @@ const Transactions = () => {
               <button type="submit" className="submit-btn">{editingTransaction ? 'Save Changes' : 'Add Transaction'}</button>
             </form>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
-      {/* Import Modal */}
-      {importModalOpen && (
+      {/* Import Modal - rendered via Portal */}
+      {importModalOpen && ReactDOM.createPortal(
         <div className="modal-overlay" onClick={() => setImportModalOpen(false)}>
           <div className="modal import-modal" onClick={e => e.stopPropagation()}>
             <div className="modal-header">
@@ -1150,11 +1152,12 @@ const Transactions = () => {
               )}
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
-      {/* Scanner Modal */}
-      {scannerOpen && (
+      {/* Scanner Modal - rendered via Portal to escape overflow containers */}
+      {scannerOpen && ReactDOM.createPortal(
         <div className="modal-overlay" onClick={closeScanner}><div className="modal scanner-modal" onClick={e => e.stopPropagation()}>
           <div className="modal-header"><div className="scanner-modal-title"><ScanLine size={20} /><h2>Scan Receipt</h2></div><button className="modal-close" onClick={closeScanner}><X size={20} /></button></div>
           <div className="scanner-modal-body">
@@ -1178,7 +1181,8 @@ const Transactions = () => {
               <div className="scan-result-actions"><button className="scan-save-btn" onClick={saveScanned}><Plus size={16} /> Save</button><button className="scan-retry-btn" onClick={resetScanner}>Try Another</button></div>
             </div>}
           </div>
-        </div></div>
+        </div></div>,
+        document.body
       )}
     </div>
   );
