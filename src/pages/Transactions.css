@@ -219,6 +219,35 @@
 .import-currency-choice-title { font-size: 0.85rem; font-weight: 600; color: var(--text-primary); }
 .import-currency-choice-desc { font-size: 0.75rem; color: var(--text-muted); margin-top: 2px; }
 .import-currency-loading { display: flex; align-items: center; gap: 6px; font-size: 0.78rem; color: var(--text-dim); }
+
+/* Info variant: no currency symbols in file — user confirms which currency */
+.import-currency-banner-info {
+  background: rgba(59, 130, 246, 0.06);
+  border-color: rgba(59, 130, 246, 0.2);
+}
+.import-currency-banner-info .import-currency-banner-title { color: #60a5fa; }
+.import-currency-banner-info .import-currency-banner-title strong { color: #93c5fd; }
+.import-currency-assume-row {
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  font-size: 0.82rem; color: var(--text-muted);
+}
+.import-currency-assume-row label { font-weight: 500; }
+.import-currency-select {
+  padding: 6px 10px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  color: var(--text-primary);
+  font-size: 0.82rem;
+  cursor: pointer;
+  min-width: 200px;
+}
+.import-currency-select:focus { outline: none; border-color: rgba(168,85,247,0.4); }
+.import-currency-rate-hint {
+  font-size: 0.78rem;
+  color: var(--text-dim);
+  font-style: italic;
+}
 @media (max-width: 520px) {
   .import-currency-choices { grid-template-columns: 1fr; }
 }

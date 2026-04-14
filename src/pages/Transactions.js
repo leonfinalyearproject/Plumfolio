@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { supabase } from '../lib/supabase';
-import { useCurrency } from '../context/CurrencyContext';
+import { useCurrency, CURRENCIES } from '../context/CurrencyContext';
 import { useInsights } from '../context/InsightsContext';
 import { parseReceiptText } from '../utils/receiptParser';
 import { detectCategory as receiptDetectCategory } from '../utils/receiptParser';
@@ -405,16 +405,22 @@ const Transactions = () => {
     setImportDetected(result.detected || {});
     setImportCurrency(result.currency || null);
 
-    // Work out the default choice
-    // - If no currency detected OR matches the user's display currency → no conversion needed
-    // - If file currency differs from user's currency → default to "convert"
+    // Work out the default choice based on three states:
+    //  A) file currency detected AND matches account → no action needed
+    //  B) file currency detected AND differs from account → default to CONVERT
+    //  C) no currency detected → ASSUME the numbers are in the user's account currency,
+    //     but show a banner so the user can override (import-assume state)
     const detectedCode = result.currency?.code;
     const userCode = currencyCode || 'BWP';
-    if (!detectedCode || detectedCode === userCode) {
+    if (detectedCode && detectedCode === userCode) {
+      // A: silent default, no banner
       setImportCurrencyChoice({ action: 'store-as-is', sourceCode: userCode });
-    } else {
-      // Default to convert from detected → BWP (storage unit)
+    } else if (detectedCode) {
+      // B: detected a different currency, default to convert
       setImportCurrencyChoice({ action: 'convert', sourceCode: detectedCode });
+    } else {
+      // C: unknown currency — assume user's account currency, let them change it
+      setImportCurrencyChoice({ action: 'assume', sourceCode: userCode });
     }
 
     setImportSource(source);
@@ -462,17 +468,20 @@ const Transactions = () => {
     if (!importData || importData.length === 0 || !user) return;
     setImporting(true);
     try {
-      // Decide how to convert each row's amount into BWP (storage unit)
-      // - 'store-as-is': file is already in BWP, use amount directly
-      // - 'convert': file is in some other currency; divide by BWP→X rate (via convertToBwp)
+      // Decide how to convert each row's amount into BWP (storage unit):
+      //  - 'store-as-is' → assume BWP already; use amount directly
+      //  - 'convert'     → file is in a known non-BWP currency; use live rates
+      //  - 'assume'      → file had no symbols; treat all numbers as `choice.sourceCode`
+      //                    (which the user may have changed via the dropdown)
       const choice = importCurrencyChoice || { action: 'store-as-is', sourceCode: 'BWP' };
       const inserts = importData.map(r => {
         let bwpAmount = r.amount;
         if (choice.action === 'convert') {
-          // Each row may declare its own currency (_sourceCurrency). If yes, use it.
-          // Otherwise assume the user-chosen sourceCode applies to the whole file.
           const rowCode = r._sourceCurrency || choice.sourceCode;
           bwpAmount = convertToBwp(r.amount, rowCode);
+        } else if (choice.action === 'assume') {
+          // Treat the entire file as the chosen source currency
+          bwpAmount = convertToBwp(r.amount, choice.sourceCode);
         }
         return {
           user_id: user.id, date: r.date, description: r.description,
@@ -832,7 +841,7 @@ const Transactions = () => {
                     </details>
                   )}
 
-                  {/* Currency banner */}
+                  {/* Currency banner: detected file currency differs from account */}
                   {importCurrency && importCurrency.code && importCurrency.code !== (currencyCode || 'BWP') && (
                     <div className="import-currency-banner">
                       <div className="import-currency-banner-title">
@@ -871,6 +880,38 @@ const Transactions = () => {
                       {!ratesLoaded && importCurrencyChoice?.action === 'convert' && (
                         <div className="import-currency-loading"><Loader size={12} className="spin" /> Loading exchange rates…</div>
                       )}
+                    </div>
+                  )}
+
+                  {/* Currency banner: no currency detected in file — ask user to confirm */}
+                  {importCurrency && !importCurrency.code && importCurrencyChoice?.action === 'assume' && (
+                    <div className="import-currency-banner import-currency-banner-info">
+                      <div className="import-currency-banner-title">
+                        <AlertCircle size={16} />
+                        No currency symbols were found in this file. We'll treat the numbers as <strong>{importCurrencyChoice.sourceCode}</strong> (your account currency). Change this if the file is actually in a different currency.
+                      </div>
+                      <div className="import-currency-assume-row">
+                        <label>File currency:</label>
+                        <select
+                          value={importCurrencyChoice.sourceCode}
+                          onChange={e => setImportCurrencyChoice({
+                            action: 'assume',
+                            sourceCode: e.target.value,
+                          })}
+                          className="import-currency-select"
+                        >
+                          {CURRENCIES.map(c => (
+                            <option key={c.code} value={c.code}>
+                              {c.flag} {c.code} — {c.name}
+                            </option>
+                          ))}
+                        </select>
+                        {importCurrencyChoice.sourceCode !== (currencyCode || 'BWP') && getRate && getRate(importCurrencyChoice.sourceCode) && (
+                          <span className="import-currency-rate-hint">
+                            1 {importCurrencyChoice.sourceCode} ≈ {(1 / getRate(importCurrencyChoice.sourceCode)).toFixed(2)} BWP
+                          </span>
+                        )}
+                      </div>
                     </div>
                   )}
 
