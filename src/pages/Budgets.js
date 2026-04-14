@@ -64,6 +64,26 @@ const Budgets = () => {
     'Savings', 'Investments', 'Gifts & Donations', 'Other',
   ];
 
+  // Bucket → child categories mapping for formula-based budgets.
+  // When a budget's category is one of these bucket names, its "spent" total
+  // sums every transaction whose category falls in the bucket.
+  const BUCKET_MAP = {
+    'Needs':     ['Food & Dining', 'Groceries', 'Transportation', 'Housing', 'Utilities', 'Health & Fitness', 'Healthcare', 'Education'],
+    'Wants':     ['Entertainment', 'Shopping', 'Personal Care', 'Travel', 'Subscriptions'],
+    'Savings':   ['Savings', 'Investments'],
+    'Giving':    ['Gifts & Donations'],
+    'Expenses':  ['Food & Dining', 'Groceries', 'Transportation', 'Housing', 'Utilities', 'Health & Fitness', 'Healthcare', 'Education', 'Entertainment', 'Shopping', 'Personal Care', 'Travel', 'Subscriptions', 'Other'],
+    'Spending':  ['Food & Dining', 'Groceries', 'Transportation', 'Housing', 'Utilities', 'Health & Fitness', 'Healthcare', 'Education', 'Entertainment', 'Shopping', 'Personal Care', 'Travel', 'Subscriptions', 'Other'],
+  };
+
+  // Given a budget category and spendingMap, return total spent (handles buckets)
+  const calcSpent = (budgetCategory, spendingMap) => {
+    if (BUCKET_MAP[budgetCategory]) {
+      return BUCKET_MAP[budgetCategory].reduce((sum, cat) => sum + (spendingMap[cat] || 0), 0);
+    }
+    return spendingMap[budgetCategory] || 0;
+  };
+
   // Goal icons now come from GOAL_ICONS registry above (Lucide icons)
 
   // Budget rules/formulas
@@ -100,7 +120,7 @@ const Budgets = () => {
         return acc;
       }, {});
       const budgetsWithSpent = (budgetsRes.data || []).map(b => ({
-        ...b, spent: spentByCategory[b.category] || 0,
+        ...b, spent: calcSpent(b.category, spentByCategory),
       }));
       setBudgets(budgetsWithSpent);
     } catch (error) {
@@ -259,8 +279,31 @@ const Budgets = () => {
 
   if (loading) return <div className="budgets-loading"><div className="spinner" /></div>;
 
-  const totalAllocated = budgets.reduce((s, b) => s + parseFloat(b.allocated), 0);
-  const totalSpent = budgets.reduce((s, b) => s + b.spent, 0);
+  // Hierarchical totals: bucket budgets "own" their child categories so we don't
+  // double-count. For each individual-category budget, if a bucket that contains
+  // that category exists, the individual budget is a sub-limit (already counted
+  // by its parent bucket). Only orphan categories (no parent bucket) add to totals.
+  const bucketBudgetCategories = budgets
+    .filter(b => BUCKET_MAP[b.category])
+    .map(b => b.category);
+
+  // Find which bucket (if any) owns a given individual category
+  const parentBucketOf = (category) => {
+    for (const bucketName of bucketBudgetCategories) {
+      if (BUCKET_MAP[bucketName].includes(category)) return bucketName;
+    }
+    return null;
+  };
+
+  const countsInTotal = (b) => {
+    // Bucket budgets always count
+    if (BUCKET_MAP[b.category]) return true;
+    // Individual budgets only count if no bucket already covers them
+    return parentBucketOf(b.category) === null;
+  };
+
+  const totalAllocated = budgets.filter(countsInTotal).reduce((s, b) => s + parseFloat(b.allocated), 0);
+  const totalSpent     = budgets.filter(countsInTotal).reduce((s, b) => s + b.spent, 0);
   const remaining = totalAllocated - totalSpent;
 
   return (
@@ -323,6 +366,17 @@ const Budgets = () => {
                         <button onClick={() => handleDelete(budget.id)}><Trash2 size={16} /></button>
                       </div>
                     </div>
+                    {BUCKET_MAP[budget.category] && (
+                      <div className="budget-bucket-hint">
+                        Tracks: {BUCKET_MAP[budget.category].slice(0, 3).join(', ')}
+                        {BUCKET_MAP[budget.category].length > 3 ? ` +${BUCKET_MAP[budget.category].length - 3} more` : ''}
+                      </div>
+                    )}
+                    {!BUCKET_MAP[budget.category] && parentBucketOf(budget.category) && (
+                      <div className="budget-sublimit-hint">
+                        Sub-limit within {parentBucketOf(budget.category)}
+                      </div>
+                    )}
                     <div className="budget-amounts">
                       <span className="spent">{formatCurrency(budget.spent)}</span>
                       <span className="separator">/</span>

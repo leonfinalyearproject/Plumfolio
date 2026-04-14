@@ -205,6 +205,28 @@
 
 /* Icon Picker */
 .icon-picker { display: flex; flex-wrap: wrap; gap: 6px; }
+
+/* Bucket budget hint - shows which categories are tracked */
+.budget-bucket-hint {
+  font-size: 0.7rem;
+  color: var(--text-dim);
+  margin: 2px 0 8px 0;
+  font-style: italic;
+  line-height: 1.3;
+}
+
+/* Sub-limit hint - shown on individual budgets that live inside a bucket */
+.budget-sublimit-hint {
+  display: inline-block;
+  font-size: 0.68rem;
+  color: #C084FC;
+  background: rgba(168, 85, 247, 0.1);
+  border: 1px solid rgba(168, 85, 247, 0.2);
+  padding: 2px 8px;
+  border-radius: 6px;
+  margin: 2px 0 8px 0;
+  font-weight: 500;
+}
 .icon-option {
   width: 38px; height: 38px; display: flex; align-items: center; justify-content: center;
   font-size: 1.2rem; border-radius: 10px;
@@ -216,16 +238,49 @@
 .icon-option:hover { border-color: var(--border-hover); color: var(--text-primary); }
 .icon-option.active { border-color: rgba(168,85,247,0.4); background: rgba(168,85,247,0.08); color: #A855F7; }
 
-/* Native date input — make it legible on dark background */
-input[type="date"] {
-  color: var(--text-primary);
+/* Native date / month inputs — force legible on dark background */
+input[type="date"],
+input[type="month"],
+.form-group input[type="date"],
+.form-group input[type="month"] {
+  color: var(--text-primary) !important;
   color-scheme: dark;
+  background: var(--bg-secondary) !important;
+  min-height: 38px;
+  font-family: inherit;
 }
-input[type="date"]::-webkit-calendar-picker-indicator {
-  filter: invert(1) opacity(0.7);
+input[type="date"]::-webkit-datetime-edit,
+input[type="date"]::-webkit-datetime-edit-fields-wrapper,
+input[type="date"]::-webkit-datetime-edit-text,
+input[type="date"]::-webkit-datetime-edit-month-field,
+input[type="date"]::-webkit-datetime-edit-day-field,
+input[type="date"]::-webkit-datetime-edit-year-field,
+input[type="month"]::-webkit-datetime-edit,
+input[type="month"]::-webkit-datetime-edit-fields-wrapper,
+input[type="month"]::-webkit-datetime-edit-text,
+input[type="month"]::-webkit-datetime-edit-month-field,
+input[type="month"]::-webkit-datetime-edit-year-field {
+  color: var(--text-primary) !important;
+}
+input[type="date"]::-webkit-datetime-edit-text,
+input[type="month"]::-webkit-datetime-edit-text { opacity: 0.7; padding: 0 2px; }
+input[type="date"]:focus::-webkit-datetime-edit-month-field:focus,
+input[type="date"]:focus::-webkit-datetime-edit-day-field:focus,
+input[type="date"]:focus::-webkit-datetime-edit-year-field:focus,
+input[type="month"]:focus::-webkit-datetime-edit-month-field:focus,
+input[type="month"]:focus::-webkit-datetime-edit-year-field:focus {
+  background: rgba(168,85,247,0.2);
+  color: #fff !important;
+  outline: none;
+}
+input[type="date"]::-webkit-calendar-picker-indicator,
+input[type="month"]::-webkit-calendar-picker-indicator {
+  filter: invert(1) opacity(0.6);
   cursor: pointer;
+  padding: 2px;
 }
-input[type="date"]:hover::-webkit-calendar-picker-indicator { filter: invert(1) opacity(1); }
+input[type="date"]:hover::-webkit-calendar-picker-indicator,
+input[type="month"]:hover::-webkit-calendar-picker-indicator { filter: invert(1) opacity(1); }
 
 .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 
