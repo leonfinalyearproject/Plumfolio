@@ -4,9 +4,15 @@ import { supabase } from '../lib/supabase';
 import { useCurrency } from '../context/CurrencyContext';
 import { useInsights } from '../context/InsightsContext';
 import { parseReceiptText } from '../utils/receiptParser';
+import { detectCategory as receiptDetectCategory } from '../utils/receiptParser';
 import processReceiptImage from '../utils/imageProcessor';
 import { validateTransactionForm } from '../utils/validation';
-import { parseImportRows, SAMPLE_TEMPLATE_ROWS } from '../utils/importParser';
+import {
+  parseImportRows, SAMPLE_TEMPLATE_ROWS, buildHistoryIndex, setReceiptDetectCategory,
+} from '../utils/importParser';
+
+// Inject the merchant database as the cold-start fallback for import categorisation
+setReceiptDetectCategory(receiptDetectCategory);
 import {
   Plus, Filter, Download, Upload, X, ArrowUpCircle, ArrowDownCircle,
   Coffee, Home, Car, Zap, GraduationCap, ShoppingCart, Wallet, Briefcase,
@@ -386,7 +392,11 @@ const Transactions = () => {
 
   // ========== SHARED: parse + open review modal ==========
   const processImportRows = (rawRows, source) => {
-    const result = parseImportRows(rawRows, categories);
+    // Build a learning index from the user's existing transactions so we can
+    // auto-categorise new descriptions based on past behaviour.
+    const historyIndex = buildHistoryIndex(transactions);
+
+    const result = parseImportRows(rawRows, categories, historyIndex);
     setImportData(result.rows);
     setImportPreview(result.rows.slice(0, 10));
     setImportStats(result.stats);
@@ -796,6 +806,12 @@ const Transactions = () => {
                         <span className="import-stat-label">auto-mapped categories</span>
                       </div>
                     )}
+                    {importStats.autoCategorised > 0 && (
+                      <div className="import-stat">
+                        <span className="import-stat-value" style={{ color: '#A855F7' }}>{importStats.autoCategorised}</span>
+                        <span className="import-stat-label">auto-categorised from description</span>
+                      </div>
+                    )}
                   </div>
 
                   {/* Column detection summary */}
@@ -884,6 +900,18 @@ const Transactions = () => {
                                   </select>
                                   {r._wasMapped && r._originalCategory && (
                                     <span className="import-remap-note" title={`Original: "${r._originalCategory}"`}>↺</span>
+                                  )}
+                                  {r._categorySource === 'history-exact' && (
+                                    <span className="import-cat-badge badge-history" title="Learned from your past transactions (exact match)">⭐ history</span>
+                                  )}
+                                  {r._categorySource === 'history-fuzzy' && (
+                                    <span className="import-cat-badge badge-history" title="Pattern-matched from your past transactions">⭐ history</span>
+                                  )}
+                                  {r._categorySource === 'keyword' && (
+                                    <span className="import-cat-badge badge-keyword" title="Detected from description keywords">✨ auto</span>
+                                  )}
+                                  {r._categorySource === 'merchant-db' && (
+                                    <span className="import-cat-badge badge-merchant" title="Matched against known merchants">🏷 known</span>
                                   )}
                                 </td>
                                 <td><span className={`type-badge ${r.type}`}>{r.type}</span></td>
