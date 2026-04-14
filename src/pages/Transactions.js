@@ -42,7 +42,8 @@ const Transactions = () => {
   });
   const [formErrors, setFormErrors] = useState({});
 
-  const [collapsedCategories, setCollapsedCategories] = useState(new Set());
+  // Start with all categories collapsed - will be populated after transactions load
+  const [collapsedCategories, setCollapsedCategories] = useState(new Set(categories));
 
   const [importModalOpen, setImportModalOpen] = useState(false);
   const [importData, setImportData] = useState(null);
