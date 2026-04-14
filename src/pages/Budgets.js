@@ -97,16 +97,31 @@ const Budgets = () => {
   const [ruleIncome, setRuleIncome] = useState('');
 
   useEffect(() => {
-    if (user) fetchBudgets();
+    if (user) { fetchBudgets(); fetchGoals(); }
     else setLoading(false);
-    // Load goals from localStorage
-    const stored = localStorage.getItem('plumfolio_goals_' + (user?.id || ''));
-    if (stored) setGoals(JSON.parse(stored));
   }, [user?.id]);
 
-  const saveGoals = (updated) => {
-    setGoals(updated);
-    localStorage.setItem('plumfolio_goals_' + (user?.id || ''), JSON.stringify(updated));
+  const fetchGoals = async () => {
+    if (!user) return;
+    try {
+      const { data, error } = await supabase
+        .from('savings_goals')
+        .select('*')
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: true });
+      if (error) throw error;
+      // Normalise numeric fields (Supabase returns numerics as strings)
+      const normalised = (data || []).map(g => ({
+        ...g,
+        target: parseFloat(g.target),
+        saved: parseFloat(g.saved),
+      }));
+      setGoals(normalised);
+    } catch (e) {
+      // Fall back to localStorage if table doesn't exist yet (migration not run)
+      const stored = localStorage.getItem('plumfolio_goals_' + (user?.id || ''));
+      if (stored) setGoals(JSON.parse(stored));
+    }
   };
 
   const fetchBudgets = async () => {
@@ -174,7 +189,7 @@ const Budgets = () => {
   };
 
   // Savings Goals
-  const handleGoalSubmit = (e) => {
+  const handleGoalSubmit = async (e) => {
     e.preventDefault();
     const { isValid, errors } = validateGoalForm(goalForm);
     if (!isValid) {
@@ -184,7 +199,6 @@ const Budgets = () => {
     setGoalErrors({});
     const rawTarget = parseFloat(goalForm.target);
     const rawSaved = parseFloat(goalForm.saved) || 0;
-    // Hard validation: target must be > 0, saved cannot exceed target, no negatives
     if (!rawTarget || rawTarget <= 0) {
       setGoalErrors({ ...errors, target: 'Target must be greater than 0' });
       return;
@@ -193,54 +207,81 @@ const Budgets = () => {
       setGoalErrors({ ...errors, saved: 'Saved amount cannot be negative' });
       return;
     }
-    const goal = {
-      id: editingGoal ? editingGoal.id : Date.now().toString(),
+    const payload = {
+      user_id: user.id,
       name: goalForm.name.trim(),
       target: rawTarget,
       saved: Math.min(rawSaved, rawTarget),
-      deadline: goalForm.deadline,
+      deadline: goalForm.deadline || null,
       icon: GOAL_ICON_KEYS.includes(goalForm.icon) ? goalForm.icon : 'target',
     };
     const wasEditGoal = !!editingGoal;
-    if (editingGoal) {
-      saveGoals(goals.map(g => g.id === goal.id ? goal : g));
-    } else {
-      saveGoals([...goals, goal]);
+    try {
+      if (editingGoal) {
+        const { error } = await supabase
+          .from('savings_goals')
+          .update({
+            name: payload.name, target: payload.target, saved: payload.saved,
+            deadline: payload.deadline, icon: payload.icon,
+          })
+          .eq('id', editingGoal.id);
+        if (error) throw error;
+      } else {
+        const { error } = await supabase.from('savings_goals').insert(payload);
+        if (error) throw error;
+      }
+      await fetchGoals();
+      setGoalModal(false); setEditingGoal(null);
+      setGoalForm({ name: '', target: '', saved: '', deadline: '', icon: 'target' });
+      if (addToast) addToast({
+        type: 'success',
+        title: wasEditGoal ? 'Goal Updated' : 'Goal Created',
+        message: `${payload.name} — target ${formatCurrency(payload.target)}.`
+      });
+    } catch (err) {
+      if (addToast) addToast({ type: 'warning', title: 'Save Failed', message: err.message });
     }
-    setGoalModal(false); setEditingGoal(null);
-    setGoalForm({ name: '', target: '', saved: '', deadline: '', icon: 'target' });
-    if (addToast) addToast({
-      type: 'success',
-      title: wasEditGoal ? 'Goal Updated' : 'Goal Created',
-      message: `${goal.name} — target ${formatCurrency(goal.target)}.`
-    });
   };
 
-  const deleteGoal = (id) => {
+  const deleteGoal = async (id) => {
     if (!window.confirm('Delete this goal?')) return;
-    saveGoals(goals.filter(g => g.id !== id));
-    if (addToast) addToast({ type: 'info', title: 'Goal Deleted', message: 'The savings goal has been removed.' });
+    try {
+      const { error } = await supabase.from('savings_goals').delete().eq('id', id);
+      if (error) throw error;
+      await fetchGoals();
+      if (addToast) addToast({ type: 'info', title: 'Goal Deleted', message: 'The savings goal has been removed.' });
+    } catch (err) {
+      if (addToast) addToast({ type: 'warning', title: 'Delete Failed', message: err.message });
+    }
   };
 
-  const addToGoal = (id, amount) => {
+  const addToGoal = async (id, amount) => {
     const parsed = parseFloat(amount);
     if (!parsed || parsed <= 0 || !isFinite(parsed)) return;
     const g = goals.find(x => x.id === id);
     if (!g) return;
-    // Clamp total saved to target — don't allow 640% of goal
     const newSaved = Math.min(g.saved + parsed, g.target);
     const actuallyAdded = newSaved - g.saved;
     if (actuallyAdded <= 0) return;
-    saveGoals(goals.map(x => x.id === id ? { ...x, saved: newSaved } : x));
-    if (addToast) {
-      const hit = newSaved >= g.target && g.saved < g.target;
-      addToast({
-        type: hit ? 'success' : 'info',
-        title: hit ? 'Goal Reached!' : 'Contribution Added',
-        message: hit
-          ? `You've hit your ${g.name} target of ${formatCurrency(g.target)}.`
-          : `${formatCurrency(actuallyAdded)} added to ${g.name}.`
-      });
+    try {
+      const { error } = await supabase
+        .from('savings_goals')
+        .update({ saved: newSaved })
+        .eq('id', id);
+      if (error) throw error;
+      await fetchGoals();
+      if (addToast) {
+        const hit = newSaved >= g.target && g.saved < g.target;
+        addToast({
+          type: hit ? 'success' : 'info',
+          title: hit ? 'Goal Reached!' : 'Contribution Added',
+          message: hit
+            ? `You've hit your ${g.name} target of ${formatCurrency(g.target)}.`
+            : `${formatCurrency(actuallyAdded)} added to ${g.name}.`
+        });
+      }
+    } catch (err) {
+      if (addToast) addToast({ type: 'warning', title: 'Save Failed', message: err.message });
     }
   };
 

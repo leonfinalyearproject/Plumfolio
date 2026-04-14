@@ -18,7 +18,8 @@ import {
   Plus,
   PiggyBank,
   Target, Plane, Laptop, Smartphone, GraduationCap, Dumbbell,
-  Gamepad2, Baby, Gem, Umbrella, Music, Award, Sparkles
+  Gamepad2, Baby, Gem, Umbrella, Music, Award, Sparkles,
+  RefreshCw, Heart, Briefcase, MoreHorizontal, Film, ShoppingCart
 } from 'lucide-react';
 import { Doughnut } from 'react-chartjs-2';
 import { Chart as ChartJS, ArcElement, Tooltip, Legend } from 'chart.js';
@@ -55,26 +56,38 @@ const Dashboard = () => {
 
   const userName = user?.user_metadata?.full_name?.split(' ')[0] || 'there';
 
-  // Load goals from localStorage whenever user changes
+  // Load goals from Supabase (with localStorage fallback if migration not applied)
   useEffect(() => {
     if (!user?.id) { setGoals([]); return; }
-    try {
-      const raw = localStorage.getItem('plumfolio_goals_' + user.id);
-      setGoals(raw ? JSON.parse(raw) : []);
-    } catch { setGoals([]); }
-    // Re-read when window regains focus (in case Budgets page updated them)
-    const onFocus = () => {
+
+    const loadGoals = async () => {
       try {
-        const raw = localStorage.getItem('plumfolio_goals_' + user.id);
-        setGoals(raw ? JSON.parse(raw) : []);
-      } catch {}
+        const { data, error } = await supabase
+          .from('savings_goals')
+          .select('*')
+          .eq('user_id', user.id)
+          .order('created_at', { ascending: true });
+        if (error) throw error;
+        const normalised = (data || []).map(g => ({
+          ...g,
+          target: parseFloat(g.target),
+          saved: parseFloat(g.saved),
+        }));
+        setGoals(normalised);
+      } catch (e) {
+        // Fall back to localStorage if table doesn't exist yet
+        try {
+          const raw = localStorage.getItem('plumfolio_goals_' + user.id);
+          setGoals(raw ? JSON.parse(raw) : []);
+        } catch { setGoals([]); }
+      }
     };
+
+    loadGoals();
+    // Re-read when window regains focus (in case Budgets page updated them)
+    const onFocus = () => loadGoals();
     window.addEventListener('focus', onFocus);
-    window.addEventListener('storage', onFocus);
-    return () => {
-      window.removeEventListener('focus', onFocus);
-      window.removeEventListener('storage', onFocus);
-    };
+    return () => { window.removeEventListener('focus', onFocus); };
   }, [user?.id]);
 
   useEffect(() => {
@@ -164,12 +177,24 @@ const Dashboard = () => {
     const icons = {
       'Food': Coffee,
       'Food & Dining': Coffee,
+      'Groceries': ShoppingCart,
       'Housing': Home,
       'Transport': Car,
       'Transportation': Car,
       'Utilities': Zap,
+      'Entertainment': Film,
       'Shopping': ShoppingBag,
+      'Health & Fitness': Heart,
+      'Healthcare': Heart,
+      'Education': GraduationCap,
+      'Subscriptions': RefreshCw,
+      'Personal Care': Sparkles,
+      'Travel': Plane,
+      'Savings': PiggyBank,
+      'Investments': Briefcase,
+      'Gifts & Donations': Gem,
       'Income': Wallet,
+      'Other': MoreHorizontal,
     };
     return icons[category] || ShoppingBag;
   };

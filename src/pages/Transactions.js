@@ -209,6 +209,51 @@ const Transactions = () => {
   const fMax = fAmounts.length > 0 ? Math.max(...fAmounts) : 0;
 
   // ========== CRUD ==========
+  // ========== AUTO-CONTRIBUTE TO SAVINGS GOAL ==========
+  // When a transaction is tagged "Savings" or "Investments" AND its description
+  // matches (case-insensitive) one of the user's savings goals, automatically
+  // add the amount to that goal. Requires savings_goals DB table to exist.
+  const autoContributeToSavingsGoal = async ({ category, description, amount }) => {
+    if (!user || !description) return;
+    if (category !== 'Savings' && category !== 'Investments') return;
+    const amt = parseFloat(amount);
+    if (!amt || amt <= 0) return;
+    try {
+      const { data: goals, error } = await supabase
+        .from('savings_goals')
+        .select('*')
+        .eq('user_id', user.id);
+      if (error || !goals || goals.length === 0) return;
+      // Find the goal whose name appears in the transaction description (loose match)
+      const descLower = description.toLowerCase();
+      const match = goals.find(g => {
+        const name = (g.name || '').toLowerCase().trim();
+        if (!name) return false;
+        return descLower.includes(name) || name.includes(descLower);
+      });
+      if (!match) return;
+      const current = parseFloat(match.saved) || 0;
+      const target = parseFloat(match.target) || 0;
+      const newSaved = Math.min(current + amt, target);
+      if (newSaved === current) return;
+      const { error: updErr } = await supabase
+        .from('savings_goals')
+        .update({ saved: newSaved })
+        .eq('id', match.id);
+      if (updErr) return;
+      if (addToast) {
+        const hit = newSaved >= target && current < target;
+        addToast({
+          type: hit ? 'success' : 'info',
+          title: hit ? 'Goal Reached!' : 'Goal Updated',
+          message: hit
+            ? `Your "${match.name}" goal is complete!`
+            : `${formatCurrency(newSaved - current)} added to "${match.name}" from this transaction.`
+        });
+      }
+    } catch (e) { /* silently ignore — table may not be migrated */ }
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     // Validate
@@ -227,6 +272,8 @@ const Transactions = () => {
       if (p.description && p.category && p.category !== 'Other') {
         contributeCommunityVote(p.description, p.category);
       }
+      // Auto-contribute to matching savings goal if this is a Savings/Investments transaction
+      if (!wasEdit) await autoContributeToSavingsGoal(p);
       setModalOpen(false); setEditingTransaction(null);
       setFormData({ type: 'expense', amount: '', description: '', category: 'Food & Dining', date: new Date().toISOString().split('T')[0] });
       fetchTransactions();
@@ -561,6 +608,10 @@ const Transactions = () => {
           contributeCommunityVote(t.description, t.category);
         }
       });
+      // Auto-contribute to matching savings goals (Savings/Investments-tagged rows only)
+      for (const t of inserts) {
+        await autoContributeToSavingsGoal(t);
+      }
       if (addToast) addToast({ type: 'success', title: 'Import Complete', message: `${inserts.length} transactions imported.` });
       setImportModalOpen(false); setImportData(null); setImportPreview([]);
       setImportStats(null); setImportErrors([]); setImportWarnings([]); setImportDetected({});
