@@ -35,6 +35,13 @@ const Transactions = () => {
   const [categoryFilter, setCategoryFilter] = useState('all');
   const [showFilters, setShowFilters] = useState(false);
 
+  // Period view — matches Budgets/Reports. Default is current month so users
+  // see "how am I doing THIS month?" not a lifetime dump.
+  const todayKey = new Date().toISOString().slice(0, 7);
+  const [period, setPeriod] = useState('month'); // 'month' | 'year' | 'all'
+  const [selectedMonth, setSelectedMonth] = useState(todayKey);
+  const [selectedYear, setSelectedYear] = useState(String(new Date().getFullYear()));
+
   const [modalOpen, setModalOpen] = useState(false);
   const [editingTransaction, setEditingTransaction] = useState(null);
   const [formData, setFormData] = useState({
@@ -149,7 +156,13 @@ const Transactions = () => {
 
   const hasFilters = filter !== 'all' || categoryFilter !== 'all' || dateFrom || dateTo || searchQuery;
 
+  // Filter by period first, then other filters.
   const filtered = transactions.filter(t => {
+    // Period filter
+    if (period === 'month' && !(t.date || '').startsWith(selectedMonth)) return false;
+    if (period === 'year' && !(t.date || '').startsWith(selectedYear)) return false;
+    // (period === 'all' means no period filter)
+
     if (filter !== 'all' && t.type !== filter) return false;
     if (categoryFilter !== 'all' && t.category !== categoryFilter) return false;
     if (dateFrom && t.date < dateFrom) return false;
@@ -160,6 +173,13 @@ const Transactions = () => {
     }
     return true;
   }).sort((a, b) => b.date.localeCompare(a.date));
+
+  // Human label for the currently-selected period
+  const periodLabel = (() => {
+    if (period === 'month') return new Date(selectedMonth + '-01').toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+    if (period === 'year') return selectedYear;
+    return 'All time';
+  })();
 
   const groupedByCategory = filtered.reduce((acc, t) => {
     if (!acc[t.category]) acc[t.category] = [];
@@ -474,27 +494,125 @@ const Transactions = () => {
 
   if (loading) return <div className="tx-loading"><Loader size={32} className="spin" /></div>;
 
-  // Period label for the summary cards — makes it explicit WHICH transactions
-  // are being summed (all-time vs filtered range vs search).
-  const summaryPeriodLabel = (() => {
-    if (searchQuery) return `matching "${searchQuery}"`;
-    if (dateFrom && dateTo) return `${dateFrom} → ${dateTo}`;
-    if (dateFrom) return `from ${dateFrom}`;
-    if (dateTo) return `up to ${dateTo}`;
-    if (categoryFilter !== 'all') return `${categoryFilter} only`;
-    if (filter !== 'all') return `${filter} only`;
-    return 'All time';
+  // The summary label now leads with the period (Month/Year/All time), then
+  // adds modifiers if filters are stacked on top.
+  const filterSuffix = (() => {
+    const parts = [];
+    if (categoryFilter !== 'all') parts.push(`${categoryFilter} only`);
+    if (filter !== 'all') parts.push(`${filter} only`);
+    if (searchQuery) parts.push(`matching "${searchQuery}"`);
+    if (dateFrom || dateTo) parts.push(`${dateFrom || '…'} → ${dateTo || '…'}`);
+    return parts.length ? ` · ${parts.join(' · ')}` : '';
   })();
+  const summaryPeriodLabel = periodLabel + filterSuffix;
+
+  // "No income yet" flag — if you're viewing a current/future month and
+  // haven't entered any income, we warn so users don't forget to add it
+  // before planning budgets (matches the Budgets page behaviour).
+  const noIncomeThisMonth = period === 'month' && selectedMonth >= todayKey && totalIncome === 0;
+
+  // Years that appear in the user's transactions, for the year picker
+  const availableYears = Array.from(new Set(transactions.map(t => (t.date || '').slice(0, 4)).filter(Boolean))).sort();
+  if (!availableYears.includes(String(new Date().getFullYear()))) availableYears.push(String(new Date().getFullYear()));
+  availableYears.sort();
 
   return (
     <div className="tx-page">
+      {/* Period Picker — matches Budgets/Reports UX */}
+      <div style={{
+        display: 'flex', alignItems: 'center', gap: 12,
+        marginBottom: 16, flexWrap: 'wrap',
+      }}>
+        <div style={{ display: 'flex', background: 'var(--bg-elevated)', borderRadius: 8, padding: 3, border: '1px solid var(--border-color)' }}>
+          {['month', 'year', 'all'].map(p => (
+            <button
+              key={p}
+              onClick={() => setPeriod(p)}
+              style={{
+                padding: '6px 14px',
+                fontSize: '0.82rem',
+                background: period === p ? 'var(--plum-medium)' : 'transparent',
+                color: period === p ? '#fff' : 'var(--text-secondary)',
+                border: 'none',
+                borderRadius: 6,
+                cursor: 'pointer',
+                fontWeight: period === p ? 600 : 400,
+                fontFamily: 'inherit',
+              }}
+            >
+              {p === 'month' ? 'Monthly' : p === 'year' ? 'Yearly' : 'All time'}
+            </button>
+          ))}
+        </div>
+        {period === 'month' && (
+          <input
+            type="month"
+            value={selectedMonth}
+            onChange={e => setSelectedMonth(e.target.value)}
+            style={{
+              background: 'var(--bg-elevated)', color: 'var(--text-primary)',
+              border: '1px solid var(--border-color)', borderRadius: 8,
+              padding: '6px 10px', fontSize: '0.85rem', fontFamily: 'inherit',
+            }}
+          />
+        )}
+        {period === 'year' && (
+          <select
+            value={selectedYear}
+            onChange={e => setSelectedYear(e.target.value)}
+            style={{
+              background: 'var(--bg-elevated)', color: 'var(--text-primary)',
+              border: '1px solid var(--border-color)', borderRadius: 8,
+              padding: '6px 10px', fontSize: '0.85rem', fontFamily: 'inherit',
+            }}
+          >
+            {availableYears.map(y => <option key={y} value={y}>{y}</option>)}
+          </select>
+        )}
+        {period === 'month' && selectedMonth === todayKey && (
+          <span style={{ fontSize: '0.7rem', color: '#22C55E', background: 'rgba(34,197,94,0.1)', padding: '2px 8px', borderRadius: 6 }}>
+            Current month
+          </span>
+        )}
+        {period === 'month' && selectedMonth < todayKey && (
+          <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', background: 'rgba(255,255,255,0.04)', padding: '2px 8px', borderRadius: 6 }}>
+            Historical
+          </span>
+        )}
+        {period === 'month' && selectedMonth > todayKey && (
+          <span style={{ fontSize: '0.7rem', color: 'var(--plum-glow)', background: 'rgba(168,85,247,0.1)', padding: '2px 8px', borderRadius: 6 }}>
+            Future
+          </span>
+        )}
+      </div>
+
+      {/* "No income yet" nudge — explains the rule to users who haven't
+          entered income for the current/future month. Same language as Budgets. */}
+      {noIncomeThisMonth && totalExpenses > 0 && (
+        <div style={{
+          background: 'rgba(245,158,11,0.08)',
+          border: '1px solid rgba(245,158,11,0.25)',
+          borderRadius: 10,
+          padding: '10px 14px',
+          marginBottom: 16,
+          fontSize: '0.82rem',
+          color: '#F59E0B',
+          display: 'flex', alignItems: 'center', gap: 8,
+        }}>
+          <AlertCircle size={14} />
+          <span>You have expenses in {periodLabel} but no income recorded yet. Add your income transaction so budgets and forecasts reflect reality.</span>
+        </div>
+      )}
+
       {/* Summary Cards */}
       <div className="tx-summary">
         <div className="tx-card income">
           <div className="tx-card-icon"><TrendingUp size={20} /></div>
           <div className="tx-card-info">
             <span className="tx-card-label">Income <span style={{ fontSize: '0.65rem', color: 'var(--text-muted)', fontWeight: 400, marginLeft: 4 }}>· {summaryPeriodLabel}</span></span>
-            <span className="tx-card-value">+{formatCurrency(totalIncome)}</span>
+            <span className="tx-card-value" style={noIncomeThisMonth ? { color: '#F59E0B' } : {}}>
+              {noIncomeThisMonth ? 'P0 · no income yet' : '+' + formatCurrency(totalIncome)}
+            </span>
           </div>
         </div>
         <div className="tx-card expense">
