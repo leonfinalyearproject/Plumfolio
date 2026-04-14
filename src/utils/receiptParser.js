@@ -285,13 +285,7 @@ function extractMerchant(lines, fullText, rawText) {
   // Check for known merchants across the ENTIRE text, not just top lines
   for (const km of knownMerchants) {
     if (km.pattern.test(fullText)) {
-      // Try to find the exact line with the merchant name for better extraction
-      for (const line of lines.slice(0, 15)) {
-        if (km.pattern.test(line)) {
-          const cleaned = line.replace(/[^a-zA-Z0-9\s&'.\-]/g, '').trim();
-          if (cleaned.length > 2 && cleaned.length < 60) return cleaned;
-        }
-      }
+      // Return the canonical name directly - don't try to extract from cluttered lines
       return km.name;
     }
   }
@@ -403,29 +397,48 @@ function extractDate(lines, fullText) {
 function parseDateFromLine(line, monthMap) {
   let match;
 
+  // Pattern for M/D/YYYY or D/M/YYYY with 4-digit year (like "2/28/2026")
   match = line.match(/(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{4})/);
   if (match) {
     const a = parseInt(match[1]), b = parseInt(match[2]), year = match[3];
-    if (a > 12 && b <= 12) {
-      return `${year}-${String(b).padStart(2, '0')}-${String(a).padStart(2, '0')}`;
-    } else if (b > 12 && a <= 12) {
-      return `${year}-${String(a).padStart(2, '0')}-${String(b).padStart(2, '0')}`;
-    } else if (a <= 12 && b <= 12) {
-      // Ambiguous - default DD/MM (international standard outside US)
-      return `${year}-${String(b).padStart(2, '0')}-${String(a).padStart(2, '0')}`;
+    // If year is reasonable (2000-2099)
+    if (parseInt(year) >= 2000 && parseInt(year) <= 2099) {
+      if (a > 12 && b <= 12) {
+        // a is day (>12), b is month - format: D/M/YYYY
+        return `${year}-${String(b).padStart(2, '0')}-${String(a).padStart(2, '0')}`;
+      } else if (b > 12 && a <= 12) {
+        // b is day (>12), a is month - format: M/D/YYYY (US style)
+        return `${year}-${String(a).padStart(2, '0')}-${String(b).padStart(2, '0')}`;
+      } else if (a <= 12 && b <= 12) {
+        // Ambiguous - check if it looks like US format (M/D) based on common patterns
+        // If first number is small (1-12) and second is larger, likely M/D
+        if (a <= 12 && b <= 31) {
+          // Default to M/D/YYYY for ambiguous cases (US style common on receipts)
+          return `${year}-${String(a).padStart(2, '0')}-${String(b).padStart(2, '0')}`;
+        }
+      }
     }
   }
 
+  // Pattern for D/M/YY or M/D/YY with 2-digit year
   match = line.match(/(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{2})\b/);
   if (match) {
-    const day = match[1].padStart(2, '0');
-    const month = match[2].padStart(2, '0');
+    const a = parseInt(match[1]), b = parseInt(match[2]);
     const year = parseInt(match[3]) > 50 ? '19' + match[3] : '20' + match[3];
-    if (parseInt(month) >= 1 && parseInt(month) <= 12 && parseInt(day) >= 1 && parseInt(day) <= 31) {
-      return `${year}-${month}-${day}`;
+    
+    if (a > 12 && b <= 12 && b >= 1) {
+      // a is day, b is month
+      return `${year}-${String(b).padStart(2, '0')}-${String(a).padStart(2, '0')}`;
+    } else if (b > 12 && a <= 12 && a >= 1) {
+      // a is month, b is day
+      return `${year}-${String(a).padStart(2, '0')}-${String(b).padStart(2, '0')}`;
+    } else if (a >= 1 && a <= 12 && b >= 1 && b <= 31) {
+      // Ambiguous - default to M/D/YY
+      return `${year}-${String(a).padStart(2, '0')}-${String(b).padStart(2, '0')}`;
     }
   }
 
+  // ISO format: YYYY-MM-DD or YYYY/MM/DD
   match = line.match(/(\d{4})[\/\-.](\d{1,2})[\/\-.](\d{1,2})/);
   if (match) {
     const m = parseInt(match[2]), d = parseInt(match[3]);
@@ -434,6 +447,7 @@ function parseDateFromLine(line, monthMap) {
     }
   }
 
+  // Text month formats: "28 Feb 2026" or "Feb 28, 2026"
   match = line.match(/(\d{1,2})\s+(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\w*\s+(\d{4})/i);
   if (match) {
     const m = monthMap[match[2].toLowerCase().substring(0, 3)];
@@ -542,31 +556,61 @@ function extractAmountsAndTotal(lines, rawText, cleaned) {
   ];
 
   // Lines to skip when looking for totals (these are NOT the grand total)
-  const skipTotalPatterns = /\b(sub-?total|subtotal|vat|tax|gst|hst|discount|saving|change|cash\s*back|cashback|rounding|tip|gratuity|service\s*charge)\b/i;
+  const skipTotalPatterns = /\b(sub-?total|subtotal|v\.?a\.?t\.?|tax\s*group|gst|hst|discount|saving|change|cash\s*back|cashback|rounding|tip|gratuity|service\s*charge)\b/i;
 
   // IMPROVED: Multi-pass total detection
-  // Pass 1: Look for explicit "Total" with amount on same line
+  // Pass 1: Look for EXACT "Total" line with amount (most reliable for receipts like Hoco)
+  // Pattern: "Total    200.00 P" or "Total    P 200.00"
   for (let i = 0; i < lines.length; i++) {
-    const line = stripDates(lines[i]);
+    const line = lines[i];
+    const lineClean = stripDates(line);
     
-    // Skip lines that are subtotals, tax, change, etc.
-    if (skipTotalPatterns.test(line) && !/grand\s*total/i.test(line)) continue;
-    // Skip "change" lines (money returned)
-    if (/\b(change|cashback|cash\s*back|vuelto|monnaie|rückgeld)\b/i.test(line)) continue;
-
-    for (const pattern of totalPatterns) {
-      if (pattern.source === '^total$') continue; // Handle separately
-      const match = line.match(pattern);
-      if (match && match[1]) {
-        const val = normaliseAmount(match[1]);
-        if (val > 0 && val < 10000000) {
-          total = val;
+    // Skip lines that are subtotals, VAT, tax, change, etc.
+    if (skipTotalPatterns.test(lineClean)) continue;
+    
+    // Match lines that START with "Total" (not "Subtotal")
+    // This catches: "Total    200.00 P", "Total: P200", "Total 200.00", etc.
+    const totalLineMatch = lineClean.match(/^\s*total\s*[:\s]*(.+)$/i);
+    if (totalLineMatch) {
+      const restOfLine = totalLineMatch[1];
+      // Extract all numbers from the rest of the line
+      const amounts = restOfLine.match(/\d+[.,]?\d*/g);
+      if (amounts) {
+        const vals = amounts.map(a => normaliseAmount(a)).filter(v => v > 0 && v < 10000000);
+        if (vals.length > 0) {
+          // Take the largest amount on the Total line
+          total = Math.max(...vals);
           foundTotal = true;
           break;
         }
       }
     }
-    if (foundTotal) break;
+  }
+
+  // Pass 1b: Look for explicit "Total" with amount on same line (pattern matching)
+  if (!foundTotal) {
+    for (let i = 0; i < lines.length; i++) {
+      const line = stripDates(lines[i]);
+      
+      // Skip lines that are subtotals, tax, change, etc.
+      if (skipTotalPatterns.test(line) && !/grand\s*total/i.test(line)) continue;
+      // Skip "change" lines (money returned)
+      if (/\b(change|cashback|cash\s*back|vuelto|monnaie|rückgeld)\b/i.test(line)) continue;
+
+      for (const pattern of totalPatterns) {
+        if (pattern.source === '^total$') continue; // Handle separately
+        const match = line.match(pattern);
+        if (match && match[1]) {
+          const val = normaliseAmount(match[1]);
+          if (val > 0 && val < 10000000) {
+            total = val;
+            foundTotal = true;
+            break;
+          }
+        }
+      }
+      if (foundTotal) break;
+    }
   }
 
   // Pass 2: Look for "TOTAL" on its own line, with amount on the next line
