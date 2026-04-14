@@ -29,14 +29,17 @@ function createCanvas(img) {
   let w = img.width;
   let h = img.height;
 
-  // Scale to 2000px (smaller = faster OCR, still good accuracy)
+  // Scale to ~2400px on the long edge for OCR sweet spot.
+  // Mobile photos are often too small or too large — both hurt accuracy.
+  // Small images upscale with smoothing; very large ones downscale to save CPU.
+  const TARGET = 2400;
   const longest = Math.max(w, h);
-  if (longest < 1200) {
-    const scale = 2000 / longest;
+  if (longest < 1600) {
+    const scale = TARGET / longest;
     w = Math.round(w * scale);
     h = Math.round(h * scale);
-  } else if (longest > 3000) {
-    const scale = 2000 / longest;
+  } else if (longest > 3200) {
+    const scale = TARGET / longest;
     w = Math.round(w * scale);
     h = Math.round(h * scale);
   }

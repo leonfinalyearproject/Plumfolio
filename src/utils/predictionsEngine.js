@@ -216,35 +216,53 @@ export function suggestBudgetAllocations(transactions, lookbackMonths = 6) {
  */
 export function checkBudgetWarnings(transactions, budgets) {
   if (!budgets || budgets.length === 0) return [];
-  
+
+  // Bucket → child categories mapping (must match Budgets.js).
+  // A budget for "Needs" should sum spending across ALL need-y categories,
+  // not just transactions literally tagged "Needs".
+  const BUCKET_MAP = {
+    'Needs':    ['Food & Dining', 'Groceries', 'Transportation', 'Housing', 'Utilities', 'Health & Fitness', 'Healthcare', 'Education'],
+    'Wants':    ['Entertainment', 'Shopping', 'Personal Care', 'Travel', 'Subscriptions'],
+    'Savings':  ['Savings', 'Investments'],
+    'Giving':   ['Gifts & Donations'],
+    'Expenses': ['Food & Dining', 'Groceries', 'Transportation', 'Housing', 'Utilities', 'Health & Fitness', 'Healthcare', 'Education', 'Entertainment', 'Shopping', 'Personal Care', 'Travel', 'Subscriptions', 'Other'],
+    'Spending': ['Food & Dining', 'Groceries', 'Transportation', 'Housing', 'Utilities', 'Health & Fitness', 'Healthcare', 'Education', 'Entertainment', 'Shopping', 'Personal Care', 'Travel', 'Subscriptions', 'Other'],
+  };
+
   const now = new Date();
   const currentMonthKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
   const dayOfMonth = now.getDate();
   const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
   const monthProgress = dayOfMonth / daysInMonth;
-  
+
   const warnings = [];
-  
+
   budgets.forEach(budget => {
-    // Get current month spending for this category
+    // Only warn on budgets for the CURRENT month. Past-month budgets are
+    // historical records; future-month budgets haven't started yet.
+    if (budget.month_year && budget.month_year !== currentMonthKey) return;
+
+    // Categories this budget tracks (bucket budgets track multiple).
+    const tracks = BUCKET_MAP[budget.category] || [budget.category];
+
     const spent = transactions
       .filter(t => {
         if (t.type !== 'expense') return false;
         const td = new Date(t.date);
         const tKey = `${td.getFullYear()}-${String(td.getMonth() + 1).padStart(2, '0')}`;
-        return tKey === currentMonthKey && (t.category || 'Uncategorised') === budget.category;
+        return tKey === currentMonthKey && tracks.includes(t.category || 'Uncategorised');
       })
       .reduce((sum, t) => sum + Math.abs(parseFloat(t.amount)), 0);
-    
+
     const allocated = parseFloat(budget.allocated);
     if (allocated <= 0) return;
-    
+
     const spentRatio = spent / allocated;
-    
+
     // Project spending to end of month based on current rate
     const projectedTotal = monthProgress > 0 ? spent / monthProgress : spent;
     const projectedRatio = projectedTotal / allocated;
-    
+
     if (spentRatio >= 1) {
       warnings.push({
         type: 'exceeded',
@@ -275,7 +293,7 @@ export function checkBudgetWarnings(transactions, budgets) {
       });
     }
   });
-  
+
   return warnings.sort((a, b) => {
     const order = { high: 0, medium: 1, low: 2 };
     return (order[a.severity] || 3) - (order[b.severity] || 3);
