@@ -360,6 +360,10 @@
 .scan-field { display: flex; flex-direction: column; gap: 3px; }
 .scan-field label { font-size: 0.72rem; font-weight: 500; color: var(--text-dim); }
 .scan-field input, .scan-field select { padding: 8px 10px; background: var(--bg-secondary); border: 1px solid var(--border-color); border-radius: 8px; color: var(--text-primary); font-size: 0.85rem; }
+.scan-amount-input { display: flex; align-items: center; background: var(--bg-secondary); border: 1px solid var(--border-color); border-radius: 8px; overflow: hidden; }
+.scan-amount-input .scan-currency-prefix { padding: 8px 8px 8px 10px; color: var(--text-muted); font-size: 0.85rem; font-weight: 500; background: transparent; }
+.scan-amount-input input { flex: 1; padding: 8px 10px 8px 0; background: transparent; border: none; color: var(--text-primary); font-size: 0.85rem; }
+.scan-amount-input input:focus { outline: none; }
 .scan-field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
 .scan-result-actions { display: flex; gap: 8px; }
 .scan-save-btn { flex: 1; display: flex; align-items: center; justify-content: center; gap: 6px; padding: 10px; border-radius: 10px; font-size: 0.85rem; font-weight: 600; background: rgba(168,85,247,0.1); color: #C084FC; border: 1px solid rgba(168,85,247,0.15); cursor: pointer; }
