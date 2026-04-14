@@ -34,7 +34,7 @@ import './Budgets.css';
 
 const Budgets = () => {
   const { formatCurrency } = useCurrency();
-  const { addToast, refreshInsights, monthlyIncome } = useInsights();
+  const { addToast, refreshInsights, monthlyIncome, typicalMonthlyIncome, incomeBreakdown } = useInsights();
   const { user } = useAuth();
   const [budgets, setBudgets] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -156,6 +156,41 @@ const Budgets = () => {
     }
   };
 
+  // =============================================================
+  // FINANCIAL-LOGIC GUARDS FOR BUDGET CREATION
+  // Policy: a budget is a PLAN. You can't plan for the past, and you
+  // can't set a ceiling below what you've already spent this month.
+  // =============================================================
+
+  // Cache all expense transactions so we can check "already spent" in real time
+  // while the user types in the budget modal. Pull from InsightsContext so
+  // we stay in sync with the rest of the app (no extra network call, no drift).
+  const { transactions: ctxTransactions } = useInsights();
+  const allExpenses = (ctxTransactions || []).filter(t => t.type === 'expense');
+
+  // How much has already been spent for the (category, month) combo the user
+  // is currently configuring? Handles bucket categories (Needs, Wants, etc).
+  const getAlreadySpent = (category, monthYear) => {
+    if (!category || !monthYear) return 0;
+    const catsToCount = BUCKET_MAP[category] || [category];
+    return allExpenses
+      .filter(t => (t.date || '').slice(0, 7) === monthYear && catsToCount.includes(t.category))
+      .reduce((s, t) => s + parseFloat(t.amount || 0), 0);
+  };
+
+  const currentMonthKey = new Date().toISOString().slice(0, 7);
+  const isPastMonth = (my) => my && my < currentMonthKey;
+
+  // Live values for the modal — recomputed on every render so warnings update
+  // as the user picks a different category or month.
+  const modalAlreadySpent = getAlreadySpent(formData.category, formData.month_year);
+  const modalAllocatedNum = parseFloat(formData.allocated) || 0;
+  const modalIsPast = isPastMonth(formData.month_year);
+  const modalBelowSpent = modalAllocatedNum > 0 && modalAllocatedNum < modalAlreadySpent;
+  const modalDuplicate = !editingBudget && budgets.some(b =>
+    b.category === formData.category && b.month_year === formData.month_year
+  );
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     const { isValid, errors } = validateBudgetForm(formData, categories);
@@ -163,6 +198,30 @@ const Budgets = () => {
       setFormErrors(errors);
       return;
     }
+
+    // Guard 1: no NEW budgets for past months. (Editing is fine so users
+    // can correct historical records, but new ones must be current/future.)
+    if (!editingBudget && modalIsPast) {
+      setFormErrors({ month_year: `Cannot create a budget for a past month. Budgets are plans, not records — use Reports to review ${formData.month_year}.` });
+      return;
+    }
+
+    // Guard 2: budget ≥ already-spent in that month/category.
+    if (modalBelowSpent) {
+      setFormErrors({
+        allocated: `You've already spent ${formatCurrency(modalAlreadySpent)} in ${formData.category} this month. A budget below that would already be exceeded — set at least ${formatCurrency(modalAlreadySpent)}.`
+      });
+      return;
+    }
+
+    // Guard 3: one budget per (category, month). Prevents silent duplicates.
+    if (modalDuplicate) {
+      setFormErrors({
+        category: `A budget for ${formData.category} already exists for ${formData.month_year}. Edit the existing budget instead.`
+      });
+      return;
+    }
+
     setFormErrors({});
     try {
       const payload = { category: formData.category, allocated: parseFloat(formData.allocated), month_year: formData.month_year };
@@ -301,13 +360,31 @@ const Budgets = () => {
     if (selectedRule === null || !ruleIncome) return;
     const income = parseFloat(ruleIncome);
     const rule = budgetRules[selectedRule];
+    // Always apply formulas to the current month (you can't plan the past).
     const monthYear = new Date().toISOString().slice(0, 7);
-    const inserts = rule.split.map((pct, i) => ({
-      user_id: user.id,
-      category: rule.labels[i],
-      allocated: (income * pct / 100),
-      month_year: monthYear,
-    }));
+
+    // Skip labels that already have a budget this month — no silent duplicates.
+    const existingLabelsThisMonth = new Set(
+      budgets.filter(b => b.month_year === monthYear).map(b => b.category)
+    );
+    const inserts = rule.split
+      .map((pct, i) => ({
+        user_id: user.id,
+        category: rule.labels[i],
+        allocated: (income * pct / 100),
+        month_year: monthYear,
+      }))
+      .filter(b => !existingLabelsThisMonth.has(b.category));
+
+    if (inserts.length === 0) {
+      if (addToast) addToast({
+        type: 'info',
+        title: 'Nothing to create',
+        message: `Budgets for ${rule.labels.join(', ')} already exist this month. Edit them individually.`
+      });
+      return;
+    }
+
     try {
       await supabase.from('budgets').insert(inserts);
       setShowRuleModal(false); setSelectedRule(null); setRuleIncome('');
@@ -315,7 +392,7 @@ const Budgets = () => {
       if (addToast) addToast({
         type: 'success',
         title: 'Budget Rule Applied',
-        message: `${rule.labels.length} budgets created from ${formatCurrency(income)} income.`
+        message: `${inserts.length} budget${inserts.length > 1 ? 's' : ''} created from ${formatCurrency(income)} income.`
       });
       if (refreshInsights) refreshInsights();
     } catch (e) { console.error('Rule error:', e); if (addToast) addToast({ type: 'warning', title: 'Rule Failed', message: e.message }); }
@@ -392,13 +469,48 @@ const Budgets = () => {
             </div>
           )}
 
+          {/* Sanity check: do your budgets fit inside your typical income?
+              Silently skipped when we don't have enough income history or
+              when budgets are only for future months (summary mixes months). */}
+          {budgets.length > 0 && typicalMonthlyIncome > 0 && (() => {
+            // Use only current-month budgets for this comparison so we're
+            // comparing like-with-like (1 month of budget vs 1 month of income).
+            const thisMonthBudgets = budgets.filter(b => b.month_year === currentMonthKey);
+            if (thisMonthBudgets.length === 0) return null;
+
+            const thisMonthAllocated = thisMonthBudgets
+              .filter(b => BUCKET_MAP[b.category] || !parentBucketOf(b.category))
+              .reduce((s, b) => s + parseFloat(b.allocated), 0);
+
+            if (thisMonthAllocated <= typicalMonthlyIncome * 1.02) return null; // within 2% is fine
+
+            const overBy = thisMonthAllocated - typicalMonthlyIncome;
+            return (
+              <div style={{
+                background: 'rgba(239,68,68,0.08)',
+                border: '1px solid rgba(239,68,68,0.25)',
+                borderRadius: 10,
+                padding: '10px 14px',
+                marginBottom: 16,
+                fontSize: '0.82rem',
+                color: '#EF4444',
+                display: 'flex', alignItems: 'center', gap: 8,
+              }}>
+                <AlertTriangle size={14} />
+                <span>
+                  Your {currentMonthKey} budgets total <strong>{formatCurrency(thisMonthAllocated)}</strong>, which is <strong>{formatCurrency(overBy)}</strong> more than your typical monthly income of {formatCurrency(Math.round(typicalMonthlyIncome))}. Either trim a budget or revise your expected income.
+                </span>
+              </div>
+            );
+          })()}
+
           <div className="budgets-header">
             <h2>Your Budgets</h2>
             <div className="budgets-header-actions">
-              <button className="rule-btn" onClick={() => { setRuleIncome(monthlyIncome > 0 ? monthlyIncome.toString() : ''); setShowRuleModal(true); }}>
+              <button className="rule-btn" onClick={() => { setRuleIncome(typicalMonthlyIncome > 0 ? Math.round(typicalMonthlyIncome).toString() : ''); setShowRuleModal(true); }}>
                 <Zap size={16} /> Budget Formula
               </button>
-              <button className="add-budget-btn" onClick={() => setModalOpen(true)}>
+              <button className="add-budget-btn" onClick={() => { setFormData({ category: 'Food & Dining', allocated: '', month_year: currentMonthKey }); setFormErrors({}); setEditingBudget(null); setModalOpen(true); }}>
                 <Plus size={18} /> Add Budget
               </button>
             </div>
@@ -456,10 +568,10 @@ const Budgets = () => {
                 <h3>No budgets yet</h3>
                 <p>Set budgets to track spending, or use a formula to get started quickly</p>
                 <div className="empty-state-actions">
-                  <button className="empty-action-btn" onClick={() => { setRuleIncome(monthlyIncome > 0 ? monthlyIncome.toString() : ''); setShowRuleModal(true); }}>
+                  <button className="empty-action-btn" onClick={() => { setRuleIncome(typicalMonthlyIncome > 0 ? Math.round(typicalMonthlyIncome).toString() : ''); setShowRuleModal(true); }}>
                     <Zap size={18} /> Use a Formula
                   </button>
-                  <button className="empty-action-btn primary" onClick={() => setModalOpen(true)}>
+                  <button className="empty-action-btn primary" onClick={() => { setFormData({ category: 'Food & Dining', allocated: '', month_year: currentMonthKey }); setFormErrors({}); setEditingBudget(null); setModalOpen(true); }}>
                     <Plus size={18} /> Create Budget
                   </button>
                 </div>
@@ -564,6 +676,32 @@ const Budgets = () => {
               <button className="modal-close" onClick={() => { setModalOpen(false); setEditingBudget(null); setFormErrors({}); }}><X size={20} /></button>
             </div>
             <form onSubmit={handleSubmit} className="modal-form" noValidate>
+              {/* Live financial-logic guidance so users see WHY constraints exist */}
+              {!editingBudget && modalIsPast && (
+                <div className="validation-summary" style={{ background: 'rgba(239,68,68,0.08)', borderColor: 'rgba(239,68,68,0.2)' }}>
+                  <AlertTriangle size={14} style={{ verticalAlign: 'middle', marginRight: 6 }} />
+                  You can't create a budget for a past month. Pick {currentMonthKey} or later — budgets are forward-looking plans.
+                </div>
+              )}
+              {modalDuplicate && (
+                <div className="validation-summary" style={{ background: 'rgba(239,68,68,0.08)', borderColor: 'rgba(239,68,68,0.2)' }}>
+                  <AlertTriangle size={14} style={{ verticalAlign: 'middle', marginRight: 6 }} />
+                  A budget for <strong>{formData.category}</strong> already exists for {formData.month_year}. Edit it from the list instead.
+                </div>
+              )}
+              {!modalIsPast && !modalDuplicate && modalAlreadySpent > 0 && (
+                <div className="validation-summary" style={{
+                  background: modalBelowSpent ? 'rgba(239,68,68,0.08)' : 'rgba(245,158,11,0.08)',
+                  borderColor: modalBelowSpent ? 'rgba(239,68,68,0.2)' : 'rgba(245,158,11,0.2)',
+                  color: modalBelowSpent ? '#EF4444' : '#F59E0B'
+                }}>
+                  <AlertTriangle size={14} style={{ verticalAlign: 'middle', marginRight: 6 }} />
+                  You've already spent <strong>{formatCurrency(modalAlreadySpent)}</strong> in {formData.category} during {formData.month_year}.
+                  {modalBelowSpent
+                    ? ` Your budget must be at least ${formatCurrency(modalAlreadySpent)} or it'll be over-budget from day one.`
+                    : ' Your budget needs to cover this plus whatever you plan to spend for the rest of the month.'}
+                </div>
+              )}
               <div className={`form-group ${formErrors.category ? 'has-error' : ''}`}>
                 <label>Category</label>
                 <select value={formData.category} onChange={e => setFormData({ ...formData, category: e.target.value })}>
@@ -573,15 +711,19 @@ const Budgets = () => {
               </div>
               <div className={`form-group ${formErrors.allocated ? 'has-error' : ''}`}>
                 <label>Budget Amount (P)</label>
-                <input type="number" value={formData.allocated} onChange={e => { setFormData({ ...formData, allocated: e.target.value }); if (formErrors.allocated) setFormErrors({...formErrors, allocated: ''}); }} placeholder="0.00" min="0" step="0.01" />
-                {formErrors.allocated ? <span className="field-error">{formErrors.allocated}</span> : <span className="field-hint">Minimum P10, up to P10,000,000</span>}
+                <input type="number" value={formData.allocated} onChange={e => { setFormData({ ...formData, allocated: e.target.value }); if (formErrors.allocated) setFormErrors({...formErrors, allocated: ''}); }} placeholder="0.00" min={modalAlreadySpent || 0} step="0.01" />
+                {formErrors.allocated
+                  ? <span className="field-error">{formErrors.allocated}</span>
+                  : <span className="field-hint">{modalAlreadySpent > 0 ? `Minimum ${formatCurrency(modalAlreadySpent)} (already spent)` : 'Minimum P10, up to P10,000,000'}</span>}
               </div>
               <div className={`form-group ${formErrors.month_year ? 'has-error' : ''}`}>
                 <label>Month</label>
-                <input type="month" value={formData.month_year} onChange={e => { setFormData({ ...formData, month_year: e.target.value }); if (formErrors.month_year) setFormErrors({...formErrors, month_year: ''}); }} />
-                {formErrors.month_year ? <span className="field-error">{formErrors.month_year}</span> : <span className="field-hint">The month this budget applies to</span>}
+                <input type="month" value={formData.month_year} min={editingBudget ? undefined : currentMonthKey} onChange={e => { setFormData({ ...formData, month_year: e.target.value }); if (formErrors.month_year) setFormErrors({...formErrors, month_year: ''}); }} />
+                {formErrors.month_year ? <span className="field-error">{formErrors.month_year}</span> : <span className="field-hint">{editingBudget ? 'The month this budget applies to' : `Current month or later (you can't budget the past)`}</span>}
               </div>
-              <button type="submit" className="submit-btn">{editingBudget ? 'Save Changes' : 'Create Budget'}</button>
+              <button type="submit" className="submit-btn" disabled={modalIsPast || modalDuplicate || modalBelowSpent}>
+                {editingBudget ? 'Save Changes' : 'Create Budget'}
+              </button>
             </form>
           </div>
         </div>
@@ -706,13 +848,61 @@ const Budgets = () => {
               <button className="modal-close" onClick={() => setShowRuleModal(false)}><X size={20} /></button>
             </div>
             <div className="modal-form">
-              <p className="rule-desc">Choose a formula and enter your monthly income to auto-create budgets.</p>
-              {monthlyIncome > 0 && (
-                <div className="income-detected" style={{ background: 'rgba(34,197,94,0.1)', border: '1px solid rgba(34,197,94,0.3)', borderRadius: '8px', padding: '12px', marginBottom: '16px', fontSize: '13px', color: '#22c55e' }}>
-                  <CheckCircle size={14} style={{ marginRight: '6px', verticalAlign: 'middle' }} />
-                  Detected {formatCurrency(monthlyIncome)} income this month from your transactions
+              <p className="rule-desc">
+                Choose a formula and confirm your <strong>expected monthly income</strong>. The formula splits that income into budget buckets for <strong>{currentMonthKey}</strong> (the current month).
+              </p>
+
+              {/* Income breakdown — shows WHERE the pre-filled number came from,
+                  so the user can trust it or override with confidence. */}
+              {incomeBreakdown && incomeBreakdown.monthsUsed > 0 ? (
+                <div style={{
+                  background: 'rgba(34,197,94,0.08)',
+                  border: '1px solid rgba(34,197,94,0.25)',
+                  borderRadius: 10,
+                  padding: '12px 14px',
+                  marginBottom: 16,
+                  fontSize: '0.82rem',
+                  color: 'var(--text-primary)',
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6, color: '#22C55E', fontWeight: 600 }}>
+                    <CheckCircle size={14} />
+                    Suggested: {formatCurrency(Math.round(typicalMonthlyIncome))} / month
+                    <span style={{ fontSize: '0.7rem', fontWeight: 400, opacity: 0.8, marginLeft: 4 }}>
+                      ({incomeBreakdown.confidence} confidence)
+                    </span>
+                  </div>
+                  <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
+                    Average of your last {incomeBreakdown.monthsUsed} complete month{incomeBreakdown.monthsUsed > 1 ? 's' : ''}:
+                    {' '}
+                    {incomeBreakdown.last3Months
+                      .filter(m => m.income > 0)
+                      .map(m => `${m.monthKey} ${formatCurrency(Math.round(m.income))}`)
+                      .join(', ')}
+                    . {monthlyIncome > 0 && monthlyIncome !== typicalMonthlyIncome && (
+                      <span> This month so far: {formatCurrency(monthlyIncome)} (partial — not used in the average).</span>
+                    )}
+                  </div>
+                </div>
+              ) : monthlyIncome > 0 ? (
+                <div style={{
+                  background: 'rgba(245,158,11,0.08)',
+                  border: '1px solid rgba(245,158,11,0.25)',
+                  borderRadius: 10, padding: '12px 14px', marginBottom: 16,
+                  fontSize: '0.82rem', color: '#F59E0B',
+                }}>
+                  Only this month's income is available ({formatCurrency(monthlyIncome)}). Budget rules work best with 2-3 months of income history — the number below is a best-guess, feel free to override it with what you actually expect to earn.
+                </div>
+              ) : (
+                <div style={{
+                  background: 'rgba(239,68,68,0.08)',
+                  border: '1px solid rgba(239,68,68,0.25)',
+                  borderRadius: 10, padding: '12px 14px', marginBottom: 16,
+                  fontSize: '0.82rem', color: '#EF4444',
+                }}>
+                  No income transactions found yet. Type what you expect to earn this month below.
                 </div>
               )}
+
               <div className="rule-options">
                 {budgetRules.map((rule, i) => (
                   <button key={i} type="button"
@@ -746,8 +936,15 @@ const Budgets = () => {
               </div>
               {selectedRule !== null && (
                 <div className="form-group">
-                  <label>Monthly Income (P){monthlyIncome > 0 && <span style={{ fontWeight: 'normal', opacity: 0.7 }}> — pre-filled from transactions</span>}</label>
-                  <input type="number" value={ruleIncome} onChange={e => setRuleIncome(e.target.value)} placeholder="Enter your monthly income" min="0" step="0.01" />
+                  <label>
+                    Expected monthly income (P)
+                    {typicalMonthlyIncome > 0 && (
+                      <span style={{ fontWeight: 400, opacity: 0.7, marginLeft: 6, fontSize: '0.75rem' }}>
+                        — pre-filled from your last {incomeBreakdown.monthsUsed} month{incomeBreakdown.monthsUsed !== 1 ? 's' : ''}. Edit freely.
+                      </span>
+                    )}
+                  </label>
+                  <input type="number" value={ruleIncome} onChange={e => setRuleIncome(e.target.value)} placeholder="What you expect to earn this month" min="0" step="0.01" />
                 </div>
               )}
               <button className="submit-btn" onClick={applyRule} disabled={selectedRule === null || !ruleIncome}>

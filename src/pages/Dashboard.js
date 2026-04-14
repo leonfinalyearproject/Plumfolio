@@ -40,6 +40,28 @@ const getGoalIcon = (icon) => GOAL_ICONS[icon] || GOAL_ICONS[EMOJI_TO_KEY[icon]]
 
 ChartJS.register(ArcElement, Tooltip, Legend);
 
+// Small badge for "vs previous period" comparisons.
+// `positiveIsGood`=true → income (more is better); false → expenses (less is better)
+const DeltaBadge = ({ current, previous, positiveIsGood, formatCurrency }) => {
+  if (!previous && !current) {
+    return <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: 4, display: 'block' }}>No data last month</span>;
+  }
+  if (!previous) {
+    return <span style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', marginTop: 4, display: 'block' }}>New this month</span>;
+  }
+  const diff = current - previous;
+  const pct = (diff / previous) * 100;
+  const up = diff > 0;
+  const isGood = positiveIsGood ? up : !up;
+  const color = Math.abs(pct) < 0.5 ? 'var(--text-secondary)' : (isGood ? '#22C55E' : '#EF4444');
+  const arrow = Math.abs(pct) < 0.5 ? '→' : (up ? '▲' : '▼');
+  return (
+    <span style={{ fontSize: '0.72rem', color, marginTop: 4, display: 'block' }}>
+      {arrow} {Math.abs(pct).toFixed(1)}% vs last month ({formatCurrency(Math.abs(diff))})
+    </span>
+  );
+};
+
 const Dashboard = () => {
   const { formatCurrency, symbol } = useCurrency();
   const { user } = useAuth();
@@ -47,6 +69,10 @@ const Dashboard = () => {
     balance: 0,
     income: 0,
     expenses: 0,
+    thisMonthIncome: 0,
+    lastMonthIncome: 0,
+    thisMonthExpenses: 0,
+    lastMonthExpenses: 0,
   });
   const [transactions, setTransactions] = useState([]);
   const [budgets, setBudgets] = useState([]);
@@ -126,6 +152,7 @@ const Dashboard = () => {
 
       // Calculate stats
       if (allTransactions) {
+        // --- All-time totals (balance) ---
         const income = allTransactions
           .filter(t => t.type === 'income')
           .reduce((sum, t) => sum + parseFloat(t.amount), 0);
@@ -134,10 +161,29 @@ const Dashboard = () => {
           .filter(t => t.type === 'expense')
           .reduce((sum, t) => sum + parseFloat(t.amount), 0);
 
+        // --- This month vs last month deltas ---
+        const now = new Date();
+        const thisMonthKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+        const prev = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+        const lastMonthKey = `${prev.getFullYear()}-${String(prev.getMonth() + 1).padStart(2, '0')}`;
+
+        const sumBy = (txns, type, key) => txns
+          .filter(t => t.type === type && (t.date || '').slice(0, 7) === key)
+          .reduce((s, t) => s + parseFloat(t.amount || 0), 0);
+
+        const thisMonthIncome = sumBy(allTransactions, 'income', thisMonthKey);
+        const lastMonthIncome = sumBy(allTransactions, 'income', lastMonthKey);
+        const thisMonthExpenses = sumBy(allTransactions, 'expense', thisMonthKey);
+        const lastMonthExpenses = sumBy(allTransactions, 'expense', lastMonthKey);
+
         setStats({
           balance: income - expenses,
           income,
           expenses,
+          thisMonthIncome,
+          lastMonthIncome,
+          thisMonthExpenses,
+          lastMonthExpenses,
         });
 
         // Calculate expenses by category for pie chart
@@ -276,26 +322,31 @@ const Dashboard = () => {
             <Wallet size={20} />
           </div>
           <span className="stat-amount">{formatCurrency(stats.balance)}</span>
+          <span className="stat-subtitle" style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', marginTop: 4 }}>
+            All-time net (income − expenses)
+          </span>
         </div>
 
         <div className="stat-card">
           <div className="stat-top">
-            <span className="stat-label">Income</span>
+            <span className="stat-label">Income (this month)</span>
             <div className="stat-badge up">
               <ArrowUpRight size={14} />
             </div>
           </div>
-          <span className="stat-amount">{formatCurrency(stats.income)}</span>
+          <span className="stat-amount">{formatCurrency(stats.thisMonthIncome)}</span>
+          <DeltaBadge current={stats.thisMonthIncome} previous={stats.lastMonthIncome} positiveIsGood={true} formatCurrency={formatCurrency} />
         </div>
 
         <div className="stat-card">
           <div className="stat-top">
-            <span className="stat-label">Expenses</span>
+            <span className="stat-label">Expenses (this month)</span>
             <div className="stat-badge down">
               <ArrowDownRight size={14} />
             </div>
           </div>
-          <span className="stat-amount">{formatCurrency(stats.expenses)}</span>
+          <span className="stat-amount">{formatCurrency(stats.thisMonthExpenses)}</span>
+          <DeltaBadge current={stats.thisMonthExpenses} previous={stats.lastMonthExpenses} positiveIsGood={false} formatCurrency={formatCurrency} />
         </div>
       </div>
 

@@ -8,6 +8,23 @@ import {
 } from 'lucide-react';
 import './Reports.css';
 
+// Delta line shown beneath each report summary metric
+const DeltaLine = ({ label, delta, positiveIsGood }) => {
+  if (!delta || !label) return null;
+  if (delta.text === 'new') {
+    return <span style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', display: 'block', marginTop: 2 }}>No data {label}</span>;
+  }
+  const up = delta.value > 0;
+  const flat = Math.abs(delta.value) < 0.5;
+  const isGood = positiveIsGood ? up : !up;
+  const color = flat ? 'var(--text-secondary)' : (isGood ? '#22C55E' : '#EF4444');
+  return (
+    <span style={{ fontSize: '0.7rem', color, display: 'block', marginTop: 2 }}>
+      {delta.text} {label}
+    </span>
+  );
+};
+
 const Reports = () => {
   const { user } = useAuth();
   const { formatCurrency, symbol } = useCurrency();
@@ -44,6 +61,42 @@ const Reports = () => {
   const net = income - expenses;
   const savingsRate = income > 0 ? ((net / income) * 100).toFixed(1) : '0.0';
 
+  // --- COMPARISON: previous period + same-period-last-year ---
+  // For "month" view → compare to previous month AND same month last year.
+  // For "year"  view → compare to previous year.
+  // For "all"   view → no comparison (nothing to compare against).
+  const prevPeriodKey = (() => {
+    if (period === 'month') {
+      const [y, m] = selectedMonth.split('-').map(Number);
+      const prev = new Date(y, m - 2, 1); // m-1 is current, m-2 is previous
+      return `${prev.getFullYear()}-${String(prev.getMonth() + 1).padStart(2, '0')}`;
+    }
+    if (period === 'year') return String(parseInt(selectedYear, 10) - 1);
+    return null;
+  })();
+  const yoyPeriodKey = period === 'month'
+    ? `${parseInt(selectedMonth.slice(0, 4), 10) - 1}${selectedMonth.slice(4)}`
+    : null;
+
+  const sumFor = (key, type) => transactions
+    .filter(t => t.type === type && t.date && t.date.startsWith(key))
+    .reduce((s, t) => s + parseFloat(t.amount), 0);
+
+  const prevIncome   = prevPeriodKey ? sumFor(prevPeriodKey, 'income')  : 0;
+  const prevExpenses = prevPeriodKey ? sumFor(prevPeriodKey, 'expense') : 0;
+  const prevNet      = prevIncome - prevExpenses;
+  const prevSavingsRate = prevIncome > 0 ? (prevNet / prevIncome) * 100 : 0;
+
+  const yoyIncome   = yoyPeriodKey ? sumFor(yoyPeriodKey, 'income')  : 0;
+  const yoyExpenses = yoyPeriodKey ? sumFor(yoyPeriodKey, 'expense') : 0;
+
+  const pctDelta = (curr, prev) => {
+    if (!prev && !curr) return null;
+    if (!prev) return { text: 'new', good: null };
+    const d = ((curr - prev) / prev) * 100;
+    return { text: `${d > 0 ? '▲' : d < 0 ? '▼' : '→'} ${Math.abs(d).toFixed(1)}%`, value: d };
+  };
+
   // Category breakdown
   const categoryTotals = filtered.filter(t => t.type === 'expense')
     .reduce((acc, t) => { acc[t.category] = (acc[t.category] || 0) + parseFloat(t.amount); return acc; }, {});
@@ -55,8 +108,24 @@ const Reports = () => {
     .reduce((acc, t) => { acc[t.description] = (acc[t.description] || 0) + parseFloat(t.amount); return acc; }, {});
   const sortedIncome = Object.entries(incomeSources).sort((a, b) => b[1] - a[1]);
 
-  // Daily average
-  const daysInPeriod = period === 'month' ? 30 : period === 'year' ? 365 : Math.max(1, Math.ceil((new Date() - new Date(filtered[filtered.length - 1]?.date || new Date())) / 86400000));
+  // Daily average — use the actual number of days in the selected period,
+  // not a hardcoded 30/365 (which was wrong for e.g. February or partial months).
+  const daysInPeriod = (() => {
+    if (period === 'month') {
+      const [y, m] = selectedMonth.split('-').map(Number);
+      return new Date(y, m, 0).getDate(); // last day of that month
+    }
+    if (period === 'year') {
+      const y = parseInt(selectedYear, 10);
+      // leap year check
+      return ((y % 4 === 0 && y % 100 !== 0) || y % 400 === 0) ? 366 : 365;
+    }
+    // 'all' → span from first to last transaction date
+    if (filtered.length === 0) return 1;
+    const sortedDates = [...filtered].map(t => t.date).filter(Boolean).sort();
+    const span = Math.ceil((new Date(sortedDates[sortedDates.length - 1]) - new Date(sortedDates[0])) / 86400000) + 1;
+    return Math.max(span, 1);
+  })();
   const dailyAvg = expenses / Math.max(daysInPeriod, 1);
 
   // Top 5 transactions
@@ -222,7 +291,7 @@ tr:last-child td{border-bottom:none}
   </div>
 
   <div class="ftr">
-    <div class="ftr-left"><span class="ftr-logo">Plumfolio</span> — AI-Powered Personal Finance</div>
+    <div class="ftr-left"><span class="ftr-logo">Plumfolio</span> — Personal Finance Report</div>
     <div class="ftr-right">Report generated ${new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })} at ${new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}</div>
   </div>
 </div>
@@ -273,21 +342,65 @@ tr:last-child td{border-bottom:none}
           <div className="report-summary">
             <div className="report-stat">
               <div className="report-stat-icon income"><ArrowUpCircle size={20} /></div>
-              <div><span className="report-stat-label">Income</span><span className="report-stat-value income">{formatCurrency(income)}</span></div>
+              <div>
+                <span className="report-stat-label">Income</span>
+                <span className="report-stat-value income">{formatCurrency(income)}</span>
+                <DeltaLine label={period === 'month' ? 'vs last month' : period === 'year' ? 'vs last year' : null}
+                  delta={pctDelta(income, prevIncome)} positiveIsGood={true} />
+              </div>
             </div>
             <div className="report-stat">
               <div className="report-stat-icon expense"><ArrowDownCircle size={20} /></div>
-              <div><span className="report-stat-label">Expenses</span><span className="report-stat-value expense">{formatCurrency(expenses)}</span></div>
+              <div>
+                <span className="report-stat-label">Expenses</span>
+                <span className="report-stat-value expense">{formatCurrency(expenses)}</span>
+                <DeltaLine label={period === 'month' ? 'vs last month' : period === 'year' ? 'vs last year' : null}
+                  delta={pctDelta(expenses, prevExpenses)} positiveIsGood={false} />
+              </div>
             </div>
             <div className="report-stat">
               <div className="report-stat-icon net"><Wallet size={20} /></div>
-              <div><span className="report-stat-label">Net Savings</span><span className={`report-stat-value ${net >= 0 ? 'income' : 'expense'}`}>{formatCurrency(net)}</span></div>
+              <div>
+                <span className="report-stat-label">Net Savings</span>
+                <span className={`report-stat-value ${net >= 0 ? 'income' : 'expense'}`}>{formatCurrency(net)}</span>
+                <DeltaLine label={period === 'month' ? 'vs last month' : period === 'year' ? 'vs last year' : null}
+                  delta={pctDelta(net, prevNet)} positiveIsGood={true} />
+              </div>
             </div>
             <div className="report-stat">
               <div className="report-stat-icon rate"><TrendingUp size={20} /></div>
-              <div><span className="report-stat-label">Savings Rate</span><span className="report-stat-value">{savingsRate}%</span></div>
+              <div>
+                <span className="report-stat-label">Savings Rate</span>
+                <span className="report-stat-value">{savingsRate}%</span>
+                <DeltaLine label={period === 'month' ? 'vs last month' : period === 'year' ? 'vs last year' : null}
+                  delta={pctDelta(parseFloat(savingsRate), prevSavingsRate)} positiveIsGood={true} />
+              </div>
             </div>
           </div>
+
+          {/* Month-view also shows year-over-year comparison in a separate row */}
+          {period === 'month' && (yoyIncome > 0 || yoyExpenses > 0) && (
+            <div className="report-summary" style={{ marginTop: -8, opacity: 0.9 }}>
+              <div className="report-stat" style={{ gridColumn: '1 / -1', background: 'rgba(168,85,247,0.04)', border: '1px solid rgba(168,85,247,0.15)' }}>
+                <div className="report-stat-icon rate"><Calendar size={18} /></div>
+                <div>
+                  <span className="report-stat-label">Same month last year ({yoyPeriodKey})</span>
+                  <div style={{ display: 'flex', gap: 24, flexWrap: 'wrap', marginTop: 4 }}>
+                    <span style={{ fontSize: '0.85rem' }}>Income <strong style={{ color: '#22C55E' }}>{formatCurrency(yoyIncome)}</strong>
+                      {yoyIncome > 0 && <span style={{ marginLeft: 6, fontSize: '0.72rem', color: 'var(--text-secondary)' }}>
+                        ({income > yoyIncome ? '▲' : income < yoyIncome ? '▼' : '→'} {Math.abs(((income - yoyIncome) / yoyIncome) * 100).toFixed(1)}%)
+                      </span>}
+                    </span>
+                    <span style={{ fontSize: '0.85rem' }}>Expenses <strong style={{ color: '#EF4444' }}>{formatCurrency(yoyExpenses)}</strong>
+                      {yoyExpenses > 0 && <span style={{ marginLeft: 6, fontSize: '0.72rem', color: 'var(--text-secondary)' }}>
+                        ({expenses > yoyExpenses ? '▲' : expenses < yoyExpenses ? '▼' : '→'} {Math.abs(((expenses - yoyExpenses) / yoyExpenses) * 100).toFixed(1)}%)
+                      </span>}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
 
           <div className="report-grid">
             {/* Category Breakdown */}

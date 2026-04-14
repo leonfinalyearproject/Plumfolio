@@ -58,8 +58,8 @@ const Insights = () => {
         <div className="insights-header-left">
           <Brain size={24} />
           <div>
-            <h2>AI Insights & Predictions</h2>
-            <p>Real-time analysis powered by statistical forecasting</p>
+            <h2>Forecast Analysis</h2>
+            <p>Real-time forecasting from your transaction history — trends, predictions, and recurring patterns</p>
           </div>
         </div>
         <button className="refresh-btn" onClick={refreshInsights}>
@@ -121,7 +121,7 @@ const Insights = () => {
               <div className="empty-state">
                 <Lightbulb size={48} />
                 <h3>No insights yet</h3>
-                <p>Add more transactions to start receiving AI-powered spending insights.</p>
+                <p>Add more transactions to start receiving spending insights and forecasts.</p>
               </div>
             ) : (
               insights.insights.map((insight, i) => (

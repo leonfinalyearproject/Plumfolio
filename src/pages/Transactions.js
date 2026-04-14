@@ -8,6 +8,7 @@ import { parseReceiptText, detectCategory as receiptDetectCategory } from '../ut
 import processReceiptImage from '../utils/imageProcessor';
 import { validateTransactionForm } from '../utils/validation';
 import { parseImportRows, SAMPLE_TEMPLATE_ROWS, buildHistoryIndex, setReceiptDetectCategory } from '../utils/importParser';
+import { findDuplicates, describeMatch } from '../utils/duplicateCheck';
 
 setReceiptDetectCategory(receiptDetectCategory);
 
@@ -41,6 +42,11 @@ const Transactions = () => {
     category: 'Food & Dining', date: new Date().toISOString().split('T')[0],
   });
   const [formErrors, setFormErrors] = useState({});
+  // Duplicate-detection state: when we find potential matches, we block the
+  // save and surface them to the user. They can either cancel or tick
+  // "add anyway" to confirm the transaction really is a new event.
+  const [duplicateMatches, setDuplicateMatches] = useState([]);
+  const [duplicateOverride, setDuplicateOverride] = useState(false);
 
   // Categories list - defined before state that uses it
   const categories = [
@@ -197,7 +203,7 @@ const Transactions = () => {
     e.preventDefault();
     const errors = validateTransactionForm(formData);
     if (Object.keys(errors).length > 0) { setFormErrors(errors); return; }
-    
+
     const payload = {
       user_id: user.id,
       type: formData.type,
@@ -206,6 +212,16 @@ const Transactions = () => {
       category: formData.category,
       date: formData.date,
     };
+
+    // Duplicate check — skipped on edit (editing = intentional change to an
+    // existing row), skipped if the user already confirmed to override.
+    if (!editingTransaction && !duplicateOverride) {
+      const matches = findDuplicates(payload, transactions);
+      if (matches.length > 0) {
+        setDuplicateMatches(matches);
+        return;  // block save; the UI shows a confirmation banner
+      }
+    }
 
     if (editingTransaction) {
       const { error } = await supabase.from('transactions').update(payload).eq('id', editingTransaction.id);
@@ -220,11 +236,13 @@ const Transactions = () => {
         if (addToast) addToast({ type: 'success', title: 'Added', message: 'Transaction added' });
       }
     }
-    
+
     setModalOpen(false);
     setEditingTransaction(null);
     setFormData({ type: 'expense', amount: '', description: '', category: 'Food & Dining', date: new Date().toISOString().split('T')[0] });
     setFormErrors({});
+    setDuplicateMatches([]);
+    setDuplicateOverride(false);
     if (refreshInsights) refreshInsights();
   };
 
@@ -278,13 +296,19 @@ const Transactions = () => {
         setScanStatus(`Reading (${version.label})...`);
         setScanProgress(20 + Math.round((i / processedVersions.length) * 50));
         
+        // PSM 6 = "Assume a single uniform block of text" — best for receipts
+        // which are vertical lists of text. Char whitelist biases Tesseract
+        // toward the characters we actually need: letters, digits, currency
+        // punctuation, slashes/dashes for dates.
         const result = await window.Tesseract.recognize(version.data, 'eng', {
-          logger: (m) => { 
+          logger: (m) => {
             if (m.status === 'recognizing text') {
               const baseProgress = 20 + Math.round((i / processedVersions.length) * 50);
-              setScanProgress(baseProgress + Math.round(m.progress * (50 / processedVersions.length))); 
+              setScanProgress(baseProgress + Math.round(m.progress * (50 / processedVersions.length)));
             }
           },
+          tessedit_pageseg_mode: 6,
+          tessedit_char_whitelist: 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789.,:/-$£€¥PR ',
         });
         
         const parsed = parseReceiptText(result.data.text);
@@ -328,10 +352,35 @@ const Transactions = () => {
 
   const saveScanned = async () => {
     if (!extractedData) return;
+    // Strict mode: we save merchant (description), date, and total. Nothing else.
+    // First check the three required fields are present and valid.
+    if (!extractedData.merchant || extractedData.merchant.trim().length < 2) {
+      setScanError('Merchant name missing — tap the field and type it in');
+      return;
+    }
+    if (!extractedData.date) {
+      setScanError('Date missing — tap the date field to set it');
+      return;
+    }
+    if (!(extractedData.total > 0)) {
+      setScanError('Total amount missing or zero — tap the total field and correct it');
+      return;
+    }
+
     const payload = {
       user_id: user.id, type: 'expense', amount: extractedData.total,
-      description: extractedData.merchant, category: extractedData.category, date: extractedData.date,
+      description: extractedData.merchant.trim(), category: extractedData.category || 'Other', date: extractedData.date,
     };
+
+    // Duplicate check for scanned receipts — same merchant + same amount + same date
+    // is almost certainly a double-scan of the same physical receipt.
+    const matches = findDuplicates(payload, transactions);
+    if (matches.length > 0 && !extractedData.overrideDuplicate) {
+      setExtractedData({ ...extractedData, duplicateMatches: matches });
+      setScanError(`This receipt looks like a duplicate of a transaction you already have (${describeMatch(matches[0], formatCurrency)}). Tick "Save anyway" below if it really is a new receipt.`);
+      return;
+    }
+
     const { data, error } = await supabase.from('transactions').insert([payload]).select();
     if (!error && data) {
       setTransactions(prev => [data[0], ...prev]);
@@ -371,14 +420,43 @@ const Transactions = () => {
   const doImport = async () => {
     if (!importData || importData.length === 0) return;
     setImporting(true);
-    const rowsToInsert = importData.map(r => ({
-      user_id: user.id, type: r.type, amount: r.amount,
-      description: r.description || '', category: r.category, date: r.date,
-    }));
-    const { data, error } = await supabase.from('transactions').insert(rowsToInsert).select();
+
+    // Skip rows that duplicate existing transactions. Report how many were skipped.
+    const seen = [...transactions];
+    const toInsert = [];
+    let skipped = 0;
+    for (const r of importData) {
+      const candidate = {
+        user_id: user.id, type: r.type, amount: r.amount,
+        description: r.description || '', category: r.category, date: r.date,
+      };
+      const matches = findDuplicates(candidate, seen);
+      if (matches.length > 0 && matches[0].matchStrength === 'certain') {
+        skipped++;
+        continue;
+      }
+      toInsert.push(candidate);
+      // Also add to `seen` so duplicates WITHIN the import file itself get caught.
+      seen.push(candidate);
+    }
+
+    if (toInsert.length === 0) {
+      if (addToast) addToast({ type: 'info', title: 'Nothing to import', message: `All ${importData.length} rows matched existing transactions.` });
+      setImporting(false);
+      setImportModalOpen(false); setImportData(null);
+      return;
+    }
+
+    const { data, error } = await supabase.from('transactions').insert(toInsert).select();
     if (!error && data) {
       setTransactions(prev => [...data, ...prev]);
-      if (addToast) addToast({ type: 'success', title: 'Imported', message: `${data.length} transactions` });
+      if (addToast) addToast({
+        type: 'success',
+        title: 'Imported',
+        message: skipped > 0
+          ? `${data.length} added, ${skipped} skipped as duplicates`
+          : `${data.length} transactions`
+      });
       setImportModalOpen(false); setImportData(null);
       if (refreshInsights) refreshInsights();
     }
@@ -553,18 +631,44 @@ const Transactions = () => {
 
       {/* Add/Edit Modal */}
       {modalOpen && ReactDOM.createPortal(
-        <div className="tx-overlay" onClick={() => { setModalOpen(false); setEditingTransaction(null); setFormErrors({}); }}>
+        <div className="tx-overlay" onClick={() => { setModalOpen(false); setEditingTransaction(null); setFormErrors({}); setDuplicateMatches([]); setDuplicateOverride(false); }}>
           <div className="tx-modal" onClick={e => e.stopPropagation()}>
             <div className="tx-modal-head">
               <h2>{editingTransaction ? 'Edit' : 'Add'} Transaction</h2>
-              <button onClick={() => { setModalOpen(false); setEditingTransaction(null); }}><X size={20} /></button>
+              <button onClick={() => { setModalOpen(false); setEditingTransaction(null); setDuplicateMatches([]); setDuplicateOverride(false); }}><X size={20} /></button>
             </div>
             <form onSubmit={handleSubmit} className="tx-modal-form">
+              {/* Duplicate warning — shown after user hits save and we found a likely match */}
+              {duplicateMatches.length > 0 && (
+                <div style={{
+                  background: 'rgba(245,158,11,0.08)',
+                  border: '1px solid rgba(245,158,11,0.3)',
+                  borderRadius: 10,
+                  padding: '12px 14px',
+                  marginBottom: 12,
+                  fontSize: '0.82rem',
+                  color: '#F59E0B',
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontWeight: 600, marginBottom: 6 }}>
+                    <AlertCircle size={14} />
+                    Possible duplicate{duplicateMatches.length > 1 ? 's' : ''} detected
+                  </div>
+                  <div style={{ color: 'var(--text-secondary)', lineHeight: 1.4 }}>
+                    {duplicateMatches.slice(0, 3).map((m, i) => (
+                      <div key={m.id || i} style={{ marginBottom: 4 }}>• {describeMatch(m, formatCurrency)} <em style={{ opacity: 0.7 }}>({m.matchStrength} match)</em></div>
+                    ))}
+                  </div>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 8, cursor: 'pointer', color: 'var(--text-primary)' }}>
+                    <input type="checkbox" checked={duplicateOverride} onChange={e => setDuplicateOverride(e.target.checked)} />
+                    <span>Yes, this really is a new transaction — add it anyway</span>
+                  </label>
+                </div>
+              )}
               <div className="tx-type-toggle">
-                <button type="button" className={formData.type === 'expense' ? 'on expense' : ''} onClick={() => setFormData({...formData, type: 'expense'})}>
+                <button type="button" className={formData.type === 'expense' ? 'on expense' : ''} onClick={() => { setFormData({...formData, type: 'expense'}); setDuplicateMatches([]); }}>
                   <ArrowDownCircle size={18} /> Expense
                 </button>
-                <button type="button" className={formData.type === 'income' ? 'on income' : ''} onClick={() => setFormData({...formData, type: 'income'})}>
+                <button type="button" className={formData.type === 'income' ? 'on income' : ''} onClick={() => { setFormData({...formData, type: 'income'}); setDuplicateMatches([]); }}>
                   <ArrowUpCircle size={18} /> Income
                 </button>
               </div>
@@ -572,19 +676,19 @@ const Transactions = () => {
                 <label>Amount</label>
                 <div className="tx-amt-input">
                   <span>{symbol}</span>
-                  <input type="number" step="0.01" value={formData.amount} onChange={e => setFormData({...formData, amount: e.target.value})} placeholder="0.00" />
+                  <input type="number" step="0.01" value={formData.amount} onChange={e => { setFormData({...formData, amount: e.target.value}); setDuplicateMatches([]); }} placeholder="0.00" />
                 </div>
                 {formErrors.amount && <span className="tx-err">{formErrors.amount}</span>}
               </div>
               <div className="tx-field">
                 <label>Description</label>
-                <input type="text" value={formData.description} onChange={e => setFormData({...formData, description: e.target.value})} placeholder="What was this for?" />
+                <input type="text" value={formData.description} onChange={e => { setFormData({...formData, description: e.target.value}); setDuplicateMatches([]); }} placeholder="What was this for?" />
                 {formErrors.description && <span className="tx-err">{formErrors.description}</span>}
               </div>
               <div className="tx-field-row">
                 <div className="tx-field">
                   <label>Category</label>
-                  <select value={formData.category} onChange={e => setFormData({...formData, category: e.target.value})}>
+                  <select value={formData.category} onChange={e => { setFormData({...formData, category: e.target.value}); setDuplicateMatches([]); }}>
                     {categories.map(c => <option key={c} value={c}>{c}</option>)}
                   </select>
                 </div>
@@ -644,21 +748,24 @@ const Transactions = () => {
               ) : (
                 <div className="tx-scan-result">
                   <div className="tx-scan-result-head"><Check size={16} /> Review & Save</div>
+                  <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginBottom: 8 }}>
+                    Only three things are saved: <strong>merchant</strong>, <strong>date</strong>, and <strong>total</strong>. Correct any OCR errors before saving.
+                  </p>
                   <div className="tx-scan-fields">
                     <div className="tx-field">
                       <label>Merchant</label>
-                      <input type="text" value={extractedData.merchant} onChange={e => setExtractedData({...extractedData, merchant: e.target.value})} />
+                      <input type="text" value={extractedData.merchant} onChange={e => setExtractedData({...extractedData, merchant: e.target.value, duplicateMatches: undefined, overrideDuplicate: false})} />
                     </div>
                     <div className="tx-field-row">
                       <div className="tx-field">
                         <label>Date</label>
-                        <input type="date" value={extractedData.date} onChange={e => setExtractedData({...extractedData, date: e.target.value})} />
+                        <input type="date" value={extractedData.date} onChange={e => setExtractedData({...extractedData, date: e.target.value, duplicateMatches: undefined, overrideDuplicate: false})} />
                       </div>
                       <div className="tx-field">
                         <label>Total</label>
                         <div className="tx-amt-input">
                           <span>{symbol}</span>
-                          <input type="number" step="0.01" value={extractedData.total} onChange={e => setExtractedData({...extractedData, total: parseFloat(e.target.value)||0})} />
+                          <input type="number" step="0.01" value={extractedData.total} onChange={e => setExtractedData({...extractedData, total: parseFloat(e.target.value)||0, duplicateMatches: undefined, overrideDuplicate: false})} />
                         </div>
                       </div>
                     </div>
@@ -669,6 +776,27 @@ const Transactions = () => {
                       </select>
                     </div>
                   </div>
+                  {extractedData.duplicateMatches && extractedData.duplicateMatches.length > 0 && (
+                    <div style={{
+                      marginTop: 10,
+                      background: 'rgba(245,158,11,0.08)',
+                      border: '1px solid rgba(245,158,11,0.3)',
+                      borderRadius: 8, padding: '10px 12px',
+                      fontSize: '0.8rem', color: '#F59E0B',
+                    }}>
+                      <div style={{ fontWeight: 600, marginBottom: 6 }}>⚠ Already in your transactions:</div>
+                      {extractedData.duplicateMatches.slice(0, 2).map((m, i) => (
+                        <div key={m.id || i} style={{ color: 'var(--text-secondary)', marginBottom: 2 }}>
+                          • {describeMatch(m, formatCurrency)}
+                        </div>
+                      ))}
+                      <label style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 8, cursor: 'pointer', color: 'var(--text-primary)' }}>
+                        <input type="checkbox" checked={!!extractedData.overrideDuplicate}
+                          onChange={e => setExtractedData({...extractedData, overrideDuplicate: e.target.checked})} />
+                        <span>Save anyway — this is a separate receipt</span>
+                      </label>
+                    </div>
+                  )}
                   <div className="tx-scan-actions">
                     <button className="tx-scan-save" onClick={saveScanned}><Plus size={16} /> Save</button>
                     <button className="tx-scan-retry" onClick={resetScanner}>Try Another</button>

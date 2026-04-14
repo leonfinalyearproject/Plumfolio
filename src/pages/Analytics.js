@@ -97,6 +97,18 @@ const Analytics = () => {
     return { month: label, income, expenses, savings: income - expenses };
   });
 
+  // Year-over-year: same 6 months from a year ago, for comparison overlay
+  const yoyData = months.map(({ key }) => {
+    const year = parseInt(key.slice(0, 4), 10);
+    const yoyKey = `${year - 1}${key.slice(4)}`; // e.g. "2025-04" → "2024-04"
+    const yoyTxns = transactions.filter(t => t.date && t.date.startsWith(yoyKey));
+    return {
+      income: yoyTxns.filter(t => t.type === 'income').reduce((s, t) => s + parseFloat(t.amount), 0),
+      expenses: yoyTxns.filter(t => t.type === 'expense').reduce((s, t) => s + parseFloat(t.amount), 0),
+    };
+  });
+  const hasYoYData = yoyData.some(d => d.income > 0 || d.expenses > 0);
+
   // Category breakdown
   const categoryTotals = transactions
     .filter(t => t.type === 'expense')
@@ -145,6 +157,31 @@ const Analytics = () => {
         pointRadius: 4,
         pointHoverRadius: 6,
       },
+      // Year-over-year overlay — only shown if we actually have prior-year data
+      ...(hasYoYData ? [
+        {
+          label: 'Expenses (last year)',
+          data: yoyData.map(d => d.expenses),
+          borderColor: 'rgba(157, 78, 221, 0.5)',
+          backgroundColor: 'transparent',
+          borderDash: [6, 4],
+          fill: false,
+          tension: 0.4,
+          pointRadius: 3,
+          pointHoverRadius: 5,
+        },
+        {
+          label: 'Income (last year)',
+          data: yoyData.map(d => d.income),
+          borderColor: 'rgba(76, 175, 80, 0.5)',
+          backgroundColor: 'transparent',
+          borderDash: [6, 4],
+          fill: false,
+          tension: 0.4,
+          pointRadius: 3,
+          pointHoverRadius: 5,
+        },
+      ] : []),
     ],
   };
 
@@ -155,7 +192,7 @@ const Analytics = () => {
       legend: {
         position: 'top',
         labels: {
-          color: '#A1A1AA',
+          color: '#D0D0DA',
           usePointStyle: true,
           font: { family: "'DM Sans', sans-serif" },
         },
@@ -164,12 +201,12 @@ const Analytics = () => {
     scales: {
       x: {
         grid: { color: 'rgba(255, 255, 255, 0.05)' },
-        ticks: { color: '#71717A' },
+        ticks: { color: '#B0B0BC' },
       },
       y: {
         grid: { color: 'rgba(255, 255, 255, 0.05)' },
         ticks: { 
-          color: '#71717A',
+          color: '#B0B0BC',
           callback: (value) => symbol + value.toLocaleString(),
         },
       },
@@ -199,7 +236,7 @@ const Analytics = () => {
       legend: {
         position: 'bottom',
         labels: {
-          color: '#A1A1AA',
+          color: '#D0D0DA',
           padding: 16,
           usePointStyle: true,
           font: { family: "'DM Sans', sans-serif", size: 11 },
@@ -229,12 +266,12 @@ const Analytics = () => {
     scales: {
       x: {
         grid: { display: false },
-        ticks: { color: '#71717A' },
+        ticks: { color: '#B0B0BC' },
       },
       y: {
         grid: { color: 'rgba(255, 255, 255, 0.05)' },
         ticks: { 
-          color: '#71717A',
+          color: '#B0B0BC',
           callback: (value) => symbol + value.toLocaleString(),
         },
       },
@@ -305,7 +342,7 @@ const Analytics = () => {
       <div className="charts-grid">
         {/* Income vs Expenses Trend */}
         <div className="chart-card wide">
-          <h3>Income vs Expenses Trend</h3>
+          <h3>Income vs Expenses Trend {hasYoYData && <span style={{ fontSize: '0.7rem', fontWeight: 400, color: 'var(--text-secondary)', marginLeft: 8 }}>— dashed = same months last year</span>}</h3>
           <div className="chart-wrapper">
             <Line data={lineChartData} options={lineChartOptions} />
           </div>
