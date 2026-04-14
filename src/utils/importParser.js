@@ -386,18 +386,223 @@ export function mapCategory(raw, knownCategories) {
 }
 
 // ============================================================
+// INTELLIGENT CATEGORY INFERENCE
+// ============================================================
+// Waterfall:
+// 1. User history (exact or fuzzy match on past transactions)
+// 2. Generic keywords (uber, coffee, pharmacy — work across merchants)
+// 3. Merchant database (via receiptParser.detectCategory — cold-start fallback)
+// 4. 'Other'
+
+// Map receiptParser's category names to the app's canonical categories
+const RECEIPT_CATEGORY_ALIAS = {
+  'Healthcare': 'Health & Fitness',
+  // Others already match the app's category list
+};
+
+/** Build a normalised token (lowercased, letters only) used for fuzzy matching */
+function tokenize(s) {
+  if (!s) return [];
+  return String(s).toLowerCase()
+    .replace(/[^a-z0-9\s]/g, ' ')
+    .split(/\s+/)
+    .filter(t => t.length >= 3); // ignore very short words
+}
+
+/**
+ * Build a "learning index" from the user's existing transactions.
+ * For each word in past descriptions, track which categories it's been used with.
+ *
+ * Returns: { byExact: Map<desc→category>, byToken: Map<token→{category: count}> }
+ */
+export function buildHistoryIndex(pastTransactions) {
+  const byExact = new Map();          // exact lowercase description → most frequent category
+  const exactCounts = new Map();      // description → {category → count}
+  const byToken = new Map();          // token word → {category → count}
+
+  (pastTransactions || []).forEach(t => {
+    if (!t || !t.description || !t.category) return;
+    const desc = String(t.description).toLowerCase().trim();
+    if (!desc) return;
+
+    // Exact description
+    if (!exactCounts.has(desc)) exactCounts.set(desc, {});
+    const exactEntry = exactCounts.get(desc);
+    exactEntry[t.category] = (exactEntry[t.category] || 0) + 1;
+
+    // Token-level (handles partial matches: "CHOPPIES MARULA" ↔ "Choppies Gaborone")
+    const tokens = tokenize(desc);
+    tokens.forEach(tok => {
+      if (!byToken.has(tok)) byToken.set(tok, {});
+      const entry = byToken.get(tok);
+      entry[t.category] = (entry[t.category] || 0) + 1;
+    });
+  });
+
+  // Pick the winner for each exact description
+  for (const [desc, counts] of exactCounts.entries()) {
+    let winner = null, winCount = 0;
+    for (const [cat, count] of Object.entries(counts)) {
+      if (count > winCount) { winner = cat; winCount = count; }
+    }
+    if (winner) byExact.set(desc, { category: winner, confidence: winCount / Object.values(counts).reduce((a, b) => a + b, 0), samples: winCount });
+  }
+
+  return { byExact, byToken };
+}
+
+/** Look up a description in the user's history. Returns category or null. */
+export function categoriseFromHistory(description, historyIndex) {
+  if (!description || !historyIndex) return null;
+  const desc = String(description).toLowerCase().trim();
+  if (!desc) return null;
+
+  // 1. Exact match
+  if (historyIndex.byExact.has(desc)) {
+    const hit = historyIndex.byExact.get(desc);
+    return { category: hit.category, source: 'history-exact', confidence: hit.confidence };
+  }
+
+  // 2. Token-level voting: tally which category each token suggests
+  const tokens = tokenize(desc);
+  if (tokens.length === 0) return null;
+  const votes = {};
+  let totalHits = 0;
+  tokens.forEach(tok => {
+    if (historyIndex.byToken.has(tok)) {
+      const entry = historyIndex.byToken.get(tok);
+      for (const [cat, count] of Object.entries(entry)) {
+        votes[cat] = (votes[cat] || 0) + count;
+        totalHits += count;
+      }
+    }
+  });
+
+  if (totalHits === 0) return null;
+
+  // Pick highest-voted category. Require > 60% share to claim a fuzzy match.
+  let winner = null, winCount = 0;
+  for (const [cat, count] of Object.entries(votes)) {
+    if (count > winCount) { winner = cat; winCount = count; }
+  }
+  const share = winCount / totalHits;
+  if (share < 0.6) return null;
+
+  return { category: winner, source: 'history-fuzzy', confidence: share };
+}
+
+/** Generic keyword-based categoriser. No merchant names — only universal words.
+ *  Works for a description the user has never seen before IF it contains a generic hint. */
+export function categoriseFromKeywords(description) {
+  if (!description) return null;
+  const s = String(description).toLowerCase();
+  if (!s.trim()) return null;
+
+  const KEYWORD_RULES = [
+    // Transportation (generic — no merchants)
+    { cats: 'Transportation', re: /\b(fuel|petrol|diesel|gasoline|gas\s*station|unleaded|pump|litre|liter|gallon|benzin|essence|carburant|gasolina)\b/ },
+    { cats: 'Transportation', re: /\b(uber|lyft|taxi|cab|bus|train|metro|subway|tram|parking|toll|airline|flight|rideshare|car\s*wash|tyre|tire|rental|transport)\b/ },
+
+    // Food & Dining
+    { cats: 'Food & Dining', re: /\b(restaurant|cafe|café|coffee|diner|bistro|pizza|burger|chicken|bakery|takeaway|dine|eatery|bar\s*and\s*grill|food\s*court)\b/ },
+    { cats: 'Groceries',     re: /\b(grocery|groceries|supermarket|hypermarket|market|food\s*shop|butcher|greengrocer)\b/ },
+
+    // Health & Fitness
+    { cats: 'Health & Fitness', re: /\b(pharmacy|pharmacie|apotek|apotheke|farmacia|clinic|hospital|doctor|medical|dentist|chemist|prescription|medicine|vitamin|drug\s*store|gym|fitness|yoga|pilates|wellness|crossfit)\b/ },
+
+    // Shopping
+    { cats: 'Shopping', re: /\b(clothing|fashion|shoe|apparel|electronics|department\s*store|boutique|outlet|mall|store)\b/ },
+
+    // Utilities
+    { cats: 'Utilities', re: /\b(electric|electricity|power\s*bill|water\s*bill|internet|wifi|broadband|airtime|data\s*bundle|prepaid|recharge|fibre|fiber|telco|telecom|mobile\s*network)\b/ },
+
+    // Entertainment
+    { cats: 'Entertainment', re: /\b(cinema|movie|theater|theatre|concert|festival|streaming|bowling|arcade|amusement|gaming|nightclub)\b/ },
+    { cats: 'Entertainment', re: /\b(netflix|spotify|disney\+?|hulu|youtube\s*premium|apple\s*music|amazon\s*prime|hbo|paramount)\b/ },
+
+    // Education
+    { cats: 'Education', re: /\b(school|university|college|tuition|course|textbook|stationery|library|exam|certification)\b/ },
+
+    // Housing
+    { cats: 'Housing', re: /\b(rent|mortgage|lease|landlord|property\s*management|hoa\s*fee|body\s*corporate)\b/ },
+
+    // Subscriptions
+    { cats: 'Subscriptions', re: /\b(subscription|monthly\s*plan|annual\s*plan|saas|membership\s*fee)\b/ },
+
+    // Travel
+    { cats: 'Travel', re: /\b(hotel|motel|hostel|resort|accommodation|airbnb|booking\.com|expedia|flight|airfare|vacation|holiday)\b/ },
+
+    // Personal Care
+    { cats: 'Personal Care', re: /\b(salon|barber|hair|beauty|spa|manicure|pedicure|grooming|cosmetic)\b/ },
+
+    // Savings / Investments
+    { cats: 'Savings',     re: /\b(savings\s*deposit|save|emergency\s*fund)\b/ },
+    { cats: 'Investments', re: /\b(stock|share|etf|mutual\s*fund|broker|bond|crypto|bitcoin|ethereum|investment\s*account)\b/ },
+
+    // Gifts & Donations
+    { cats: 'Gifts & Donations', re: /\b(gift|donation|donate|charity|tithe|offering)\b/ },
+
+    // Income
+    { cats: 'Income', re: /\b(salary|payroll|wages|paycheck|stipend|bonus|commission|refund|interest\s*earned|dividend|payout)\b/ },
+  ];
+
+  for (const rule of KEYWORD_RULES) {
+    if (rule.re.test(s)) return { category: rule.cats, source: 'keyword', confidence: 0.75 };
+  }
+  return null;
+}
+
+/** Cold-start fallback: use the receiptParser's merchant database.
+ *  Dynamically imports to avoid circular deps. */
+let _receiptDetectCategory = null;
+export function setReceiptDetectCategory(fn) {
+  // Allow consumer to inject to avoid circular import in tests
+  _receiptDetectCategory = fn;
+}
+
+function categoriseFromMerchantDB(description) {
+  if (!_receiptDetectCategory || !description) return null;
+  try {
+    const cat = _receiptDetectCategory(String(description).toLowerCase(), String(description));
+    if (cat && cat !== 'Other') {
+      return { category: RECEIPT_CATEGORY_ALIAS[cat] || cat, source: 'merchant-db', confidence: 0.7 };
+    }
+  } catch (e) { /* swallow */ }
+  return null;
+}
+
+/**
+ * Full categorisation waterfall.
+ * @returns {{category, source, confidence} | null}
+ */
+export function smartCategorise(description, historyIndex) {
+  if (!description) return null;
+  // 1. User history
+  const fromHistory = categoriseFromHistory(description, historyIndex);
+  if (fromHistory) return fromHistory;
+  // 2. Keywords (generic, merchant-agnostic)
+  const fromKeywords = categoriseFromKeywords(description);
+  if (fromKeywords) return fromKeywords;
+  // 3. Merchant database
+  const fromMerchant = categoriseFromMerchantDB(description);
+  if (fromMerchant) return fromMerchant;
+  return null;
+}
+
+// ============================================================
 // MAIN PARSER — takes raw JSON rows, returns structured result
 // ============================================================
 /**
  * @param {Array<Object>} rows - rows from SheetJS sheet_to_json or CSV parser
  * @param {Array<string>} knownCategories - app's canonical category list
- * @returns {{ ok: boolean, rows: Array, stats: Object, errors: Array, detected: Object }}
+ * @param {{byExact, byToken}} [historyIndex] - optional, built via buildHistoryIndex()
+ * @returns {{ ok, rows, stats, errors, detected, currency }}
  */
-export function parseImportRows(rows, knownCategories) {
+export function parseImportRows(rows, knownCategories, historyIndex = null) {
   if (!Array.isArray(rows) || rows.length === 0) {
     return {
       ok: false, rows: [], errors: ['No rows found in file.'],
-      detected: {}, stats: { total: 0, valid: 0, skipped: 0, mapped: 0 },
+      detected: {}, stats: { total: 0, valid: 0, skipped: 0, mapped: 0, autoCategorised: 0 },
     };
   }
 
@@ -413,12 +618,12 @@ export function parseImportRows(rows, knownCategories) {
   if (errors.length > 0) {
     return {
       ok: false, rows: [], errors, detected,
-      stats: { total: rows.length, valid: 0, skipped: rows.length, mapped: 0 },
+      stats: { total: rows.length, valid: 0, skipped: rows.length, mapped: 0, autoCategorised: 0 },
     };
   }
 
   const out = [];
-  let skipped = 0, mappedCount = 0;
+  let skipped = 0, mappedCount = 0, autoCategorised = 0;
   const skippedReasons = [];
 
   rows.forEach((r, idx) => {
@@ -463,8 +668,25 @@ export function parseImportRows(rows, knownCategories) {
     const { category, mapped, original } = mapCategory(rawCategory, knownCategories);
     if (mapped) mappedCount++;
 
-    // Income without explicit category → "Income"
-    const finalCategory = (type === 'income' && !rawCategory) ? 'Income' : category;
+    // SMART CATEGORISATION: if we landed on "Other" (or no category column exists),
+    // try to infer from the description.
+    let finalCategory = category;
+    let categorySource = mapped ? 'mapped' : (rawCategory ? 'explicit' : null);
+
+    if ((!rawCategory || finalCategory === 'Other') && description) {
+      const smart = smartCategorise(description, historyIndex);
+      if (smart && knownCategories.includes(smart.category)) {
+        finalCategory = smart.category;
+        categorySource = smart.source;
+        autoCategorised++;
+      }
+    }
+
+    // Income without any category inference → "Income"
+    if (type === 'income' && !rawCategory && (!categorySource || categorySource === null)) {
+      finalCategory = 'Income';
+      categorySource = 'income-default';
+    }
 
     // Per-row currency: column > symbol in amount > null
     let rowCurrency = detected.currency ? detectCurrencyCode(r[detected.currency]) : null;
@@ -477,7 +699,8 @@ export function parseImportRows(rows, knownCategories) {
       _rowIndex: idx + 2,
       _originalCategory: mapped ? (original || rawCategory) : null,
       _wasMapped: mapped,
-      _sourceCurrency: rowCurrency, // null if unknown
+      _categorySource: categorySource, // 'explicit', 'mapped', 'history-exact', 'history-fuzzy', 'keyword', 'merchant-db', 'income-default', null
+      _sourceCurrency: rowCurrency,
     });
   });
 
@@ -489,12 +712,13 @@ export function parseImportRows(rows, knownCategories) {
     errors: out.length === 0 ? ['No valid rows could be parsed.'] : [],
     warnings: skippedReasons.slice(0, 5),
     detected,
-    currency: currencyInfo,  // { code, mixed, counts }
+    currency: currencyInfo,
     stats: {
       total: rows.length,
       valid: out.length,
       skipped,
       mapped: mappedCount,
+      autoCategorised, // how many were auto-inferred from description
     },
   };
 }
