@@ -15,6 +15,7 @@ export const useInsights = () => {
       insights: null,
       predictions: null,
       crossSignals: [],
+      goals: [],
       toasts: [],
       loading: true,
       refreshInsights: () => {},
@@ -28,6 +29,7 @@ export const InsightsProvider = ({ children }) => {
   const { user } = useAuth();
   const [transactions, setTransactions] = useState([]);
   const [budgets, setBudgets] = useState([]);
+  const [goals, setGoals] = useState([]);
   const [insights, setInsights] = useState(null);
   const [predictions, setPredictions] = useState(null);
   const [crossSignals, setCrossSignals] = useState([]);
@@ -64,7 +66,7 @@ export const InsightsProvider = ({ children }) => {
       const userId = _s2 ? _s2.user.id : passedUserId;
       console.log('[INSIGHTS] userId:', userId);
 
-      const [txnRes, budgetRes] = await Promise.all([
+      const [txnRes, budgetRes, goalRes] = await Promise.all([
         supabase
           .from('transactions')
           .select('*')
@@ -74,16 +76,25 @@ export const InsightsProvider = ({ children }) => {
           .from('budgets')
           .select('*')
           .eq('user_id', userId),
+        supabase
+          .from('savings_goals')
+          .select('*')
+          .eq('user_id', userId),
       ]);
 
       const txns = txnRes.data || [];
       const budgs = budgetRes.data || [];
+      // Goals query may fail if migration hasn't been run — fall back to [] silently
+      const gls = (goalRes && !goalRes.error && Array.isArray(goalRes.data))
+        ? goalRes.data.map(g => ({ ...g, target: parseFloat(g.target), saved: parseFloat(g.saved) }))
+        : [];
 
       setTransactions(txns);
       setBudgets(budgs);
+      setGoals(gls);
 
       // Run AI engines
-      const newInsights = generateInsights(txns);
+      const newInsights = generateInsights(txns, gls);
       const newPredictions = generatePredictions(txns, budgs);
 
       // Detect new urgent insights for toasts
@@ -100,6 +111,11 @@ export const InsightsProvider = ({ children }) => {
               title: insight.type === 'anomaly' ? 'Unusual Transaction' :
                      insight.type === 'spending_increase' ? 'Spending Alert' :
                      insight.type === 'exceeded' ? 'Budget Exceeded' :
+                     insight.type === 'goal_overdue' ? 'Goal Overdue' :
+                     insight.type === 'goal_deadline_urgent' ? 'Goal Deadline!' :
+                     insight.type === 'goal_deadline_soon' ? 'Goal Deadline Approaching' :
+                     insight.type === 'goal_behind_pace' ? 'Savings Pace Alert' :
+                     insight.type === 'goal_completed' ? 'Goal Reached!' :
                      'AI Insight',
               message: insight.message,
               severity: insight.severity,
@@ -116,7 +132,7 @@ export const InsightsProvider = ({ children }) => {
       setPredictions(newPredictions);
 
       // ---- Cross-reference compound signals ----
-      const signals = generateCrossReferenceSignals(newInsights, newPredictions, { transactions: txns, budgets: budgs });
+      const signals = generateCrossReferenceSignals(newInsights, newPredictions, { transactions: txns, budgets: budgs, goals: gls });
       setCrossSignals(signals);
 
       // Emit toasts for newly-surfaced compound signals (high/medium only)
@@ -223,6 +239,7 @@ export const InsightsProvider = ({ children }) => {
     crossSignals,
     transactions,
     budgets,
+    goals,
     toasts,
     loading,
     refreshInsights,
