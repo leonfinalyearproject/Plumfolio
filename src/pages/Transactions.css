@@ -130,11 +130,47 @@
 .import-body { padding: 16px 20px; display: flex; flex-direction: column; gap: 12px; }
 .import-info { font-size: 0.85rem; color: var(--text-muted); margin: 4px 0 0 0; }
 .import-preview { border: 1px solid var(--border-color); border-radius: 10px; overflow: auto; max-height: 320px; }
+.import-preview.expanded { max-height: 55vh; }
 .import-preview table { width: 100%; border-collapse: collapse; font-size: 0.78rem; }
 .import-preview th { padding: 8px 10px; text-align: left; font-size: 0.65rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-dim); border-bottom: 1px solid var(--border-color); position: sticky; top: 0; background: var(--bg-elevated); }
 .import-preview td { padding: 6px 10px; color: var(--text-muted); border-bottom: 1px solid var(--border-color); white-space: nowrap; }
 .import-preview tr.row-remapped td { background: rgba(168, 85, 247, 0.04); }
-.import-more { text-align: center !important; color: var(--text-dim); font-style: italic; }
+.import-more { text-align: center !important; padding: 10px !important; }
+.import-more-btn {
+  background: rgba(168, 85, 247, 0.08);
+  color: #C084FC;
+  border: 1px solid rgba(168, 85, 247, 0.2);
+  padding: 6px 14px;
+  border-radius: 6px;
+  font-size: 0.78rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 180ms;
+}
+.import-more-btn:hover { background: rgba(168, 85, 247, 0.15); border-color: rgba(168, 85, 247, 0.35); }
+
+/* Preview header row with Show all toggle on the right */
+.import-preview-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 6px;
+}
+.import-preview-header .import-info { margin: 0; }
+.import-toggle-btn {
+  background: rgba(168, 85, 247, 0.08);
+  color: #C084FC;
+  border: 1px solid rgba(168, 85, 247, 0.2);
+  padding: 5px 12px;
+  border-radius: 6px;
+  font-size: 0.75rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 180ms;
+  flex-shrink: 0;
+}
+.import-toggle-btn:hover { background: rgba(168, 85, 247, 0.15); border-color: rgba(168, 85, 247, 0.35); }
 .import-actions { display: flex; gap: 10px; margin-top: 8px; }
 .cancel-btn { padding: 10px 20px; background: rgba(255,255,255,0.03); color: var(--text-muted); border: 1px solid var(--border-color); border-radius: 10px; font-size: 0.85rem; font-weight: 500; cursor: pointer; }
 

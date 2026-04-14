@@ -77,6 +77,7 @@ const Transactions = () => {
   const [importDetected, setImportDetected] = useState({});
   const [importCurrency, setImportCurrency] = useState(null); // { code, mixed, counts } from parser
   const [importCurrencyChoice, setImportCurrencyChoice] = useState(null); // { action: 'store-as-is'|'convert', sourceCode: 'USD' }
+  const [showAllImportRows, setShowAllImportRows] = useState(false); // toggle: show all rows in preview vs first 10
   const csvInputRef = useRef(null);
   const xlsxInputRef = useRef(null);
 
@@ -486,6 +487,7 @@ const Transactions = () => {
     }
 
     setImportSource(source);
+    setShowAllImportRows(false);
     setImportModalOpen(true);
   };
 
@@ -1005,10 +1007,25 @@ const Transactions = () => {
                   )}
 
                   {/* Preview with editable categories */}
-                  {importPreview.length > 0 && (
+                  {importData && importData.length > 0 && (
                     <>
-                      <p className="import-info">Preview (first {Math.min(10, importData?.length || 0)} rows — review before importing):</p>
-                      <div className="import-preview">
+                      <div className="import-preview-header">
+                        <p className="import-info">
+                          {showAllImportRows
+                            ? `Showing all ${importData.length} rows — review before importing:`
+                            : `Preview (first ${Math.min(10, importData.length)} of ${importData.length} rows) — review before importing:`}
+                        </p>
+                        {importData.length > 10 && (
+                          <button
+                            type="button"
+                            className="import-toggle-btn"
+                            onClick={() => setShowAllImportRows(v => !v)}
+                          >
+                            {showAllImportRows ? 'Show less' : `Show all ${importData.length}`}
+                          </button>
+                        )}
+                      </div>
+                      <div className={`import-preview ${showAllImportRows ? 'expanded' : ''}`}>
                         <table>
                           <thead>
                             <tr>
@@ -1016,7 +1033,7 @@ const Transactions = () => {
                             </tr>
                           </thead>
                           <tbody>
-                            {importPreview.map((r, i) => (
+                            {(showAllImportRows ? importData : importData.slice(0, 10)).map((r, i) => (
                               <tr key={i} className={r._wasMapped ? 'row-remapped' : ''}>
                                 <td>{r.date}</td>
                                 <td title={r.description}>{r.description || <em style={{ opacity: 0.5 }}>no description</em>}</td>
@@ -1053,8 +1070,18 @@ const Transactions = () => {
                                 </td>
                               </tr>
                             ))}
-                            {importData && importData.length > 10 && (
-                              <tr><td colSpan="5" className="import-more">...and {importData.length - 10} more rows (not shown)</td></tr>
+                            {!showAllImportRows && importData.length > 10 && (
+                              <tr>
+                                <td colSpan="5" className="import-more">
+                                  <button
+                                    type="button"
+                                    className="import-more-btn"
+                                    onClick={() => setShowAllImportRows(true)}
+                                  >
+                                    Show {importData.length - 10} more rows
+                                  </button>
+                                </td>
+                              </tr>
                             )}
                           </tbody>
                         </table>
