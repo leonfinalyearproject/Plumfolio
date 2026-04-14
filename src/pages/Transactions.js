@@ -359,8 +359,12 @@ const Transactions = () => {
           // photo to read a receipt — 1200px on the long edge is more than
           // enough, and it avoids 502 Bad Gateway errors from oversized
           // payloads. JPEG quality 0.85 keeps text crisp.
+          //
+          // Using document.createElement('img') instead of `new Image()`
+          // because the minified production build was clashing `Image` with
+          // another identifier (causing "Kf is not a constructor" errors).
           const downscaled = await new Promise((resolve, reject) => {
-            const img = new Image();
+            const img = document.createElement('img');
             img.onload = () => {
               const MAX = 1200;
               const ratio = Math.min(MAX / img.width, MAX / img.height, 1);
