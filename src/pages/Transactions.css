@@ -132,27 +132,43 @@
   display: flex;
   gap: 6px;
   margin-left: auto;
+  flex-wrap: wrap;
 }
 
 .tx-btn {
   position: relative;
-  width: 40px;
   height: 40px;
+  padding: 0 14px;
   display: flex;
   align-items: center;
   justify-content: center;
+  gap: 6px;
   border-radius: 12px;
   border: 1px solid var(--border-color);
   background: var(--bg-card);
   color: var(--text-muted);
   cursor: pointer;
   transition: all 0.2s;
+  font-family: inherit;
+  font-size: 0.82rem;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.tx-btn-label {
+  display: inline;
 }
 
 .tx-btn:hover {
   border-color: var(--border-hover);
   color: var(--text-primary);
   transform: translateY(-1px);
+}
+
+.tx-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none;
 }
 
 .tx-btn.on {
@@ -181,6 +197,18 @@
   height: 6px;
   background: #A855F7;
   border-radius: 50%;
+}
+
+/* On narrow screens, collapse back to icon-only so the toolbar doesn't
+   wrap onto multiple rows. Tooltips/aria-labels still describe each. */
+@media (max-width: 640px) {
+  .tx-btn {
+    width: 40px;
+    padding: 0;
+  }
+  .tx-btn-label {
+    display: none;
+  }
 }
 
 /* ================================================ FILTERS */

@@ -839,7 +839,9 @@ const Transactions = () => {
             title={showFilters ? 'Hide filters' : 'Show filters'}
             aria-label="Toggle filters"
           >
-            <Filter size={16} />{hasFilters && <span className="dot" />}
+            <Filter size={16} />
+            <span className="tx-btn-label">Filter</span>
+            {hasFilters && <span className="dot" />}
           </button>
           <button
             className="tx-btn"
@@ -848,6 +850,7 @@ const Transactions = () => {
             aria-label="Import transactions"
           >
             <Upload size={16} />
+            <span className="tx-btn-label">Import</span>
           </button>
           <button
             className="tx-btn"
@@ -857,6 +860,7 @@ const Transactions = () => {
             aria-label="Export transactions"
           >
             <Download size={16} />
+            <span className="tx-btn-label">Export</span>
           </button>
           <button
             className="tx-btn scan"
@@ -865,6 +869,7 @@ const Transactions = () => {
             aria-label="Scan receipt"
           >
             <ScanLine size={16} />
+            <span className="tx-btn-label">Scan</span>
           </button>
           <button
             className="tx-btn add"
@@ -873,6 +878,7 @@ const Transactions = () => {
             aria-label="Add transaction"
           >
             <Plus size={18} />
+            <span className="tx-btn-label">Add</span>
           </button>
         </div>
         <input ref={xlsxInputRef} type="file" accept=".xlsx,.xls,.csv" onChange={handleXLSXFile} hidden />
