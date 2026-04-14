@@ -370,97 +370,12 @@ function extractMerchant(lines, fullText, rawText) {
 }
 
 // ============================================================
-// DATE EXTRACTION
+// DATE EXTRACTION - Always returns today's date
+// User can change it manually if needed
 // ============================================================
 
 function extractDate(lines, fullText) {
-  const today = new Date().toISOString().split('T')[0];
-
-  const monthMap = {
-    jan: '01', feb: '02', mar: '03', apr: '04', may: '05', jun: '06',
-    jul: '07', aug: '08', sep: '09', oct: '10', nov: '11', dec: '12'
-  };
-
-  for (const line of lines) {
-    if (/date/i.test(line)) {
-      const d = parseDateFromLine(line, monthMap);
-      if (d) return d;
-    }
-  }
-  for (const line of lines) {
-    const d = parseDateFromLine(line, monthMap);
-    if (d) return d;
-  }
-  return today;
-}
-
-function parseDateFromLine(line, monthMap) {
-  let match;
-
-  // Pattern for M/D/YYYY or D/M/YYYY with 4-digit year (like "2/28/2026")
-  match = line.match(/(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{4})/);
-  if (match) {
-    const a = parseInt(match[1]), b = parseInt(match[2]), year = match[3];
-    // If year is reasonable (2000-2099)
-    if (parseInt(year) >= 2000 && parseInt(year) <= 2099) {
-      if (a > 12 && b <= 12) {
-        // a is day (>12), b is month - format: D/M/YYYY
-        return `${year}-${String(b).padStart(2, '0')}-${String(a).padStart(2, '0')}`;
-      } else if (b > 12 && a <= 12) {
-        // b is day (>12), a is month - format: M/D/YYYY (US style)
-        return `${year}-${String(a).padStart(2, '0')}-${String(b).padStart(2, '0')}`;
-      } else if (a <= 12 && b <= 12) {
-        // Ambiguous - check if it looks like US format (M/D) based on common patterns
-        // If first number is small (1-12) and second is larger, likely M/D
-        if (a <= 12 && b <= 31) {
-          // Default to M/D/YYYY for ambiguous cases (US style common on receipts)
-          return `${year}-${String(a).padStart(2, '0')}-${String(b).padStart(2, '0')}`;
-        }
-      }
-    }
-  }
-
-  // Pattern for D/M/YY or M/D/YY with 2-digit year
-  match = line.match(/(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{2})\b/);
-  if (match) {
-    const a = parseInt(match[1]), b = parseInt(match[2]);
-    const year = parseInt(match[3]) > 50 ? '19' + match[3] : '20' + match[3];
-    
-    if (a > 12 && b <= 12 && b >= 1) {
-      // a is day, b is month
-      return `${year}-${String(b).padStart(2, '0')}-${String(a).padStart(2, '0')}`;
-    } else if (b > 12 && a <= 12 && a >= 1) {
-      // a is month, b is day
-      return `${year}-${String(a).padStart(2, '0')}-${String(b).padStart(2, '0')}`;
-    } else if (a >= 1 && a <= 12 && b >= 1 && b <= 31) {
-      // Ambiguous - default to M/D/YY
-      return `${year}-${String(a).padStart(2, '0')}-${String(b).padStart(2, '0')}`;
-    }
-  }
-
-  // ISO format: YYYY-MM-DD or YYYY/MM/DD
-  match = line.match(/(\d{4})[\/\-.](\d{1,2})[\/\-.](\d{1,2})/);
-  if (match) {
-    const m = parseInt(match[2]), d = parseInt(match[3]);
-    if (m >= 1 && m <= 12 && d >= 1 && d <= 31) {
-      return `${match[1]}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
-    }
-  }
-
-  // Text month formats: "28 Feb 2026" or "Feb 28, 2026"
-  match = line.match(/(\d{1,2})\s+(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\w*\s+(\d{4})/i);
-  if (match) {
-    const m = monthMap[match[2].toLowerCase().substring(0, 3)];
-    if (m) return `${match[3]}-${m}-${match[1].padStart(2, '0')}`;
-  }
-
-  match = line.match(/(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\w*\s+(\d{1,2}),?\s+(\d{4})/i);
-  if (match) {
-    const m = monthMap[match[1].toLowerCase().substring(0, 3)];
-    if (m) return `${match[3]}-${m}-${match[2].padStart(2, '0')}`;
-  }
-
-  return null;
+  return new Date().toISOString().split('T')[0];
 }
 
 // ============================================================
