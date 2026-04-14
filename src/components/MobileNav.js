@@ -29,7 +29,7 @@ const MobileNav = () => {
     { path: '/transactions', label: 'Txns', icon: ArrowLeftRight },
     { path: '/budgets', label: 'Budgets', icon: Target },
     { path: '/analytics', label: 'Stats', icon: BarChart3 },
-    { path: '/insights', label: 'AI', icon: Brain },
+    { path: '/insights', label: 'Forecast', icon: Brain },
     { path: '/reports', label: 'Reports', icon: FileText },
     { path: '/settings', label: 'More', icon: Settings },
   ];

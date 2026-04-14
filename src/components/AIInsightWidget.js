@@ -17,7 +17,7 @@ import './AIInsightWidget.css';
  */
 function getPageInsights(pathname, insights, predictions, formatCurrency, crossSignals = []) {
   if (!insights || !insights.insights) {
-    return { title: 'AI Insights', icon: Brain, items: [], summary: '' };
+    return { title: 'Forecast Analysis', icon: Brain, items: [], summary: '' };
   }
 
   const allInsights = insights.insights || [];
@@ -171,7 +171,7 @@ function getPageInsights(pathname, insights, predictions, formatCurrency, crossS
           type: 'suggestion',
           severity: 'info',
           message: s.message,
-          context: 'AI suggestion',
+          context: 'Suggestion',
         });
       });
 
@@ -278,13 +278,13 @@ function getPageInsights(pathname, insights, predictions, formatCurrency, crossS
         title: 'Scanner Assistant',
         icon: Receipt,
         items: items.slice(0, 4),
-        summary: 'Ready to scan — AI will auto-categorise your receipt',
+        summary: 'Ready to scan — Auto-categorised your receipt',
       };
     }
 
     case 'settings': {
       return {
-        title: 'Account Insights',
+        title: 'Account Summary',
         icon: Settings,
         items: [{
           type: 'info',
@@ -292,19 +292,19 @@ function getPageInsights(pathname, insights, predictions, formatCurrency, crossS
           message: `You have ${insights.insights.length} active insights and ${recurring.length} recurring transactions detected`,
           context: 'Account summary',
         }],
-        summary: 'Your AI analysis is running in real-time',
+        summary: 'Forecasts update in real-time',
       };
     }
 
     case 'insights': {
       // On the insights page itself, show a meta-summary
       return {
-        title: 'Full Analysis',
+        title: 'Forecast Analysis',
         icon: Brain,
         items: [{
           type: 'info',
           severity: 'info',
-          message: 'You\'re viewing the full AI analysis. All insights, predictions, and patterns are displayed on this page.',
+          message: 'You\'re viewing the full forecast analysis. All insights, predictions, and patterns are displayed on this page.',
           context: 'Current page',
         }],
         summary: `${allInsights.length} insights active`,
@@ -313,7 +313,7 @@ function getPageInsights(pathname, insights, predictions, formatCurrency, crossS
 
     default:
       return {
-        title: 'AI Insights',
+        title: 'Forecast Analysis',
         icon: Brain,
         items: allInsights.slice(0, 3),
         summary: `${allInsights.length} insight${allInsights.length !== 1 ? 's' : ''} available`,
@@ -475,7 +475,7 @@ const AIInsightWidget = () => {
             {/* Link to full insights page */}
             {location.pathname.indexOf('/insights') === -1 && (
               <button className="ai-widget-viewall" onClick={() => { navigate('/insights'); setExpanded(false); }}>
-                View full AI analysis <ArrowRight size={14} />
+                View full forecast analysis <ArrowRight size={14} />
               </button>
             )}
           </div>

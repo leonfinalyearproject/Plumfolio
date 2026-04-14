@@ -22,7 +22,7 @@ const Sidebar = () => {
     { path: '/transactions', label: 'Transactions', icon: ArrowLeftRight },
     { path: '/budgets', label: 'Budgets', icon: Target },
     { path: '/analytics', label: 'Analytics', icon: BarChart3 },
-    { path: '/insights', label: 'AI Insights', icon: Brain },
+    { path: '/insights', label: 'Forecasts', icon: Brain },
     { path: '/reports', label: 'Reports', icon: FileText },
     { path: '/settings', label: 'Settings', icon: Settings },
   ];
