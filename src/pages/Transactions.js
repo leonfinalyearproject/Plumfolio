@@ -6,6 +6,7 @@ import { useInsights } from '../context/InsightsContext';
 import { parseReceiptText } from '../utils/receiptParser';
 import processReceiptImage from '../utils/imageProcessor';
 import { validateTransactionForm } from '../utils/validation';
+import { parseImportRows, SAMPLE_TEMPLATE_ROWS } from '../utils/importParser';
 import {
   Plus, Filter, Download, Upload, X, ArrowUpCircle, ArrowDownCircle,
   Coffee, Home, Car, Zap, GraduationCap, ShoppingCart, Wallet, Briefcase,
@@ -18,7 +19,7 @@ import './Transactions.css';
 
 const Transactions = () => {
   const { user } = useAuth();
-  const { formatCurrency, symbol } = useCurrency();
+  const { formatCurrency, symbol, currencyCode, convertToBwp, getRate, ratesLoaded } = useCurrency();
   const { addToast, refreshInsights } = useInsights();
   const [transactions, setTransactions] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -62,6 +63,12 @@ const Transactions = () => {
   const [importPreview, setImportPreview] = useState([]);
   const [importing, setImporting] = useState(false);
   const [importSource, setImportSource] = useState('');
+  const [importStats, setImportStats] = useState(null);
+  const [importErrors, setImportErrors] = useState([]);
+  const [importWarnings, setImportWarnings] = useState([]);
+  const [importDetected, setImportDetected] = useState({});
+  const [importCurrency, setImportCurrency] = useState(null); // { code, mixed, counts } from parser
+  const [importCurrencyChoice, setImportCurrencyChoice] = useState(null); // { action: 'store-as-is'|'convert', sourceCode: 'USD' }
   const csvInputRef = useRef(null);
   const xlsxInputRef = useRef(null);
 
@@ -331,23 +338,8 @@ const Transactions = () => {
     reader.onload = (ev) => {
       const wb = window.XLSX.read(ev.target.result, { type: 'array', cellDates: true });
       const ws = wb.Sheets[wb.SheetNames[0]];
-      const json = window.XLSX.utils.sheet_to_json(ws);
-      const rows = json.map(r => ({
-        date: r.Date || r.date || r.DATE || '',
-        description: r.Description || r.description || r.Memo || r.memo || r.Narrative || '',
-        category: r.Category || r.category || 'Other',
-        type: (r.Type || r.type || '').toLowerCase() === 'income' ? 'income' : 'expense',
-        amount: Math.abs(parseFloat(r.Amount || r.amount || r.Value || 0)),
-      })).filter(r => r.amount > 0 && r.date);
-      // Fix dates
-      rows.forEach(r => {
-        if (r.date instanceof Date) r.date = r.date.toISOString().split('T')[0];
-        else if (typeof r.date === 'string' && !r.date.match(/^\d{4}-/)) {
-          try { r.date = new Date(r.date).toISOString().split('T')[0]; } catch (e) { /* keep as is */ }
-        }
-      });
-      setImportData(rows); setImportPreview(rows.slice(0, 5));
-      setImportSource('xlsx'); setImportModalOpen(true);
+      const rawRows = window.XLSX.utils.sheet_to_json(ws, { defval: '' });
+      processImportRows(rawRows, 'xlsx');
     };
     reader.readAsArrayBuffer(file);
     e.target.value = '';
@@ -358,44 +350,137 @@ const Transactions = () => {
     const file = e.target.files[0]; if (!file) return;
     const reader = new FileReader();
     reader.onload = (ev) => {
-      const lines = ev.target.result.split('\n').filter(l => l.trim());
-      if (lines.length < 2) return;
-      const headers = lines[0].split(',').map(h => h.trim().replace(/"/g, '').toLowerCase());
-      const rows = [];
-      for (let i = 1; i < lines.length; i++) {
-        const cols = lines[i].match(/(".*?"|[^",]+)(?=\s*,|\s*$)/g);
-        if (!cols) continue;
-        const clean = cols.map(c => c.replace(/^"|"$/g, '').trim());
-        const row = {}; headers.forEach((h, idx) => { row[h] = clean[idx] || ''; });
-        rows.push({
-          date: row.date || row.transaction_date || '',
-          description: row.description || row.memo || row.narrative || '',
-          category: row.category || 'Other',
-          type: (row.type || '').toLowerCase() === 'income' ? 'income' : 'expense',
-          amount: Math.abs(parseFloat(row.amount || row.value || 0)),
-        });
+      const text = ev.target.result;
+      const lines = text.split(/\r?\n/).filter(l => l.trim());
+      if (lines.length < 2) {
+        setImportErrors(['CSV has no data rows.']);
+        setImportData(null); setImportPreview([]); setImportStats(null);
+        setImportSource('csv'); setImportModalOpen(true);
+        return;
       }
-      const valid = rows.filter(r => r.amount > 0 && r.date);
-      setImportData(valid); setImportPreview(valid.slice(0, 5));
-      setImportSource('csv'); setImportModalOpen(true);
+      // Simple CSV parser: split on commas not inside quotes
+      const parseCSVLine = (line) => {
+        const out = []; let cur = ''; let inQ = false;
+        for (let i = 0; i < line.length; i++) {
+          const ch = line[i];
+          if (ch === '"') { inQ = !inQ; continue; }
+          if (ch === ',' && !inQ) { out.push(cur); cur = ''; continue; }
+          cur += ch;
+        }
+        out.push(cur);
+        return out.map(c => c.trim());
+      };
+      const headers = parseCSVLine(lines[0]);
+      const rawRows = [];
+      for (let i = 1; i < lines.length; i++) {
+        const cols = parseCSVLine(lines[i]);
+        const row = {};
+        headers.forEach((h, idx) => { row[h] = cols[idx] !== undefined ? cols[idx] : ''; });
+        rawRows.push(row);
+      }
+      processImportRows(rawRows, 'csv');
     };
     reader.readAsText(file);
     e.target.value = '';
   };
 
+  // ========== SHARED: parse + open review modal ==========
+  const processImportRows = (rawRows, source) => {
+    const result = parseImportRows(rawRows, categories);
+    setImportData(result.rows);
+    setImportPreview(result.rows.slice(0, 10));
+    setImportStats(result.stats);
+    setImportErrors(result.errors || []);
+    setImportWarnings(result.warnings || []);
+    setImportDetected(result.detected || {});
+    setImportCurrency(result.currency || null);
+
+    // Work out the default choice
+    // - If no currency detected OR matches the user's display currency → no conversion needed
+    // - If file currency differs from user's currency → default to "convert"
+    const detectedCode = result.currency?.code;
+    const userCode = currencyCode || 'BWP';
+    if (!detectedCode || detectedCode === userCode) {
+      setImportCurrencyChoice({ action: 'store-as-is', sourceCode: userCode });
+    } else {
+      // Default to convert from detected → BWP (storage unit)
+      setImportCurrencyChoice({ action: 'convert', sourceCode: detectedCode });
+    }
+
+    setImportSource(source);
+    setImportModalOpen(true);
+  };
+
+  // ========== SAMPLE TEMPLATE DOWNLOAD ==========
+  const downloadTemplate = async (kind) => {
+    if (kind === 'csv') {
+      const headers = Object.keys(SAMPLE_TEMPLATE_ROWS[0]);
+      const csv = [
+        headers.join(','),
+        ...SAMPLE_TEMPLATE_ROWS.map(r => headers.map(h => r[h]).join(',')),
+      ].join('\n');
+      const blob = new Blob([csv], { type: 'text/csv' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url; a.download = 'plumfolio-import-template.csv';
+      a.click(); URL.revokeObjectURL(url);
+    } else {
+      await loadSheetJS();
+      if (!window.XLSX) return;
+      const ws = window.XLSX.utils.json_to_sheet(SAMPLE_TEMPLATE_ROWS);
+      const wb = window.XLSX.utils.book_new();
+      window.XLSX.utils.book_append_sheet(wb, ws, 'Template');
+      window.XLSX.writeFile(wb, 'plumfolio-import-template.xlsx');
+    }
+  };
+
+  // ========== update a row's category in the review step ==========
+  const updateImportRowCategory = (idx, newCategory) => {
+    setImportData(prev => {
+      const next = [...prev];
+      next[idx] = { ...next[idx], category: newCategory, _wasMapped: false };
+      return next;
+    });
+    setImportPreview(prev => {
+      const next = [...prev];
+      if (idx < next.length) next[idx] = { ...next[idx], category: newCategory, _wasMapped: false };
+      return next;
+    });
+  };
+
   const doImport = async () => {
-    if (!importData || !user) return;
+    if (!importData || importData.length === 0 || !user) return;
     setImporting(true);
     try {
-      const inserts = importData.map(r => ({
-        user_id: user.id, date: r.date, description: r.description,
-        category: categories.includes(r.category) ? r.category : 'Other',
-        type: r.type, amount: r.amount,
-      }));
+      // Decide how to convert each row's amount into BWP (storage unit)
+      // - 'store-as-is': file is already in BWP, use amount directly
+      // - 'convert': file is in some other currency; divide by BWP→X rate (via convertToBwp)
+      const choice = importCurrencyChoice || { action: 'store-as-is', sourceCode: 'BWP' };
+      const inserts = importData.map(r => {
+        let bwpAmount = r.amount;
+        if (choice.action === 'convert') {
+          // Each row may declare its own currency (_sourceCurrency). If yes, use it.
+          // Otherwise assume the user-chosen sourceCode applies to the whole file.
+          const rowCode = r._sourceCurrency || choice.sourceCode;
+          bwpAmount = convertToBwp(r.amount, rowCode);
+        }
+        return {
+          user_id: user.id, date: r.date, description: r.description,
+          category: categories.includes(r.category) ? r.category : 'Other',
+          type: r.type, amount: bwpAmount,
+        };
+      });
       await supabase.from('transactions').insert(inserts);
+      if (addToast) addToast({ type: 'success', title: 'Import Complete', message: `${inserts.length} transactions imported.` });
       setImportModalOpen(false); setImportData(null); setImportPreview([]);
+      setImportStats(null); setImportErrors([]); setImportWarnings([]); setImportDetected({});
+      setImportCurrency(null); setImportCurrencyChoice(null);
       fetchTransactions();
-    } catch (e) { alert('Import failed: ' + e.message); }
+      if (refreshInsights) refreshInsights();
+    } catch (e) {
+      if (addToast) addToast({ type: 'warning', title: 'Import Failed', message: e.message });
+      else alert('Import failed: ' + e.message);
+    }
     finally { setImporting(false); }
   };
 
@@ -670,20 +755,160 @@ const Transactions = () => {
       {importModalOpen && (
         <div className="modal-overlay" onClick={() => setImportModalOpen(false)}>
           <div className="modal import-modal" onClick={e => e.stopPropagation()}>
-            <div className="modal-header"><h2><FileSpreadsheet size={20} /> Import from {importSource.toUpperCase()}</h2><button className="modal-close" onClick={() => setImportModalOpen(false)}><X size={20} /></button></div>
+            <div className="modal-header">
+              <h2><FileSpreadsheet size={20} /> Import from {importSource.toUpperCase()}</h2>
+              <button className="modal-close" onClick={() => setImportModalOpen(false)}><X size={20} /></button>
+            </div>
             <div className="import-body">
-              <p className="import-info">{importData?.length || 0} transactions found. Preview:</p>
-              <div className="import-preview">
-                <table><thead><tr><th>Date</th><th>Description</th><th>Category</th><th>Type</th><th>Amount</th></tr></thead>
-                <tbody>
-                  {importPreview.map((r, i) => <tr key={i}><td>{r.date}</td><td>{r.description}</td><td>{r.category}</td><td>{r.type}</td><td>P{r.amount.toFixed(2)}</td></tr>)}
-                  {importData && importData.length > 5 && <tr><td colSpan="5" className="import-more">...and {importData.length - 5} more</td></tr>}
-                </tbody></table>
-              </div>
-              <div className="import-actions">
-                <button className="submit-btn" onClick={doImport} disabled={importing}>{importing ? <><Loader size={16} className="spin" /> Importing...</> : <><Upload size={16} /> Import {importData?.length}</>}</button>
-                <button className="cancel-btn" onClick={() => setImportModalOpen(false)}>Cancel</button>
-              </div>
+              {/* Error state */}
+              {importErrors.length > 0 && (
+                <div className="import-error-box">
+                  <div className="import-error-title"><AlertCircle size={16} /> We couldn't read this file</div>
+                  <ul>{importErrors.map((er, i) => <li key={i}>{er}</li>)}</ul>
+                  <div className="import-help">
+                    <p>Your file needs at least a <strong>Date</strong> column and an <strong>Amount</strong> (or Debit/Credit) column.</p>
+                    <p>We accept many variations of column names — see the template:</p>
+                    <div className="import-template-actions">
+                      <button className="action-btn" onClick={() => downloadTemplate('csv')}><Download size={14} /> CSV template</button>
+                      <button className="action-btn" onClick={() => downloadTemplate('xlsx')}><Download size={14} /> Excel template</button>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Success state */}
+              {importErrors.length === 0 && importStats && (
+                <>
+                  <div className="import-stats">
+                    <div className="import-stat">
+                      <span className="import-stat-value">{importStats.valid}</span>
+                      <span className="import-stat-label">will be imported</span>
+                    </div>
+                    {importStats.skipped > 0 && (
+                      <div className="import-stat">
+                        <span className="import-stat-value" style={{ color: '#f59e0b' }}>{importStats.skipped}</span>
+                        <span className="import-stat-label">skipped (invalid)</span>
+                      </div>
+                    )}
+                    {importStats.mapped > 0 && (
+                      <div className="import-stat">
+                        <span className="import-stat-value" style={{ color: '#A855F7' }}>{importStats.mapped}</span>
+                        <span className="import-stat-label">auto-mapped categories</span>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Column detection summary */}
+                  {Object.keys(importDetected).length > 0 && (
+                    <div className="import-detected">
+                      <strong>Detected columns:</strong>
+                      {' '}{Object.entries(importDetected).map(([k, v]) => (
+                        <span key={k} className="import-col-tag">{k} → "{v}"</span>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Warnings */}
+                  {importWarnings.length > 0 && (
+                    <details className="import-warnings">
+                      <summary>{importWarnings.length} rows skipped — click to see why</summary>
+                      <ul>{importWarnings.map((w, i) => <li key={i}>{w}</li>)}</ul>
+                    </details>
+                  )}
+
+                  {/* Currency banner */}
+                  {importCurrency && importCurrency.code && importCurrency.code !== (currencyCode || 'BWP') && (
+                    <div className="import-currency-banner">
+                      <div className="import-currency-banner-title">
+                        <AlertCircle size={16} />
+                        This file appears to be in <strong>{importCurrency.code}</strong>, but your account is set to <strong>{currencyCode || 'BWP'}</strong>.
+                        {importCurrency.mixed && <span className="import-currency-mixed"> (file contains multiple currencies — the dominant one is shown)</span>}
+                      </div>
+                      <div className="import-currency-choices">
+                        <label className={`import-currency-choice ${importCurrencyChoice?.action === 'convert' ? 'active' : ''}`}>
+                          <input
+                            type="radio"
+                            name="currency-choice"
+                            checked={importCurrencyChoice?.action === 'convert'}
+                            onChange={() => setImportCurrencyChoice({ action: 'convert', sourceCode: importCurrency.code })}
+                          />
+                          <div>
+                            <div className="import-currency-choice-title">Convert to {currencyCode || 'BWP'}</div>
+                            <div className="import-currency-choice-desc">
+                              Use live exchange rate{getRate && getRate(importCurrency.code) ? ` (1 ${importCurrency.code} ≈ ${(1 / getRate(importCurrency.code)).toFixed(2)} BWP)` : ''}
+                            </div>
+                          </div>
+                        </label>
+                        <label className={`import-currency-choice ${importCurrencyChoice?.action === 'store-as-is' ? 'active' : ''}`}>
+                          <input
+                            type="radio"
+                            name="currency-choice"
+                            checked={importCurrencyChoice?.action === 'store-as-is'}
+                            onChange={() => setImportCurrencyChoice({ action: 'store-as-is', sourceCode: currencyCode || 'BWP' })}
+                          />
+                          <div>
+                            <div className="import-currency-choice-title">Import as-is</div>
+                            <div className="import-currency-choice-desc">Treat numbers as {currencyCode || 'BWP'}, no conversion</div>
+                          </div>
+                        </label>
+                      </div>
+                      {!ratesLoaded && importCurrencyChoice?.action === 'convert' && (
+                        <div className="import-currency-loading"><Loader size={12} className="spin" /> Loading exchange rates…</div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Preview with editable categories */}
+                  {importPreview.length > 0 && (
+                    <>
+                      <p className="import-info">Preview (first {Math.min(10, importData?.length || 0)} rows — review before importing):</p>
+                      <div className="import-preview">
+                        <table>
+                          <thead>
+                            <tr>
+                              <th>Date</th><th>Description</th><th>Category</th><th>Type</th><th>Amount</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {importPreview.map((r, i) => (
+                              <tr key={i} className={r._wasMapped ? 'row-remapped' : ''}>
+                                <td>{r.date}</td>
+                                <td title={r.description}>{r.description || <em style={{ opacity: 0.5 }}>no description</em>}</td>
+                                <td>
+                                  <select
+                                    value={r.category}
+                                    onChange={e => updateImportRowCategory(i, e.target.value)}
+                                    className="import-category-select"
+                                  >
+                                    {categories.map(c => <option key={c} value={c}>{c}</option>)}
+                                  </select>
+                                  {r._wasMapped && r._originalCategory && (
+                                    <span className="import-remap-note" title={`Original: "${r._originalCategory}"`}>↺</span>
+                                  )}
+                                </td>
+                                <td><span className={`type-badge ${r.type}`}>{r.type}</span></td>
+                                <td className={r.type === 'income' ? 'amount-income' : 'amount-expense'}>
+                                  {r.type === 'income' ? '+' : '-'}{formatCurrency(r.amount)}
+                                </td>
+                              </tr>
+                            ))}
+                            {importData && importData.length > 10 && (
+                              <tr><td colSpan="5" className="import-more">...and {importData.length - 10} more rows (not shown)</td></tr>
+                            )}
+                          </tbody>
+                        </table>
+                      </div>
+                    </>
+                  )}
+
+                  <div className="import-actions">
+                    <button className="submit-btn" onClick={doImport} disabled={importing || !importData || importData.length === 0}>
+                      {importing ? <><Loader size={16} className="spin" /> Importing...</> : <><Upload size={16} /> Import {importData?.length || 0}</>}
+                    </button>
+                    <button className="cancel-btn" onClick={() => setImportModalOpen(false)}>Cancel</button>
+                  </div>
+                </>
+              )}
             </div>
           </div>
         </div>
