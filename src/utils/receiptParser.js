@@ -88,12 +88,80 @@ export function parseReceiptText(rawText) {
 }
 
 // ============================================================
-// MERCHANT EXTRACTION - IMPROVED
+// MERCHANT EXTRACTION - IMPROVED V2
+// Now much better at finding brand names, especially short ones
 // ============================================================
 
 function extractMerchant(lines, fullText, rawText) {
-  // Known global brands - fast path. Unknown shops still detected by fallback.
+  // STEP 1: Look for clean brand-like words in the first 5 lines
+  // Brand names are typically: short (3-15 chars), all letters, at the very top
+  // This catches "hoco", "Nike", "Zara", etc.
+  const brandCandidates = [];
+  
+  for (let i = 0; i < Math.min(5, lines.length); i++) {
+    const line = lines[i].trim();
+    
+    // Extract individual words that look like brand names
+    const words = line.split(/\s+/);
+    for (const word of words) {
+      const cleaned = word.replace(/[^a-zA-Z]/g, '');
+      // Brand-like: 3-15 chars, all letters, not a common word
+      if (cleaned.length >= 3 && cleaned.length <= 15 && /^[a-zA-Z]+$/.test(cleaned)) {
+        const lower = cleaned.toLowerCase();
+        // Skip common non-brand words
+        const skipWords = ['ticket', 'receipt', 'invoice', 'date', 'time', 'total', 'amount', 
+          'subtotal', 'change', 'cash', 'card', 'served', 'by', 'the', 'and', 'for', 'tax',
+          'vat', 'payment', 'thank', 'thanks', 'welcome', 'customer', 'copy', 'original',
+          'units', 'unit', 'qty', 'quantity', 'price', 'item', 'items', 'powered', 'odoo'];
+        if (skipWords.includes(lower)) continue;
+        
+        // Score this word as a potential brand
+        let score = 100 - (i * 15); // Earlier lines = higher score
+        
+        // Bonus for clean single words (likely logo text)
+        if (words.length === 1) score += 30;
+        // Bonus for short words (brands are often short)
+        if (cleaned.length <= 8) score += 20;
+        // Bonus for all lowercase or all uppercase (logo styling)
+        if (cleaned === cleaned.toLowerCase() || cleaned === cleaned.toUpperCase()) score += 10;
+        // Bonus for Title Case
+        if (/^[A-Z][a-z]+$/.test(cleaned)) score += 15;
+        // Penalty for words that look like descriptions
+        if (lower.includes('charge') || lower.includes('travel') || lower.includes('mini')) score -= 50;
+        
+        brandCandidates.push({ text: cleaned, score, lineIndex: i });
+      }
+    }
+    
+    // Also check if the whole line is a clean brand name
+    const wholeLine = line.replace(/[^a-zA-Z\s]/g, '').trim();
+    if (wholeLine.length >= 3 && wholeLine.length <= 20 && /^[a-zA-Z]+$/.test(wholeLine.replace(/\s/g, ''))) {
+      const lower = wholeLine.toLowerCase();
+      if (!['receipt', 'invoice', 'ticket', 'served by', 'powered by'].includes(lower)) {
+        let score = 100 - (i * 15);
+        if (wholeLine.length <= 10) score += 25;
+        if (wholeLine === wholeLine.toLowerCase()) score += 15; // "hoco" style
+        if (wholeLine === wholeLine.toUpperCase()) score += 10; // "HOCO" style
+        brandCandidates.push({ text: wholeLine, score: score + 20, lineIndex: i });
+      }
+    }
+  }
+  
+  // Sort brand candidates by score
+  brandCandidates.sort((a, b) => b.score - a.score);
+  
+  // STEP 2: Check against known merchants (fast path)
   const knownMerchants = [
+    // Electronics / Tech (added for better categorization)
+    { pattern: /\bhoco\b/i, name: 'Hoco', category: 'Shopping' },
+    { pattern: /\bsamsung\b/i, name: 'Samsung', category: 'Shopping' },
+    { pattern: /\bapple\b/i, name: 'Apple', category: 'Shopping' },
+    { pattern: /\bhuawei\b/i, name: 'Huawei', category: 'Shopping' },
+    { pattern: /\bxiaomi\b/i, name: 'Xiaomi', category: 'Shopping' },
+    { pattern: /\bonepluse?\b/i, name: 'OnePlus', category: 'Shopping' },
+    { pattern: /\banker\b/i, name: 'Anker', category: 'Shopping' },
+    { pattern: /\bbaseus\b/i, name: 'Baseus', category: 'Shopping' },
+    { pattern: /\bugreen\b/i, name: 'UGREEN', category: 'Shopping' },
     // Fuel
     { pattern: /\bengen\b/i, name: 'Engen' },
     { pattern: /\bshell\b/i, name: 'Shell' },
@@ -228,64 +296,80 @@ function extractMerchant(lines, fullText, rawText) {
     }
   }
 
-  // Generic fallback - works for ANY shop worldwide.
-  // Skip lines that are clearly not the shop name (multilingual hints).
-  // IMPROVED: Less aggressive skip patterns
-  const skipPatterns = /^(p\.?o\.?\s*box|tel[:\s]|phone[:\s]|fax[:\s]|vat\s*(?:no|reg|id)?[:\s]|tax\s*(?:no|id)?[:\s]|gst[:\s]|hst[:\s]|receipt\s*(?:no|#)?[:\s]|invoice\s*(?:no|#)?[:\s]|date[:\s]|time[:\s]|cashier[:\s]|till[:\s]|terminal[:\s]|store\s*(?:no|#)?[:\s]|branch[:\s]|www\.|http|https|change\b|total\b|amount\b|ticket[:\s]|trans(?:action)?[:\s]|order[:\s]|auth[:\s]|ref[:\s]|\d{8,})/i;
+  // STEP 3: Use brand candidates if we found any good ones
+  if (brandCandidates.length > 0 && brandCandidates[0].score >= 80) {
+    // Format nicely - capitalize first letter
+    const best = brandCandidates[0].text;
+    return best.charAt(0).toUpperCase() + best.slice(1).toLowerCase();
+  }
 
-  // IMPROVED: Also skip lines that look like addresses or phone numbers
-  const addressPattern = /\b(street|road|avenue|blvd|drive|lane|way|plot|unit|floor|building|mall|centre|center|shopping|plaza)\b/i;
+  // STEP 4: Generic fallback - look for prominent merchant-like lines
+  const skipPatterns = /^(p\.?o\.?\s*box|tel[:\s]|phone[:\s]|fax[:\s]|vat\s*(?:no|reg|id)?[:\s]|tax\s*(?:no|id)?[:\s]|gst[:\s]|hst[:\s]|receipt\s*(?:no|#)?[:\s]|invoice\s*(?:no|#)?[:\s]|date[:\s]|time[:\s]|cashier[:\s]|till[:\s]|terminal[:\s]|store\s*(?:no|#)?[:\s]|branch[:\s]|www\.|http|https|change\b|total\b|amount\b|ticket[:\s]|trans(?:action)?[:\s]|order[:\s]|auth[:\s]|ref[:\s]|\d{8,})/i;
+  const addressPattern = /\b(street|road|avenue|blvd|drive|lane|way|plot|unit|floor|building|mall|centre|center|shopping|plaza|junction|airport)\b/i;
   const phonePattern = /(?:\+?\d{1,3}[-.\s]?)?\(?\d{2,4}\)?[-.\s]?\d{3,4}[-.\s]?\d{3,4}/;
+  const companyPattern = /\b(pty|ltd|inc|corp|llc|plc|co\.|company|enterprise|world|group|international)\b/i;
   
-  // First pass: look for prominent merchant-like lines
-  // Merchant names are usually: uppercase, short, at the top, no numbers
   const merchantCandidates = [];
 
   for (let i = 0; i < Math.min(12, lines.length); i++) {
     const line = lines[i];
     let cleaned = line.replace(/[^a-zA-Z0-9\s&'.\-]/g, '').trim();
 
-    // Skip very short or very long lines
     if (cleaned.length < 3 || cleaned.length > 50) continue;
-    // Skip pure numbers
     if (/^\d+$/.test(cleaned)) continue;
-    // Skip lines matching skip patterns
     if (skipPatterns.test(cleaned)) continue;
-    // Skip date-looking lines
     if (/^\d{1,2}[\/\-.]\d{1,2}[\/\-.]\d{2,4}/.test(cleaned)) continue;
-    // Skip address-looking lines
     if (addressPattern.test(cleaned)) continue;
-    // Skip phone numbers
     if (phonePattern.test(line)) continue;
-    // Skip lines that are mostly numbers
+    
+    // Skip lines that are mostly numbers (like ticket numbers)
     const letterCount = (cleaned.match(/[a-zA-Z]/g) || []).length;
     const digitCount = (cleaned.match(/\d/g) || []).length;
-    if (digitCount > letterCount * 2) continue;
+    if (digitCount > letterCount * 1.5) continue;
+    
+    // Skip OCR garbage - random short character sequences
+    if (cleaned.length < 5 && !/^[A-Z][a-z]+$/.test(cleaned) && cleaned !== cleaned.toUpperCase()) continue;
 
-    // Score the candidate
     let score = 0;
-    // Prefer earlier lines (merchants usually at top)
-    score += (12 - i) * 5;
-    // Prefer lines that are ALL CAPS or Title Case (common for store names)
-    if (cleaned === cleaned.toUpperCase() && /[A-Z]/.test(cleaned)) score += 20;
+    score += (12 - i) * 5; // Earlier = better
+    
+    // Strong bonuses for clean brand-like names
+    if (cleaned === cleaned.toUpperCase() && /^[A-Z]+$/.test(cleaned.replace(/\s/g, ''))) score += 30;
+    if (/^[A-Z][a-z]+$/.test(cleaned)) score += 25; // Title case single word
+    if (cleaned.length >= 4 && cleaned.length <= 12 && !/\d/.test(cleaned)) score += 20;
+    
+    // Moderate bonuses
     if (/^[A-Z][a-z]+(\s+[A-Z][a-z]+)*$/.test(cleaned)) score += 15;
-    // Prefer lines with at least 2 letters
-    if (/[a-zA-Z]{2,}/.test(cleaned)) score += 10;
-    // Prefer lines without numbers
     if (!/\d/.test(cleaned)) score += 10;
-    // Prefer lines that don't look like item descriptions (no prices)
-    if (!/\d+[.,]\d{2}/.test(line)) score += 15;
-    // Penalize very common non-merchant words
-    if (/\b(welcome|thank|receipt|invoice|customer|copy|original)\b/i.test(cleaned)) score -= 30;
+    if (!/\d+[.,]\d{2}/.test(line)) score += 10;
+    
+    // Penalties
+    if (/\b(welcome|thank|receipt|invoice|customer|copy|original|served|by|powered)\b/i.test(cleaned)) score -= 40;
+    if (companyPattern.test(cleaned)) score -= 10; // Likely legal name, not brand
+    if (/sysadmin|admin|email|@/.test(line)) score -= 50;
 
     merchantCandidates.push({ text: cleaned, score, line: i });
   }
 
-  // Sort by score and return the best candidate
   merchantCandidates.sort((a, b) => b.score - a.score);
 
-  if (merchantCandidates.length > 0 && merchantCandidates[0].score > 10) {
+  // Use the best candidate, but prefer brand candidates if they're close
+  if (merchantCandidates.length > 0 && merchantCandidates[0].score > 20) {
+    // If we have brand candidates, compare
+    if (brandCandidates.length > 0 && brandCandidates[0].score >= 60) {
+      // Brand candidate wins if it's from an earlier line or comparable score
+      if (brandCandidates[0].lineIndex <= merchantCandidates[0].line) {
+        const best = brandCandidates[0].text;
+        return best.charAt(0).toUpperCase() + best.slice(1).toLowerCase();
+      }
+    }
     return merchantCandidates[0].text;
+  }
+  
+  // Last resort: use best brand candidate if any
+  if (brandCandidates.length > 0) {
+    const best = brandCandidates[0].text;
+    return best.charAt(0).toUpperCase() + best.slice(1).toLowerCase();
   }
 
   return 'Unknown Merchant';
@@ -705,6 +789,11 @@ function normaliseAmount(str) {
 
 export function detectCategory(fullText, merchant) {
   const text = (fullText + ' ' + merchant).toLowerCase();
+
+  // Electronics / Tech Shopping (check first - specific)
+  if (/\b(hoco|anker|baseus|ugreen|charger|charging|cable|usb|hdmi|adapter|earphone|headphone|earbuds|powerbank|power\s*bank|smartphone|iphone|samsung|huawei|xiaomi|laptop|tablet|ipad|macbook|keyboard|mouse|speaker|bluetooth|wireless|pd\s*\d+w|watt|mini\s*travel|tech|gadget|accessory|accessories)\b/i.test(text)) {
+    return 'Shopping';
+  }
 
   // Transportation / Fuel
   if (/\b(fuel|diesel|petrol|gasoline|gas\s*station|unleaded|engen|shell|total\s*energies|puma|caltex|\bbp\b|sasol|exxon|mobil|chevron|texaco|esso|gulf|7.?eleven|circle\s*k|pump|litre|liter|gallon|octane|benzin|essence|carburant|gasolina)\b/i.test(text)) {
