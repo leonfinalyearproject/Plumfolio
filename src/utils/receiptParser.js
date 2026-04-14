@@ -1,7 +1,7 @@
 // src/utils/receiptParser.js
 // Global receipt parser - extracts merchant, date, items, total, currency, category
 // Supports all world currencies and any merchant/shop globally.
-// Known merchants are a fast-path; unknown merchants are detected heuristically.
+// IMPROVED: Better total extraction, merchant detection, and OCR text handling.
 
 // ============================================================
 // CURRENCY SUPPORT - all major world currencies
@@ -35,21 +35,43 @@ const CURRENCY_PREFIX_OPT = `(?:${CURRENCY_SYMBOLS.map(s => s.replace(/\$/g, '\\
 export function parseReceiptText(rawText) {
   if (!rawText || rawText.trim().length < 5) return null;
 
+  // Enhanced OCR text cleaning
   let cleaned = rawText
-    .replace(/[|\\}{[\]`~^]/g, ' ')
+    // Remove common OCR artifacts
+    .replace(/[|\\}{[\]`~^<>]/g, ' ')
+    // Normalize line endings
     .replace(/(\r\n|\r)/g, '\n')
+    // Fix common OCR misreads for currency
+    .replace(/\bP\s*(\d)/gi, 'P $1')  // Botswana Pula: P50 → P 50
+    .replace(/\bR\s*(\d)/gi, 'R $1')  // Rand: R50 → R 50
+    .replace(/[$]\s*(\d)/g, '$ $1')   // Dollar: $50 → $ 50
+    // Fix O/0 confusion near decimals
+    .replace(/[oO](\.\d{2})/g, '0$1')
+    .replace(/(\d)[oO](\d)/g, '$10$2')
+    // Fix l/1 and I/1 confusion in numbers
+    .replace(/(\d)[lI](\d)/g, '$11$2')
+    .replace(/[lI](\d{2,})/g, '1$1')
+    // Fix common "Total" OCR misreads
+    .replace(/\b[Tt][oO0][tT][aA][lL1]\b/gi, 'Total')
+    .replace(/\b[Tt][oO0][tT][aA][Ii1]\b/gi, 'Total')
+    .replace(/\bT[oO0]TAL\b/gi, 'Total')
+    .replace(/\bTOTAI\b/gi, 'Total')
+    .replace(/\bTOTAI\.\b/gi, 'Total')
+    // Fix "Amount" OCR misreads
+    .replace(/\bAm[oO0]unt\b/gi, 'Amount')
+    .replace(/\bAM[oO0]UNT\b/gi, 'Amount')
+    // Normalize whitespace
     .replace(/[ \t]+/g, ' ')
     .replace(/\n{3,}/g, '\n\n')
+    // Separate letters and digits that are stuck together (but preserve decimals)
     .replace(/([a-zA-Z])(\d)/g, '$1 $2')
     .replace(/(\d)([a-zA-Z])/g, '$1 $2')
-    .replace(/[oO](\.\d{2})/g, '0$1')
-    .replace(/(\d)[lI](\d)/g, '$1l$2')
     .trim();
 
   const lines = cleaned.split('\n').map(l => l.trim()).filter(l => l.length > 0);
   const fullText = cleaned.toLowerCase();
 
-  const merchant = extractMerchant(lines, fullText);
+  const merchant = extractMerchant(lines, fullText, rawText);
   const date = extractDate(lines, cleaned);
   const { items, total, currency } = extractAmountsAndTotal(lines, rawText, cleaned);
   const category = detectCategory(fullText, merchant);
@@ -66,10 +88,10 @@ export function parseReceiptText(rawText) {
 }
 
 // ============================================================
-// MERCHANT EXTRACTION
+// MERCHANT EXTRACTION - IMPROVED
 // ============================================================
 
-function extractMerchant(lines, fullText) {
+function extractMerchant(lines, fullText, rawText) {
   // Known global brands - fast path. Unknown shops still detected by fallback.
   const knownMerchants = [
     // Fuel
@@ -79,7 +101,7 @@ function extractMerchant(lines, fullText) {
     { pattern: /puma\s*energy/i, name: 'Puma Energy' },
     { pattern: /\bcaltex\b/i, name: 'Caltex' },
     { pattern: /\bsasol\b/i, name: 'Sasol' },
-    { pattern: /\bbp\b/i, name: 'BP' },
+    { pattern: /\bbp\b(?!\s*station)/i, name: 'BP' },
     { pattern: /\bexxon\b/i, name: 'Exxon' },
     { pattern: /\bmobil\b/i, name: 'Mobil' },
     { pattern: /\bchevron\b/i, name: 'Chevron' },
@@ -130,9 +152,9 @@ function extractMerchant(lines, fullText) {
     { pattern: /lulu\s*hyper/i, name: 'LuLu Hypermarket' },
     { pattern: /\bbim\b/i, name: 'BIM' },
     // Retail
-    { pattern: /game\s+stores|\bgame\b/i, name: 'Game Stores' },
+    { pattern: /game\s+stores/i, name: 'Game Stores' },
     { pattern: /makro/i, name: 'Makro' },
-    { pattern: /pep\s+stores|\bpep\b/i, name: 'Pep Stores' },
+    { pattern: /pep\s+stores/i, name: 'Pep Stores' },
     { pattern: /jet\s+stores/i, name: 'Jet Stores' },
     { pattern: /ackermans/i, name: 'Ackermans' },
     { pattern: /mr\s*price/i, name: 'Mr Price' },
@@ -182,7 +204,7 @@ function extractMerchant(lines, fullText) {
     { pattern: /\bgreggs\b/i, name: 'Greggs' },
     { pattern: /caff[eè]\s*nero/i, name: 'Caffè Nero' },
     // Hardware
-    { pattern: /builders\s*warehouse|\bbuilders\b/i, name: 'Builders Warehouse' },
+    { pattern: /builders\s*warehouse/i, name: 'Builders Warehouse' },
     { pattern: /cashbuild/i, name: 'Cashbuild' },
     { pattern: /home\s*depot/i, name: 'Home Depot' },
     { pattern: /\blowes\b|lowe['']s/i, name: "Lowe's" },
@@ -192,9 +214,11 @@ function extractMerchant(lines, fullText) {
     { pattern: /leroy\s*merlin/i, name: 'Leroy Merlin' },
   ];
 
+  // Check for known merchants across the ENTIRE text, not just top lines
   for (const km of knownMerchants) {
     if (km.pattern.test(fullText)) {
-      for (const line of lines.slice(0, 10)) {
+      // Try to find the exact line with the merchant name for better extraction
+      for (const line of lines.slice(0, 15)) {
         if (km.pattern.test(line)) {
           const cleaned = line.replace(/[^a-zA-Z0-9\s&'.\-]/g, '').trim();
           if (cleaned.length > 2 && cleaned.length < 60) return cleaned;
@@ -206,20 +230,62 @@ function extractMerchant(lines, fullText) {
 
   // Generic fallback - works for ANY shop worldwide.
   // Skip lines that are clearly not the shop name (multilingual hints).
-  const skipPatterns = /^(p\.?o\.?\s*box|tel|phone|fax|vat|tax|gst|hst|tva|mwst|iva|receipt|invoice|date|time|cashier|till|terminal|store|branch|\d{5,}|www\.|http|change|total|amount|ticket|reg\b|trans|order|n[°ºo]\.|nro|fact|bill|kassenbon|recibo|facture)/i;
+  // IMPROVED: Less aggressive skip patterns
+  const skipPatterns = /^(p\.?o\.?\s*box|tel[:\s]|phone[:\s]|fax[:\s]|vat\s*(?:no|reg|id)?[:\s]|tax\s*(?:no|id)?[:\s]|gst[:\s]|hst[:\s]|receipt\s*(?:no|#)?[:\s]|invoice\s*(?:no|#)?[:\s]|date[:\s]|time[:\s]|cashier[:\s]|till[:\s]|terminal[:\s]|store\s*(?:no|#)?[:\s]|branch[:\s]|www\.|http|https|change\b|total\b|amount\b|ticket[:\s]|trans(?:action)?[:\s]|order[:\s]|auth[:\s]|ref[:\s]|\d{8,})/i;
 
-  for (let i = 0; i < Math.min(8, lines.length); i++) {
+  // IMPROVED: Also skip lines that look like addresses or phone numbers
+  const addressPattern = /\b(street|road|avenue|blvd|drive|lane|way|plot|unit|floor|building|mall|centre|center|shopping|plaza)\b/i;
+  const phonePattern = /(?:\+?\d{1,3}[-.\s]?)?\(?\d{2,4}\)?[-.\s]?\d{3,4}[-.\s]?\d{3,4}/;
+  
+  // First pass: look for prominent merchant-like lines
+  // Merchant names are usually: uppercase, short, at the top, no numbers
+  const merchantCandidates = [];
+
+  for (let i = 0; i < Math.min(12, lines.length); i++) {
     const line = lines[i];
-    const cleaned = line.replace(/[^a-zA-Z0-9\s&'.\-]/g, '').trim();
+    let cleaned = line.replace(/[^a-zA-Z0-9\s&'.\-]/g, '').trim();
 
-    if (cleaned.length < 3 || cleaned.length > 60) continue;
+    // Skip very short or very long lines
+    if (cleaned.length < 3 || cleaned.length > 50) continue;
+    // Skip pure numbers
     if (/^\d+$/.test(cleaned)) continue;
+    // Skip lines matching skip patterns
     if (skipPatterns.test(cleaned)) continue;
+    // Skip date-looking lines
     if (/^\d{1,2}[\/\-.]\d{1,2}[\/\-.]\d{2,4}/.test(cleaned)) continue;
+    // Skip address-looking lines
+    if (addressPattern.test(cleaned)) continue;
+    // Skip phone numbers
+    if (phonePattern.test(line)) continue;
+    // Skip lines that are mostly numbers
+    const letterCount = (cleaned.match(/[a-zA-Z]/g) || []).length;
+    const digitCount = (cleaned.match(/\d/g) || []).length;
+    if (digitCount > letterCount * 2) continue;
 
-    if (/[a-zA-Z]{2,}/.test(cleaned)) {
-      return cleaned;
-    }
+    // Score the candidate
+    let score = 0;
+    // Prefer earlier lines (merchants usually at top)
+    score += (12 - i) * 5;
+    // Prefer lines that are ALL CAPS or Title Case (common for store names)
+    if (cleaned === cleaned.toUpperCase() && /[A-Z]/.test(cleaned)) score += 20;
+    if (/^[A-Z][a-z]+(\s+[A-Z][a-z]+)*$/.test(cleaned)) score += 15;
+    // Prefer lines with at least 2 letters
+    if (/[a-zA-Z]{2,}/.test(cleaned)) score += 10;
+    // Prefer lines without numbers
+    if (!/\d/.test(cleaned)) score += 10;
+    // Prefer lines that don't look like item descriptions (no prices)
+    if (!/\d+[.,]\d{2}/.test(line)) score += 15;
+    // Penalize very common non-merchant words
+    if (/\b(welcome|thank|receipt|invoice|customer|copy|original)\b/i.test(cleaned)) score -= 30;
+
+    merchantCandidates.push({ text: cleaned, score, line: i });
+  }
+
+  // Sort by score and return the best candidate
+  merchantCandidates.sort((a, b) => b.score - a.score);
+
+  if (merchantCandidates.length > 0 && merchantCandidates[0].score > 10) {
+    return merchantCandidates[0].text;
   }
 
   return 'Unknown Merchant';
@@ -300,7 +366,7 @@ function parseDateFromLine(line, monthMap) {
 }
 
 // ============================================================
-// AMOUNT + TOTAL EXTRACTION
+// AMOUNT + TOTAL EXTRACTION - SIGNIFICANTLY IMPROVED
 // ============================================================
 
 function detectCurrency(text) {
@@ -338,36 +404,76 @@ function extractAmountsAndTotal(lines, rawText, cleaned) {
   // confusing "22.03.2026" with an amount of "22.03"
   const stripDates = (s) => s
     .replace(/\d{1,2}[\/\-.]\d{1,2}[\/\-.]\d{2,4}/g, ' ')
-    .replace(/\d{4}[\/\-.]\d{1,2}[\/\-.]\d{1,2}/g, ' ');
+    .replace(/\d{4}[\/\-.]\d{1,2}[\/\-.]\d{1,2}/g, ' ')
+    // Also strip times like 14:30:45
+    .replace(/\d{1,2}:\d{2}(:\d{2})?/g, ' ');
 
   // No-decimal currencies (yen, won, rupiah, etc) - amounts are whole numbers
   const noDecimalCurrency = /JPY|KRW|VND|IDR|HUF|CLP|COP|UGX|TZS|¥|₩|฿/i.test(currency || rawText);
 
-  // Amount pattern - supports both 1,234.56 (US/UK) and 1.234,56 (EU) styles
-  const amountRegex = noDecimalCurrency
-    ? /\d{1,3}(?:[,\s.]\d{3})*(?:[.,]\d{2})?/g          // optional decimals for JPY etc
-    : /\d{1,3}(?:[,\s.]\d{3})*[.,]\d{2}/g;
+  // IMPROVED: More flexible amount patterns
+  // Pattern 1: Standard decimal amounts (12.50, 1,234.56, 1 234.56)
+  // Pattern 2: European format (12,50, 1.234,56)
+  // Pattern 3: Whole numbers for no-decimal currencies
+  const amountPatterns = noDecimalCurrency
+    ? [
+        /\d{1,3}(?:[,\s.]\d{3})*(?:[.,]\d{1,2})?/g,  // Optional decimals
+        /\d+/g  // Plain integers
+      ]
+    : [
+        /\d{1,3}(?:[,\s.]\d{3})*[.,]\d{2}/g,  // With decimals
+        /\d{1,3}(?:[,\s.]\d{3})*[.,]\d{1}/g,  // Single decimal (some receipts)
+        /\d+[.,]\d{2}/g  // Simple decimal
+      ];
+
+  // Get the best amount regex for this receipt
+  const amountRegex = amountPatterns[0];
 
   const cur = CURRENCY_PREFIX_OPT;
-  // Allow optional decimals so JPY/KRW/IDR etc work too
+  // IMPROVED: More flexible number pattern - allow 1-2 decimal places OR none
   const numPat = noDecimalCurrency
-    ? `(\\d{1,3}(?:[,\\s.]\\d{3})*(?:[.,]\\d{2})?)`
-    : `(\\d{1,3}(?:[,\\s.]\\d{3})*[.,]\\d{2})`;
+    ? `(\\d{1,3}(?:[,\\s.]\\d{3})*(?:[.,]\\d{1,2})?|\\d+)`
+    : `(\\d{1,3}(?:[,\\s.]\\d{3})*[.,]\\d{1,2}|\\d+[.,]\\d{1,2})`;
+
+  // IMPROVED: Comprehensive total patterns with more variations
   const totalPatterns = [
-    new RegExp(`(?:grand\\s*)?(?:total|summe|somme|importe|totale|合計|总计)\\s*[:=]?\\s*${cur}${numPat}`, 'i'),
-    new RegExp(`(?:amount\\s*due|balance\\s*due|net\\s*amount|nett|amt\\s*due|importe|montant|gesamt|totale|total\\s*a\\s*pagar|合計)\\s*[:=]?\\s*${cur}${numPat}`, 'i'),
-    new RegExp(`${CURRENCY_PREFIX_RE.source}${numPat}\\s*(?:total|due)`, 'i'),
-    new RegExp(`total\\s+${CURRENCY_PREFIX_RE.source}${numPat}`, 'i'),
-    new RegExp(`(?:to\\s*pay|you\\s*paid|payment|tendered|paid|cash)\\s*[:=]?\\s*${cur}${numPat}`, 'i'),
+    // Direct "Total" matches (most reliable)
+    new RegExp(`(?:grand\\s*)?total\\s*[:=]?\\s*${cur}${numPat}`, 'i'),
+    new RegExp(`${cur}${numPat}\\s*(?:grand\\s*)?total`, 'i'),
+    // "Amount Due" variations
+    new RegExp(`(?:amount|amt)\\s*(?:due|payable)?\\s*[:=]?\\s*${cur}${numPat}`, 'i'),
+    new RegExp(`(?:balance|bal)\\s*(?:due)?\\s*[:=]?\\s*${cur}${numPat}`, 'i'),
+    // Payment confirmations
+    new RegExp(`(?:you\\s*)?paid\\s*[:=]?\\s*${cur}${numPat}`, 'i'),
+    new RegExp(`payment\\s*[:=]?\\s*${cur}${numPat}`, 'i'),
+    new RegExp(`(?:cash|card|visa|master)\\s*[:=]?\\s*${cur}${numPat}`, 'i'),
+    new RegExp(`tendered\\s*[:=]?\\s*${cur}${numPat}`, 'i'),
+    // Multilingual
+    new RegExp(`(?:summe|somme|importe|totale|montant|gesamt|合計|总计|總計)\\s*[:=]?\\s*${cur}${numPat}`, 'i'),
+    new RegExp(`total\\s+(?:a\\s*)?pagar\\s*[:=]?\\s*${cur}${numPat}`, 'i'),
+    // Currency symbol followed by amount after "Total"
+    new RegExp(`total\\s+[PR$€£]\\s*${numPat}`, 'i'),
+    // Just "TOTAL" on a line, amount on same or next line
+    /^total$/i,
   ];
 
+  // Lines to skip when looking for totals (these are NOT the grand total)
+  const skipTotalPatterns = /\b(sub-?total|subtotal|vat|tax|gst|hst|discount|saving|change|cash\s*back|cashback|rounding|tip|gratuity|service\s*charge)\b/i;
+
+  // IMPROVED: Multi-pass total detection
+  // Pass 1: Look for explicit "Total" with amount on same line
   for (let i = 0; i < lines.length; i++) {
     const line = stripDates(lines[i]);
-    if (/\b(change|cashback|cash\s*back|vuelto|monnaie|rückgeld|gegeben|gegen|zurück)\b/i.test(line) && !/total|summe/i.test(line)) continue;
+    
+    // Skip lines that are subtotals, tax, change, etc.
+    if (skipTotalPatterns.test(line) && !/grand\s*total/i.test(line)) continue;
+    // Skip "change" lines (money returned)
+    if (/\b(change|cashback|cash\s*back|vuelto|monnaie|rückgeld)\b/i.test(line)) continue;
 
     for (const pattern of totalPatterns) {
+      if (pattern.source === '^total$') continue; // Handle separately
       const match = line.match(pattern);
-      if (match) {
+      if (match && match[1]) {
         const val = normaliseAmount(match[1]);
         if (val > 0 && val < 10000000) {
           total = val;
@@ -377,77 +483,145 @@ function extractAmountsAndTotal(lines, rawText, cleaned) {
       }
     }
     if (foundTotal) break;
+  }
 
-    if (/\btotal\b/i.test(line) && !/sub.?total/i.test(line) && !/change/i.test(line)) {
-      const lineAmounts = line.match(amountRegex);
-      if (lineAmounts) {
-        const vals = lineAmounts.map(normaliseAmount);
-        const maxVal = Math.max(...vals);
-        if (maxVal > 0) { total = maxVal; foundTotal = true; break; }
-      }
-      if (i + 1 < lines.length) {
-        const nextAmounts = stripDates(lines[i + 1]).match(amountRegex);
+  // Pass 2: Look for "TOTAL" on its own line, with amount on the next line
+  if (!foundTotal) {
+    for (let i = 0; i < lines.length - 1; i++) {
+      const line = lines[i].trim();
+      const lineClean = stripDates(line);
+      
+      // Check if this line is just "TOTAL" or "Grand Total"
+      if (/^(?:grand\s*)?total$/i.test(lineClean.replace(/[^a-zA-Z\s]/g, '').trim())) {
+        // Look at the same line for an amount first
+        const sameLineAmounts = lineClean.match(amountRegex);
+        if (sameLineAmounts) {
+          const vals = sameLineAmounts.map(normaliseAmount).filter(v => v > 0);
+          if (vals.length > 0) {
+            total = Math.max(...vals);
+            foundTotal = true;
+            break;
+          }
+        }
+        
+        // Then check the next line
+        const nextLine = stripDates(lines[i + 1]);
+        const nextAmounts = nextLine.match(amountRegex);
         if (nextAmounts) {
-          const vals = nextAmounts.map(normaliseAmount);
-          const maxVal = Math.max(...vals);
-          if (maxVal > 0) { total = maxVal; foundTotal = true; break; }
+          const vals = nextAmounts.map(normaliseAmount).filter(v => v > 0);
+          if (vals.length > 0) {
+            total = Math.max(...vals);
+            foundTotal = true;
+            break;
+          }
         }
       }
     }
   }
 
-  // Frequency voting - strip dates first so "22.03.2026" doesn't pollute amounts
-  const allAmounts = [];
-  const allText = stripDates(rawText + '\n' + cleaned);
-  const globalMatches = allText.match(amountRegex);
-  if (globalMatches) {
-    globalMatches.forEach(m => {
-      const val = normaliseAmount(m);
-      if (val > 0 && val < 10000000) allAmounts.push(val);
-    });
-  }
-
-  if (foundTotal && allAmounts.length > 0) {
-    const freq = {};
-    allAmounts.forEach(a => {
-      const rounded = Math.round(a * 100) / 100;
-      freq[rounded] = (freq[rounded] || 0) + 1;
-    });
-    let maxFreq = 0, mostFreqAmt = 0;
-    Object.entries(freq).forEach(([amt, count]) => {
-      const numAmt = parseFloat(amt);
-      if (count > maxFreq || (count === maxFreq && numAmt > mostFreqAmt)) {
-        maxFreq = count;
-        mostFreqAmt = numAmt;
+  // Pass 3: Look for lines containing "total" with amounts
+  if (!foundTotal) {
+    for (let i = 0; i < lines.length; i++) {
+      const line = stripDates(lines[i]);
+      if (/\btotal\b/i.test(line) && !/sub-?total/i.test(line) && !/change/i.test(line)) {
+        const lineAmounts = line.match(amountRegex);
+        if (lineAmounts) {
+          const vals = lineAmounts.map(normaliseAmount).filter(v => v > 0);
+          if (vals.length > 0) {
+            // Take the last amount on the line (usually the total is rightmost)
+            total = vals[vals.length - 1];
+            foundTotal = true;
+            break;
+          }
+        }
+        // Check next line too
+        if (i + 1 < lines.length) {
+          const nextAmounts = stripDates(lines[i + 1]).match(amountRegex);
+          if (nextAmounts) {
+            const vals = nextAmounts.map(normaliseAmount).filter(v => v > 0);
+            if (vals.length > 0) {
+              total = vals[0];
+              foundTotal = true;
+              break;
+            }
+          }
+        }
       }
-    });
-    if (maxFreq >= 3 && Math.abs(mostFreqAmt - total) > 0.05 && mostFreqAmt > total * 0.5) {
-      total = mostFreqAmt;
     }
   }
 
+  // Pass 4: Look for "Amount Due", "Payment", "Paid" patterns
+  if (!foundTotal) {
+    for (let i = 0; i < lines.length; i++) {
+      const line = stripDates(lines[i]);
+      if (/\b(amount\s*due|payment|paid|balance\s*due)\b/i.test(line)) {
+        const lineAmounts = line.match(amountRegex);
+        if (lineAmounts) {
+          const vals = lineAmounts.map(normaliseAmount).filter(v => v > 0);
+          if (vals.length > 0) {
+            total = Math.max(...vals);
+            foundTotal = true;
+            break;
+          }
+        }
+      }
+    }
+  }
+
+  // Collect ALL amounts from the receipt for analysis
+  const allAmounts = [];
+  const allText = stripDates(rawText + '\n' + cleaned);
+  for (const pattern of amountPatterns) {
+    const globalMatches = allText.match(pattern);
+    if (globalMatches) {
+      globalMatches.forEach(m => {
+        const val = normaliseAmount(m);
+        if (val > 0 && val < 10000000) allAmounts.push(val);
+      });
+    }
+  }
+
+  // IMPROVED: Smarter fallback - if we found a total, validate it
+  // The total should be >= most other amounts (it's the sum)
+  if (foundTotal && allAmounts.length > 3) {
+    const sortedAmounts = [...new Set(allAmounts)].sort((a, b) => b - a);
+    // If our "total" is less than the largest amount, the largest is probably the real total
+    if (sortedAmounts[0] > total * 1.1) {
+      // But only override if the largest appears exactly once (totals usually appear once)
+      const largestCount = allAmounts.filter(a => Math.abs(a - sortedAmounts[0]) < 0.01).length;
+      if (largestCount <= 2) {
+        total = sortedAmounts[0];
+      }
+    }
+  }
+
+  // Pass 5 (last resort): If no total found, use the largest unique amount
   if (!foundTotal && allAmounts.length > 0) {
     const freq = {};
     allAmounts.forEach(a => {
       const rounded = Math.round(a * 100) / 100;
       freq[rounded] = (freq[rounded] || 0) + 1;
     });
-    let maxFreq = 0, mostFreqAmt = 0;
-    Object.entries(freq).forEach(([amt, count]) => {
-      const numAmt = parseFloat(amt);
-      if (count > maxFreq || (count === maxFreq && numAmt > mostFreqAmt)) {
-        maxFreq = count;
-        mostFreqAmt = numAmt;
+
+    // Find the largest amount that appears 1-2 times (totals usually aren't repeated)
+    const sortedUnique = Object.entries(freq)
+      .map(([amt, count]) => ({ amt: parseFloat(amt), count }))
+      .sort((a, b) => b.amt - a.amt);
+
+    for (const { amt, count } of sortedUnique) {
+      if (count <= 2 && amt > 0) {
+        total = amt;
+        break;
       }
-    });
-    if (maxFreq >= 2) {
-      total = mostFreqAmt;
-    } else {
+    }
+
+    // If all amounts repeat, just take the max
+    if (total === 0) {
       total = Math.max(...allAmounts);
     }
   }
 
-  // Line items
+  // Line items extraction
   const skipLinePatterns = /\b(total|subtotal|sub-total|change|cash\b|card|visa|master|debit|credit|vat-code|vat.?val|net.?val|tax\b|gst|hst|thank|welcome|receipt|invoice|terminal|cashier|attendant|pump\s*no|items?\s+\d|rounding|discount|saving|you\s*save|loyalty|points|balance|payment|tendered|auth|approval|merchant|customer\s*copy|duplicate|importe|montant|gesamt|totale)\b/i;
 
   for (const rawLine of lines) {
@@ -487,26 +661,42 @@ function extractAmountsAndTotal(lines, rawText, cleaned) {
 function normaliseAmount(str) {
   if (!str) return 0;
   let s = String(str).replace(/\s/g, '');
+  
+  // Handle currency symbols that might be attached
+  s = s.replace(/^[PR$€£¥₹₩₪₨₫₴₦₱₲₵₸₺₼₾฿]+/i, '');
+  
   const lastDot = s.lastIndexOf('.');
   const lastComma = s.lastIndexOf(',');
+  
   if (lastDot >= 0 && lastComma >= 0) {
     if (lastComma > lastDot) {
+      // European: 1.234,56 → 1234.56
       s = s.replace(/\./g, '').replace(',', '.');
     } else {
+      // US: 1,234.56 → 1234.56
       s = s.replace(/,/g, '');
     }
   } else if (lastComma >= 0 && lastDot < 0) {
     const parts = s.split(',');
+    // If the part after comma is exactly 2 digits, treat as decimal
     if (parts[parts.length - 1].length === 2) {
-      s = s.replace(/,(?=\d{3}(?:\D|$))/g, '').replace(',', '.');
+      // Could be 1,234 (thousand separator) or 12,34 (decimal)
+      // If there's only one comma and the part before is 1-3 digits, it's likely decimal
+      if (parts.length === 2 && parts[0].length <= 3) {
+        s = s.replace(',', '.');
+      } else {
+        // Multiple commas or large number before comma → thousand separator
+        s = s.replace(/,(?=\d{3}(?:\D|$))/g, '').replace(',', '.');
+      }
     } else {
       s = s.replace(/,/g, '');
     }
   } else {
     s = s.replace(/,/g, '');
   }
+  
   const v = parseFloat(s);
-  return isNaN(v) ? 0 : v;
+  return isNaN(v) ? 0 : Math.abs(v);  // Always return positive amounts
 }
 
 // ============================================================
