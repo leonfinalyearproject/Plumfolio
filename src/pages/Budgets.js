@@ -226,7 +226,7 @@ const Budgets = () => {
 
   // Budget Rules
   const applyRule = async () => {
-    if (!selectedRule || !ruleIncome) return;
+    if (selectedRule === null || !ruleIncome) return;
     const income = parseFloat(ruleIncome);
     const rule = budgetRules[selectedRule];
     const monthYear = new Date().toISOString().slice(0, 7);
