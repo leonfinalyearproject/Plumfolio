@@ -45,6 +45,17 @@ function getPageInsights(pathname, insights, predictions, formatCurrency, crossS
     case 'dashboard': {
       // Dashboard: overall health, key alerts, savings rate, quick summary
       const items = [...compoundItems];
+      const backdated = insights.backdated || [];
+
+      // Recently-added backdated transactions — alert on dashboard
+      backdated.filter(b => b.isRecent).slice(0, 2).forEach(b => {
+        items.push({
+          type: 'backdated_recent',
+          severity: b.severity,
+          message: b.message,
+          context: 'Past-month entry added',
+        });
+      });
 
       // Urgent goal alerts surface first (deadline approaching, overdue, behind pace)
       goalInsights
@@ -89,7 +100,7 @@ function getPageInsights(pathname, insights, predictions, formatCurrency, crossS
       return {
         title: 'Dashboard Overview',
         icon: BarChart3,
-        items: items.slice(0, 5),
+        items: items.slice(0, 6),
         summary: urgentCount > 0
           ? `${urgentCount} alert${urgentCount > 1 ? 's' : ''} need your attention`
           : items.length > 0 ? 'Your financial overview looks good' : 'Add transactions to get insights',
@@ -97,8 +108,20 @@ function getPageInsights(pathname, insights, predictions, formatCurrency, crossS
     }
 
     case 'transactions': {
-      // Transactions: anomalies, spending patterns, recurring detection
+      // Transactions: anomalies, spending patterns, recurring detection,
+      // and backdated transaction analysis
       const items = [...compoundItems];
+      const backdated = insights.backdated || [];
+
+      // Recently-added backdated transactions get top billing
+      backdated.filter(b => b.isRecent).forEach(b => {
+        items.push({
+          type: 'backdated_recent',
+          severity: b.severity,
+          message: b.message,
+          context: 'Past-month entry',
+        });
+      });
 
       // Anomalous transactions
       anomalies.slice(0, 3).forEach(a => {
@@ -136,11 +159,34 @@ function getPageInsights(pathname, insights, predictions, formatCurrency, crossS
         });
       }
 
+      // Summary of past-month data feeding trends
+      backdated.filter(b => !b.isRecent).forEach(b => {
+        items.push({
+          type: 'backdated_summary',
+          severity: 'info',
+          message: b.message,
+          context: 'Historical data',
+        });
+      });
+
+      // Forecast impact note
+      if (totalForecast.predicted > 0) {
+        items.push({
+          type: 'forecast',
+          severity: 'info',
+          message: `Based on all transactions (including past months), next month's expenses are forecast at ${formatCurrency(totalForecast.predicted)} (${totalForecast.confidence} confidence).`,
+          context: 'Forecast',
+        });
+      }
+
+      const recentBackdateCount = backdated.filter(b => b.isRecent).length;
       return {
         title: 'Transaction Analysis',
         icon: ArrowUpRight,
-        items: items.slice(0, 5),
-        summary: anomalies.length > 0
+        items: items.slice(0, 7),
+        summary: recentBackdateCount > 0
+          ? `${recentBackdateCount} past-month transaction${recentBackdateCount > 1 ? 's' : ''} detected — analysis updated`
+          : anomalies.length > 0
           ? `${anomalies.length} unusual transaction${anomalies.length > 1 ? 's' : ''} flagged`
           : 'No anomalies detected — all transactions look normal',
       };
