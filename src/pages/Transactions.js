@@ -664,24 +664,78 @@ const Transactions = () => {
   const handleXLSXFile = async (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    await loadSheetJS();
-    if (!window.XLSX) return;
+
+    const loaded = await loadSheetJS();
+    if (!loaded || !window.XLSX) {
+      setImportErrors(['Could not load spreadsheet library — check your internet connection and try again']);
+      setImportModalOpen(true);
+      e.target.value = '';
+      return;
+    }
+
     const reader = new FileReader();
+    const fileName = file.name.toLowerCase();
+    const isCSV = fileName.endsWith('.csv') || file.type === 'text/csv';
+
+    reader.onerror = () => {
+      setImportErrors(['Could not read the file — it may be corrupt or empty']);
+      setImportModalOpen(true);
+    };
+
     reader.onload = (ev) => {
       try {
-        const wb = window.XLSX.read(ev.target?.result, { type: 'binary' });
+        const data = ev.target?.result;
+        if (!data) {
+          setImportErrors(['File appears to be empty']);
+          setImportModalOpen(true);
+          return;
+        }
+
+        // CSV files are read as text; XLSX/XLS as array buffer
+        const wb = isCSV
+          ? window.XLSX.read(data, { type: 'string' })
+          : window.XLSX.read(data, { type: 'array' });
+
+        if (!wb.SheetNames || wb.SheetNames.length === 0) {
+          setImportErrors(['No sheets found in this file']);
+          setImportModalOpen(true);
+          return;
+        }
+
         const ws = wb.Sheets[wb.SheetNames[0]];
-        const rows = window.XLSX.utils.sheet_to_json(ws, { header: 1 });
+        // Use defval so empty cells become '' (not undefined), and
+        // omit `header: 1` so we get keyed objects ({ Date: '...', Amount: ... })
+        // instead of arrays of arrays — which is what parseImportRows expects.
+        const rows = window.XLSX.utils.sheet_to_json(ws, { defval: '', raw: false });
+
+        if (!rows || rows.length === 0) {
+          setImportErrors(['No data rows found in the file. Make sure the first row contains column headers (Date, Amount, Description, etc.) and that there is at least one row of data below.']);
+          setImportModalOpen(true);
+          return;
+        }
+
         processImportRows(rows);
-      } catch (err) { setImportErrors(['Failed to read file']); setImportModalOpen(true); }
+      } catch (err) {
+        console.error('Import error:', err);
+        setImportErrors([`Could not parse file: ${err.message || 'unknown error'}. Make sure it is a valid CSV, XLSX or XLS file with headers in the first row.`]);
+        setImportModalOpen(true);
+      }
     };
-    reader.readAsBinaryString(file);
+
+    if (isCSV) {
+      reader.readAsText(file);
+    } else {
+      reader.readAsArrayBuffer(file);
+    }
     e.target.value = '';
   };
 
   const processImportRows = (rows) => {
     const historyIndex = buildHistoryIndex(transactions);
-    const result = parseImportRows(rows, historyIndex);
+    // parseImportRows signature is (rows, knownCategories, historyIndex)
+    // We pass our category list as knownCategories so import can recognise
+    // existing categories during mapping.
+    const result = parseImportRows(rows, categories, historyIndex);
     setImportErrors(result.errors || []);
     if (result.rows && result.rows.length > 0) setImportData(result.rows);
     else setImportData(null);
@@ -1328,7 +1382,27 @@ const Transactions = () => {
             </div>
             <div className="tx-import-body">
               {importErrors.length > 0 ? (
-                <div className="tx-msg error"><AlertCircle size={16} /> Could not read file</div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                  <div className="tx-msg error" style={{ alignItems: 'flex-start' }}>
+                    <AlertCircle size={16} style={{ flexShrink: 0, marginTop: 2 }} />
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                      {importErrors.map((err, i) => (
+                        <span key={i}>{err}</span>
+                      ))}
+                    </div>
+                  </div>
+                  <div style={{
+                    fontSize: '0.78rem',
+                    color: 'var(--text-secondary)',
+                    background: 'rgba(255,255,255,0.03)',
+                    border: '1px solid var(--border-color)',
+                    borderRadius: 8,
+                    padding: '10px 12px',
+                    lineHeight: 1.5,
+                  }}>
+                    <strong style={{ color: 'var(--text-primary)' }}>Expected format:</strong> CSV, XLSX, or XLS file with column headers in the first row. Required columns: <code>Date</code>, <code>Amount</code> (or <code>Debit</code>/<code>Credit</code>). Optional: <code>Description</code>, <code>Category</code>, <code>Type</code>.
+                  </div>
+                </div>
               ) : importData && importData.length > 0 ? (
                 <>
                   <p className="tx-import-stat">{importData.length} transactions ready</p>
@@ -1346,7 +1420,7 @@ const Transactions = () => {
                     {importing ? <><Loader size={16} className="spin" /> Importing...</> : <><Upload size={16} /> Import All</>}
                   </button>
                 </>
-              ) : <p>No valid data found</p>}
+              ) : <p>No valid data found in this file. Make sure it has Date and Amount columns with at least one row of data.</p>}
             </div>
           </div>
         </div>,
