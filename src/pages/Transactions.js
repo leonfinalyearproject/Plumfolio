@@ -345,6 +345,23 @@ const Transactions = () => {
   const totalExpenses = filtered.filter(t => t.type === 'expense').reduce((s, t) => s + t.amount, 0);
   const netAmount = totalIncome - totalExpenses;
 
+  // Period-scoped totals — used by the summary cards at the top.
+  // These IGNORE type/category/search filters because the cards literally
+  // say "Income / Expenses / Net" for the period — they should always
+  // tell the truth about the period regardless of which transactions are
+  // currently being LISTED below. Without this, picking the Expense filter
+  // makes the Income card show P0 even when income exists for the month.
+  const periodTransactions = transactions.filter(t => {
+    if (period === 'month' && !(t.date || '').startsWith(selectedMonth)) return false;
+    if (period === 'year' && !(t.date || '').startsWith(selectedYear)) return false;
+    if (dateFrom && t.date < dateFrom) return false;
+    if (dateTo && t.date > dateTo) return false;
+    return true;
+  });
+  const periodIncome = periodTransactions.filter(t => t.type === 'income').reduce((s, t) => s + t.amount, 0);
+  const periodExpenses = periodTransactions.filter(t => t.type === 'expense').reduce((s, t) => s + t.amount, 0);
+  const periodNet = periodIncome - periodExpenses;
+
   const clearFilters = () => {
     setFilter('all');
     setCategoryFilter('all');
@@ -584,6 +601,7 @@ const Transactions = () => {
                 total: aiResult.total,
                 category: aiResult.category,
                 confidence: aiResult.confidence,
+                documentType: aiResult.documentType || aiResult.document_type || 'receipt',
                 source: 'ai',
               };
             }
@@ -627,6 +645,7 @@ const Transactions = () => {
         date: bestParsed.date || '',
         total: bestParsed.total || 0,
         category: bestParsed.category || 'Other',
+        documentType: bestParsed.documentType || 'receipt',
       });
 
       const sourceLabel = bestParsed.source === 'ai' ? ' (AI)' : '';
@@ -950,7 +969,10 @@ const Transactions = () => {
   if (loading) return <div className="tx-loading"><Loader size={32} className="spin" /></div>;
 
   // The summary label now leads with the period (Month/Year/All time), then
-  // adds modifiers if filters are stacked on top.
+  // Filter suffix for the LIST area only (summary cards above use period
+  // totals and intentionally ignore type/category/search filters).
+  // Date range narrowing IS reflected because it changes which days the
+  // period actually covers.
   const filterSuffix = (() => {
     const parts = [];
     if (categoryFilter !== 'all') parts.push(`${categoryFilter} only`);
@@ -959,12 +981,15 @@ const Transactions = () => {
     if (dateFrom || dateTo) parts.push(`${dateFrom || '…'} → ${dateTo || '…'}`);
     return parts.length ? ` · ${parts.join(' · ')}` : '';
   })();
-  const summaryPeriodLabel = periodLabel + filterSuffix;
+  // Summary cards use the plain period label (no filter suffix) since they
+  // show period truth, not filter-narrowed sums.
+  const summaryPeriodLabel = periodLabel;
+  const listPeriodLabel = periodLabel + filterSuffix;
 
-  // "No income yet" flag — if you're viewing a current/future month and
-  // haven't entered any income, we warn so users don't forget to add it
-  // before planning budgets (matches the Budgets page behaviour).
-  const noIncomeThisMonth = period === 'month' && selectedMonth >= todayKey && totalIncome === 0;
+  // "No income yet" flag — uses the period's TRUE income (not the
+  // filter-narrowed totalIncome) so picking the Expense filter doesn't
+  // wrongly trigger the "no income" warning when income actually exists.
+  const noIncomeThisMonth = period === 'month' && selectedMonth >= todayKey && periodIncome === 0;
 
   // Years that appear in the user's transactions, for the year picker
   const availableYears = Array.from(new Set(transactions.map(t => (t.date || '').slice(0, 4)).filter(Boolean))).sort();
@@ -1042,8 +1067,9 @@ const Transactions = () => {
       </div>
 
       {/* "No income yet" nudge — explains the rule to users who haven't
-          entered income for the current/future month. Same language as Budgets. */}
-      {noIncomeThisMonth && totalExpenses > 0 && (
+          entered income for the current/future month. Uses period totals
+          (not filter-narrowed) so it's accurate regardless of type filter. */}
+      {noIncomeThisMonth && periodExpenses > 0 && (
         <div style={{
           background: 'rgba(245,158,11,0.08)',
           border: '1px solid rgba(245,158,11,0.25)',
@@ -1059,14 +1085,17 @@ const Transactions = () => {
         </div>
       )}
 
-      {/* Summary Cards */}
+      {/* Summary Cards — always show the period's TRUE Income/Expenses/Net.
+          These intentionally ignore the type/category/search filters because
+          they label themselves "Income / Expenses / Net" — they need to be
+          honest about the period regardless of what's being LISTED below. */}
       <div className="tx-summary">
         <div className="tx-card income">
           <div className="tx-card-icon"><TrendingUp size={20} /></div>
           <div className="tx-card-info">
             <span className="tx-card-label">Income <span style={{ fontSize: '0.65rem', color: 'var(--text-muted)', fontWeight: 400, marginLeft: 4 }}>· {summaryPeriodLabel}</span></span>
             <span className="tx-card-value" style={noIncomeThisMonth ? { color: '#F59E0B' } : {}}>
-              {noIncomeThisMonth ? 'P0 · no income yet' : '+' + formatCurrency(totalIncome)}
+              {noIncomeThisMonth ? 'P0 · no income yet' : '+' + formatCurrency(periodIncome)}
             </span>
           </div>
         </div>
@@ -1074,15 +1103,15 @@ const Transactions = () => {
           <div className="tx-card-icon"><TrendingDown size={20} /></div>
           <div className="tx-card-info">
             <span className="tx-card-label">Expenses <span style={{ fontSize: '0.65rem', color: 'var(--text-muted)', fontWeight: 400, marginLeft: 4 }}>· {summaryPeriodLabel}</span></span>
-            <span className="tx-card-value">-{formatCurrency(totalExpenses)}</span>
+            <span className="tx-card-value">-{formatCurrency(periodExpenses)}</span>
           </div>
         </div>
         <div className="tx-card net">
           <div className="tx-card-icon"><Wallet size={20} /></div>
           <div className="tx-card-info">
             <span className="tx-card-label">Net <span style={{ fontSize: '0.65rem', color: 'var(--text-muted)', fontWeight: 400, marginLeft: 4 }}>· {summaryPeriodLabel}</span></span>
-            <span className={`tx-card-value ${netAmount >= 0 ? 'pos' : 'neg'}`}>
-              {netAmount >= 0 ? '+' : ''}{formatCurrency(netAmount)}
+            <span className={`tx-card-value ${periodNet >= 0 ? 'pos' : 'neg'}`}>
+              {periodNet >= 0 ? '+' : ''}{formatCurrency(periodNet)}
             </span>
           </div>
         </div>
@@ -1408,9 +1437,27 @@ const Transactions = () => {
                 </div>
               ) : (
                 <div className="tx-scan-result">
-                  <div className="tx-scan-result-head"><Check size={16} /> Review & Save</div>
+                  <div className="tx-scan-result-head" style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                    <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <Check size={16} /> Review & Save
+                    </span>
+                    {extractedData.documentType === 'tax_invoice' && (
+                      <span style={{
+                        fontSize: '0.65rem', fontWeight: 700,
+                        color: '#A855F7',
+                        background: 'rgba(168,85,247,0.12)',
+                        padding: '3px 8px', borderRadius: 10,
+                        letterSpacing: '0.04em', textTransform: 'uppercase',
+                      }}>
+                        Tax Invoice
+                      </span>
+                    )}
+                  </div>
                   <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginBottom: 8 }}>
-                    Only three things are saved: <strong>merchant</strong>, <strong>date</strong>, and <strong>total</strong>. Correct any OCR errors before saving.
+                    {extractedData.documentType === 'tax_invoice'
+                      ? <>Tax invoice detected — the total shown is the <strong>VAT-inclusive</strong> amount. Correct any OCR errors before saving.</>
+                      : <>Only three things are saved: <strong>merchant</strong>, <strong>date</strong>, and <strong>total</strong>. Correct any OCR errors before saving.</>
+                    }
                   </p>
                   <div className="tx-scan-fields">
                     <div className="tx-field">

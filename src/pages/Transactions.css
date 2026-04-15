@@ -1117,8 +1117,11 @@
     opacity: 1;
   }
 
+  /* Hide the floating Scan + Add buttons on mobile — they duplicate the
+     ones already in the top action bar. Keeping both crowds the screen
+     and overlaps the AI brain widget. */
   .tx-fabs {
-    display: flex;
+    display: none !important;
   }
 
   .tx-field-row {
