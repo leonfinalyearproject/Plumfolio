@@ -124,6 +124,19 @@ export function generateCrossReferenceSignals(insights, predictions, { transacti
     });
   }
 
+  // ---- 6. Backdated transactions affecting forecasts ----
+  const backdatedImpact = predictions.backdatedImpact;
+  if (backdatedImpact && backdatedImpact.count > 0) {
+    const affectedCount = backdatedImpact.affectedMonths.length;
+    signals.push({
+      id: `cx_backdated_forecast_${affectedCount}`,
+      type: 'backdated_forecast_impact',
+      severity: 'info',
+      title: 'Historical Data Updated',
+      message: `${backdatedImpact.count} backdated transaction${backdatedImpact.count > 1 ? 's' : ''} across ${affectedCount} past month${affectedCount > 1 ? 's have' : ' has'} been factored into trend calculations. Forecasts now reflect the corrected historical spending patterns.`,
+    });
+  }
+
   // Sort: high → medium → low
   const order = { high: 0, medium: 1, low: 2, info: 3 };
   return signals.sort((a, b) => (order[a.severity] ?? 4) - (order[b.severity] ?? 4));

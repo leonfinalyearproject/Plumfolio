@@ -361,6 +361,86 @@ export function analyseGoals(goals, transactions) {
 }
 
 /**
+ * FR-5.5: Detect recently-added backdated transactions
+ * Flags transactions whose date is significantly older than when they were
+ * likely added (detected by comparing transaction date to the current month).
+ * This helps users and the forecast engine understand that past-period data
+ * has changed and totals for those periods have been retroactively updated.
+ */
+export function detectBackdatedTransactions(transactions) {
+  const now = new Date();
+  const currentMonthKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+  const insights = [];
+
+  // Group transactions by their month
+  const byMonth = groupByMonth(transactions);
+
+  // Look for months (other than current) that have transactions and check
+  // if any of those months got significantly more data recently. We detect
+  // this by finding transactions whose `created_at` (if available) is much
+  // newer than their `date`. If `created_at` isn't available, we look for
+  // transactions dated more than 60 days in the past — these are likely
+  // backdated entries from receipt scans.
+  const pastExpenses = transactions.filter(t => {
+    if (t.type !== 'expense') return false;
+    const txDate = new Date(t.date);
+    const txMonthKey = `${txDate.getFullYear()}-${String(txDate.getMonth() + 1).padStart(2, '0')}`;
+    if (txMonthKey === currentMonthKey) return false;
+
+    // Check if created_at is significantly newer than the transaction date
+    if (t.created_at) {
+      const createdDate = new Date(t.created_at);
+      const daysBetween = Math.floor((createdDate - txDate) / (1000 * 60 * 60 * 24));
+      return daysBetween > 30; // Added more than 30 days after the transaction date
+    }
+
+    // Fallback: flag transactions dated more than 60 days ago
+    const daysAgo = Math.floor((now - txDate) / (1000 * 60 * 60 * 24));
+    return daysAgo > 60;
+  });
+
+  if (pastExpenses.length === 0) return insights;
+
+  // Group backdated transactions by their target month
+  const backdatedByMonth = {};
+  pastExpenses.forEach(t => {
+    const txDate = new Date(t.date);
+    const monthKey = `${txDate.getFullYear()}-${String(txDate.getMonth() + 1).padStart(2, '0')}`;
+    if (!backdatedByMonth[monthKey]) backdatedByMonth[monthKey] = [];
+    backdatedByMonth[monthKey].push(t);
+  });
+
+  // Only surface months where backdated entries are significant
+  Object.entries(backdatedByMonth).forEach(([monthKey, txns]) => {
+    const total = txns.reduce((s, t) => s + Math.abs(parseFloat(t.amount)), 0);
+    const allMonthTxns = byMonth[monthKey] || [];
+    const monthTotal = allMonthTxns
+      .filter(t => t.type === 'expense')
+      .reduce((s, t) => s + Math.abs(parseFloat(t.amount)), 0);
+
+    // Only flag if backdated amounts are meaningful (>10% of the month's total or >0)
+    if (total > 0 && monthTotal > 0) {
+      const pct = Math.round((total / monthTotal) * 100);
+      const monthLabel = new Date(monthKey + '-01').toLocaleDateString('en-GB', { month: 'long', year: 'numeric' });
+
+      if (pct >= 10) {
+        insights.push({
+          type: 'backdated_entries',
+          severity: 'info',
+          category: null,
+          message: `${txns.length} backdated transaction${txns.length > 1 ? 's' : ''} (¤${total.toFixed(2)}) ${txns.length > 1 ? 'were' : 'was'} added to ${monthLabel}, accounting for ${pct}% of that month's expenses. Historical trends and forecasts have been updated to reflect this.`,
+          monthKey,
+          backdatedCount: txns.length,
+          backdatedTotal: total,
+        });
+      }
+    }
+  });
+
+  return insights;
+}
+
+/**
  * FR-5.4: Generate personalised dashboard insights
  * Combines all analysis into a prioritised list of insights
  */
@@ -375,6 +455,7 @@ export function generateInsights(transactions, goals) {
   const spendingPatterns = analyseSpendingPatterns(transactions);
   const anomalies = detectAnomalies(transactions);
   const recurring = detectRecurringTransactions(transactions);
+  const backdated = detectBackdatedTransactions(transactions);
 
   // Additional summary insights
   const expenses = transactions.filter(t => t.type === 'expense');
@@ -441,6 +522,7 @@ export function generateInsights(transactions, goals) {
     ...spendingPatterns,
     ...anomalies.slice(0, 3), // Top 3 anomalies only
     ...recurring,
+    ...backdated,
   ].sort((a, b) => (severityOrder[a.severity] || 3) - (severityOrder[b.severity] || 3));
 
   return {
@@ -448,11 +530,13 @@ export function generateInsights(transactions, goals) {
     spendingPatterns,
     anomalies,
     recurring,
+    backdated,
     goalInsights,
     summary: {
       totalInsights: allInsights.length,
       hasAnomalies: anomalies.length > 0,
       hasRecurring: recurring.length > 0,
+      hasBackdated: backdated.length > 0,
       hasGoalAlerts: goalInsights.some(g => g.severity === 'high' || g.severity === 'medium'),
       savingsRate: totalIncome > 0 ? Math.round(((totalIncome - totalExpenses) / totalIncome) * 100) : 0,
     },

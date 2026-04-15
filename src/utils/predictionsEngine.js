@@ -302,6 +302,9 @@ export function checkBudgetWarnings(transactions, budgets) {
 
 /**
  * Master function: Generate all predictions
+ * Includes detection of backdated transactions that may have shifted
+ * historical month totals — this is surfaced so the forecast page can
+ * note that past-period data was retroactively updated.
  */
 export function generatePredictions(transactions, budgets = []) {
   if (!transactions || transactions.length === 0) {
@@ -310,6 +313,38 @@ export function generatePredictions(transactions, budgets = []) {
       categoryForecasts: {},
       budgetSuggestions: [],
       budgetWarnings: [],
+      backdatedImpact: null,
+    };
+  }
+
+  // Detect backdated transactions that may have shifted historical data
+  const now = new Date();
+  const currentMonthKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+  const backdatedTxns = transactions.filter(t => {
+    if (t.type !== 'expense') return false;
+    const txDate = new Date(t.date);
+    const txMonthKey = `${txDate.getFullYear()}-${String(txDate.getMonth() + 1).padStart(2, '0')}`;
+    if (txMonthKey === currentMonthKey) return false;
+    if (t.created_at) {
+      const createdDate = new Date(t.created_at);
+      const daysBetween = Math.floor((createdDate - txDate) / (1000 * 60 * 60 * 24));
+      return daysBetween > 30;
+    }
+    return Math.floor((now - txDate) / (1000 * 60 * 60 * 24)) > 60;
+  });
+
+  let backdatedImpact = null;
+  if (backdatedTxns.length > 0) {
+    const totalBackdated = backdatedTxns.reduce((s, t) => s + Math.abs(parseFloat(t.amount)), 0);
+    const affectedMonths = new Set(backdatedTxns.map(t => {
+      const d = new Date(t.date);
+      return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+    }));
+    backdatedImpact = {
+      count: backdatedTxns.length,
+      total: totalBackdated,
+      affectedMonths: [...affectedMonths],
+      message: `${backdatedTxns.length} backdated transaction${backdatedTxns.length > 1 ? 's' : ''} (¤${totalBackdated.toFixed(2)}) across ${affectedMonths.size} past month${affectedMonths.size > 1 ? 's' : ''} ${affectedMonths.size > 1 ? 'are' : 'is'} included in these forecasts. Historical month totals have been adjusted accordingly, which may shift trend calculations.`,
     };
   }
   
@@ -318,6 +353,7 @@ export function generatePredictions(transactions, budgets = []) {
     categoryForecasts: forecastByCategory(transactions),
     budgetSuggestions: suggestBudgetAllocations(transactions),
     budgetWarnings: checkBudgetWarnings(transactions, budgets),
+    backdatedImpact,
   };
 }
 
