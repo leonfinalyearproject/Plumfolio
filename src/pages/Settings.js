@@ -292,7 +292,7 @@ const Settings = () => {
           <div className="settings-section">
             <div className="section-header">
               <h2>AI Scan Credits</h2>
-              <p>Plumfolio uses Google's Gemini AI to read tricky receipts. You get 50 AI scans per day — regular (Tesseract) scanning is always unlimited and free.</p>
+              <p>Plumfolio uses its built-in AI to read tricky receipts. You get 50 AI scans per day — regular (Tesseract) scanning is always unlimited and free.</p>
             </div>
 
             {aiScansToday === null ? (
@@ -351,7 +351,7 @@ const Settings = () => {
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8, color: 'var(--text-primary)', fontWeight: 600 }}>
                     <ScanLine size={15} /> How scanning works
                   </div>
-                  Every receipt you scan is first processed locally on your device with Tesseract OCR — that's fast, free, and doesn't count toward any limit. If the local scan can't read the receipt confidently (crumpled, angled, faded), Plumfolio automatically falls back to Gemini AI for better accuracy. Only the AI fallback counts as a credit. When you're out of AI credits, scanning still works — it just uses local OCR only.
+                  Every receipt you scan is first processed locally on your device with Tesseract OCR — that's fast, free, and doesn't count toward any limit. If the local scan can't read the receipt confidently (crumpled, angled, faded), Plumfolio automatically falls back to its AI engine for better accuracy. Only the AI fallback counts as a credit. When you're out of AI credits, scanning still works — it just uses local OCR only.
                 </div>
 
                 {/* Recent scans list */}

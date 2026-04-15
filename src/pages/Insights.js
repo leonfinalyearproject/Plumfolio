@@ -145,6 +145,23 @@ const Insights = () => {
 
         {activeTab === 'predictions' && predictions && (
           <div className="predictions-section">
+            {/* Backdated data notice */}
+            {predictions.backdatedImpact && (
+              <div className="forecast-card" style={{
+                background: 'rgba(245,158,11,0.06)',
+                border: '1px solid rgba(245,158,11,0.2)',
+                marginBottom: 16,
+              }}>
+                <div className="forecast-header" style={{ gap: 8 }}>
+                  <Calendar size={18} style={{ color: '#F59E0B' }} />
+                  <h3 style={{ color: '#F59E0B', fontSize: '0.9rem' }}>Backdated Data Included</h3>
+                </div>
+                <p className="forecast-detail" style={{ marginTop: 6, lineHeight: 1.5 }}>
+                  {predictions.backdatedImpact.message}
+                </p>
+              </div>
+            )}
+
             <div className="forecast-card main-forecast">
               <div className="forecast-header">
                 <Target size={20} />

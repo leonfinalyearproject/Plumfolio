@@ -91,6 +91,20 @@
   color: var(--text-primary);
 }
 
+.stat-amount-row {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.stat-inline-sub {
+  font-size: 0.72rem;
+  color: var(--text-secondary);
+  font-weight: 400;
+  white-space: nowrap;
+}
+
 .stat-card.main .stat-amount {
   font-size: 1.8rem;
   background: linear-gradient(135deg, var(--text-primary) 40%, var(--plum-glow) 100%);

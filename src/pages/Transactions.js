@@ -84,7 +84,12 @@ const Transactions = () => {
   const [scanSuccess, setScanSuccess] = useState('');
   const [tesseractReady, setTesseractReady] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
-  // AI scan credits — tracks how many Gemini calls the user has made today
+  // Backdated transaction confirmation — when a scanned receipt's date is
+  // from a different month/year than the current one, we show a confirmation
+  // dialog so the user knows this will be filed under the receipt's original
+  // financial period (not the current month).
+  const [backdateConfirm, setBackdateConfirm] = useState(null); // { payload, message, monthLabel, timeAgo }
+  // AI scan credits — tracks how many AI calls the user has made today
   // so we can show a "X of 50 remaining" badge + reset countdown.
   // Tesseract scans don't count (they're free and unlimited).
   const [aiScansToday, setAiScansToday] = useState(null); // null = loading
@@ -161,12 +166,12 @@ const Transactions = () => {
   }, [user]);
 
   // =============================================================
-  // AI SCAN CREDITS — counts Gemini calls since the last Pacific
-  // midnight (when Google's free-tier quota resets). We refresh
+  // AI SCAN CREDITS — counts Plumfolio AI calls since the last Pacific
+  // midnight (when the free-tier quota resets). We refresh
   // when the scanner opens and again after each successful AI scan.
   // =============================================================
   // Computes the ISO timestamp of the most recent midnight in Pacific time.
-  // Gemini quota resets at 00:00 US/Pacific. We convert that wall-clock
+  // AI quota resets at 00:00 US/Pacific. We convert that wall-clock
   // moment to a UTC ISO string so our `gte(...)` SQL query is correct.
   const lastPacificMidnightIso = () => {
     // Pacific offset: -08:00 standard, -07:00 daylight. A robust way to
@@ -391,7 +396,7 @@ const Transactions = () => {
       // PHASE 1: LOCAL OCR (fast, free, offline)
       // =======================================================
       // Always try Tesseract first. It's instant on clean receipts and
-      // costs nothing — no reason to burn Gemini quota when a straight
+      // costs nothing — no reason to burn AI quota when a straight
       // receipt can be parsed locally.
       const processedVersions = await processReceiptImage(preview);
       setScanStatus('Reading locally...'); setScanProgress(10);
@@ -427,7 +432,7 @@ const Transactions = () => {
       // =======================================================
       // PHASE 2: AI FALLBACK (only if local was not high-confidence)
       // =======================================================
-      // Route to Gemini for anything below 'high' — it's dramatically
+      // Route to Plumfolio AI for anything below 'high' — it's dramatically
       // better on crumpled / angled / faded receipts. Uses Supabase Edge
       // Function so the API key stays server-side. Skipped entirely if
       // the user has used all 50 of their daily AI credits.
@@ -439,7 +444,7 @@ const Transactions = () => {
         setScanProgress(60);
         try {
           // Extract base64 payload from the data URL preview
-          // Downscale the image before sending. Gemini doesn't need a 4k
+          // Downscale the image before sending. The AI doesn't need a 4k
           // photo to read a receipt, but we DO need enough resolution to
           // keep tiny receipt text legible — especially on phone photos
           // taken at an angle or under poor lighting. 1600px on the long
@@ -562,6 +567,51 @@ const Transactions = () => {
     finally { setScanning(false); setScanProgress(100); }
   };
 
+  // Helper: calculate human-readable time-ago string
+  const getTimeAgo = (dateStr) => {
+    const txDate = new Date(dateStr);
+    const now = new Date();
+    const diffMs = now - txDate;
+    const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+    if (diffDays < 1) return 'today';
+    if (diffDays === 1) return '1 day ago';
+    if (diffDays < 30) return `${diffDays} days ago`;
+    const diffMonths = Math.floor(diffDays / 30);
+    if (diffMonths === 1) return '1 month ago';
+    if (diffMonths < 12) return `${diffMonths} months ago`;
+    const diffYears = Math.floor(diffMonths / 12);
+    const remainingMonths = diffMonths % 12;
+    if (remainingMonths === 0) return `${diffYears} year${diffYears > 1 ? 's' : ''} ago`;
+    return `${diffYears} year${diffYears > 1 ? 's' : ''} and ${remainingMonths} month${remainingMonths > 1 ? 's' : ''} ago`;
+  };
+
+  // Check if a date falls in a different month/year than the current one
+  const isBackdated = (dateStr) => {
+    const txDate = new Date(dateStr);
+    const now = new Date();
+    return txDate.getFullYear() !== now.getFullYear() || txDate.getMonth() !== now.getMonth();
+  };
+
+  // Actually insert a scanned transaction into the DB (shared by normal save + confirmed backdate)
+  const commitScannedTransaction = async (payload) => {
+    const { data, error } = await supabase.from('transactions').insert([payload]).select();
+    if (!error && data) {
+      setTransactions(prev => [data[0], ...prev]);
+      const txDate = new Date(payload.date);
+      const monthLabel = txDate.toLocaleDateString('en-GB', { month: 'long', year: 'numeric' });
+      if (addToast) addToast({
+        type: 'success',
+        title: 'Saved',
+        message: isBackdated(payload.date)
+          ? `Added ${payload.description} to ${monthLabel}`
+          : `Added ${payload.description}`,
+      });
+      closeScanner();
+      setBackdateConfirm(null);
+      if (refreshInsights) refreshInsights();
+    }
+  };
+
   const saveScanned = async () => {
     if (!extractedData) return;
     // Strict mode: we save merchant (description), date, and total. Nothing else.
@@ -593,13 +643,22 @@ const Transactions = () => {
       return;
     }
 
-    const { data, error } = await supabase.from('transactions').insert([payload]).select();
-    if (!error && data) {
-      setTransactions(prev => [data[0], ...prev]);
-      if (addToast) addToast({ type: 'success', title: 'Saved', message: `Added ${extractedData.merchant}` });
-      closeScanner();
-      if (refreshInsights) refreshInsights();
+    // Backdated receipt check — if the receipt date is from a different month/year,
+    // confirm with the user before saving so they understand it will be filed under
+    // the original financial period (affecting that month/year's totals, insights, forecasts).
+    if (isBackdated(extractedData.date)) {
+      const txDate = new Date(extractedData.date);
+      const monthLabel = txDate.toLocaleDateString('en-GB', { month: 'long', year: 'numeric' });
+      const timeAgo = getTimeAgo(extractedData.date);
+      setBackdateConfirm({
+        payload,
+        timeAgo,
+        monthLabel,
+      });
+      return;
     }
+
+    await commitScannedTransaction(payload);
   };
 
   const handleXLSXFile = async (e) => {
@@ -1075,7 +1134,7 @@ const Transactions = () => {
               <button onClick={closeScanner}><X size={20} /></button>
             </div>
             <div className="tx-scanner-body">
-              {/* AI credits badge — shows how many Gemini scans the user has
+              {/* AI credits badge — shows how many AI scans the user has
                   left today and when the quota resets. Tesseract is free and
                   unlimited, so we only count AI calls. */}
               {aiScansToday !== null && (
@@ -1201,6 +1260,58 @@ const Transactions = () => {
                   </div>
                 </div>
               )}
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {/* Import Modal */}
+
+      {/* Backdated Transaction Confirmation Modal */}
+      {backdateConfirm && ReactDOM.createPortal(
+        <div className="tx-overlay" onClick={() => setBackdateConfirm(null)}>
+          <div className="tx-modal backdate-confirm" onClick={e => e.stopPropagation()} style={{
+            maxWidth: 440, padding: '24px 28px',
+          }}>
+            <div className="tx-modal-head" style={{ marginBottom: 16 }}>
+              <h2 style={{ display: 'flex', alignItems: 'center', gap: 8 }}><Calendar size={20} /> Past Transaction</h2>
+              <button onClick={() => setBackdateConfirm(null)}><X size={20} /></button>
+            </div>
+
+            <div style={{
+              background: 'rgba(245,158,11,0.08)',
+              border: '1px solid rgba(245,158,11,0.25)',
+              borderRadius: 10, padding: '14px 16px',
+              marginBottom: 16,
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+                <AlertCircle size={18} style={{ color: '#F59E0B', flexShrink: 0 }} />
+                <span style={{ fontWeight: 600, color: '#F59E0B', fontSize: '0.9rem' }}>
+                  This transaction happened {backdateConfirm.timeAgo}
+                </span>
+              </div>
+              <p style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', margin: 0, lineHeight: 1.5 }}>
+                It will be added to <strong style={{ color: 'var(--text-primary)' }}>{backdateConfirm.monthLabel}</strong>'s
+                financial records. This means:
+              </p>
+              <ul style={{
+                fontSize: '0.8rem', color: 'var(--text-secondary)', margin: '10px 0 0',
+                paddingLeft: 18, lineHeight: 1.7,
+              }}>
+                <li>The expense will appear under <strong style={{ color: 'var(--text-primary)' }}>{backdateConfirm.monthLabel}</strong></li>
+                <li>Your <strong style={{ color: 'var(--text-primary)' }}>all-time balance</strong> will be updated</li>
+                <li>Insights and forecasts for that period will be recalculated</li>
+              </ul>
+            </div>
+
+            <div style={{ display: 'flex', gap: 10 }}>
+              <button className="tx-scan-save" onClick={() => commitScannedTransaction(backdateConfirm.payload)} style={{ flex: 1 }}>
+                <Check size={16} /> Accept & Save
+              </button>
+              <button className="tx-scan-retry" onClick={() => setBackdateConfirm(null)} style={{ flex: 1 }}>
+                Discard
+              </button>
             </div>
           </div>
         </div>,

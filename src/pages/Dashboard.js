@@ -321,10 +321,11 @@ const Dashboard = () => {
             <span className="stat-label">Balance</span>
             <Wallet size={20} />
           </div>
-          <span className="stat-amount">{formatCurrency(stats.balance)}</span>
-          <span className="stat-subtitle" style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', marginTop: 4 }}>
-            All-time net (income − expenses)
-          </span>
+          <div className="stat-amount-row">
+            <span className="stat-amount">{formatCurrency(stats.balance)}</span>
+            <span className="stat-inline-sub">All-time net (income − expenses)</span>
+          </div>
+          <DeltaBadge current={stats.thisMonthIncome - stats.thisMonthExpenses} previous={stats.lastMonthIncome - stats.lastMonthExpenses} positiveIsGood={true} formatCurrency={formatCurrency} />
         </div>
 
         <div className="stat-card">
