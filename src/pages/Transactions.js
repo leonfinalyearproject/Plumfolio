@@ -8,7 +8,7 @@ import { parseReceiptText, detectCategory as receiptDetectCategory } from '../ut
 import { parseReceiptStrict } from '../utils/receiptParserStrict';
 import processReceiptImage from '../utils/imageProcessor';
 import { validateTransactionForm } from '../utils/validation';
-import { parseImportRows, SAMPLE_TEMPLATE_ROWS, buildHistoryIndex, setReceiptDetectCategory } from '../utils/importParser';
+import { parseImportRows, SAMPLE_TEMPLATE_ROWS, buildHistoryIndex, setReceiptDetectCategory, setCommunityMap } from '../utils/importParser';
 import { findDuplicates, describeMatch } from '../utils/duplicateCheck';
 
 setReceiptDetectCategory(receiptDetectCategory);
@@ -18,7 +18,7 @@ import {
   Coffee, Home, Car, Zap, GraduationCap, ShoppingCart, Wallet,
   Heart, Film, MoreHorizontal, Trash2, Edit, Receipt, Camera, FileText,
   Check, Loader, AlertCircle, Image, ScanLine, Calendar, DollarSign,
-  Star, ChevronDown, ChevronRight, Search, RefreshCw, TrendingUp, TrendingDown
+  Star, ChevronDown, ChevronRight, Search, RefreshCw, TrendingUp, TrendingDown, Sparkles
 } from 'lucide-react';
 import './Transactions.css';
 
@@ -71,6 +71,9 @@ const Transactions = () => {
   const [importData, setImportData] = useState(null);
   const [importing, setImporting] = useState(false);
   const [importErrors, setImportErrors] = useState([]);
+  const [importStats, setImportStats] = useState(null); // { total, valid, skipped, mapped, autoCategorised }
+  const [importWarnings, setImportWarnings] = useState([]);
+  const [importExpanded, setImportExpanded] = useState(false); // show all rows toggle
   const xlsxInputRef = useRef(null);
 
   const [scannerOpen, setScannerOpen] = useState(false);
@@ -163,6 +166,63 @@ const Transactions = () => {
       setLoading(false);
     };
     fetchTransactions();
+  }, [user]);
+
+  // =============================================================
+  // COMMUNITY CATEGORY MAP — load crowd-learned merchant→category
+  // mappings from Supabase so other users' contributions can help
+  // auto-categorise this user's imports. Only trusts entries with
+  // ≥5 votes AND ≥60% share of votes for that merchant (matching
+  // the server-side thresholds in lookup_merchant_category).
+  // Falls back silently if the table doesn't exist yet.
+  // =============================================================
+  useEffect(() => {
+    if (!user) return;
+    const loadCommunityMap = async () => {
+      try {
+        const { data, error } = await supabase
+          .from('merchant_categories')
+          .select('merchant_token, category, vote_count')
+          .gte('vote_count', 5);
+        if (error) {
+          // Table likely doesn't exist yet — silent fail, keyword fallback still works
+          setCommunityMap(null);
+          return;
+        }
+
+        // Aggregate per merchant: pick the category with the highest vote_count,
+        // but only if it represents ≥60% of all votes for that merchant (matches
+        // the server-side min_share threshold in lookup_merchant_category).
+        const byMerchant = {};
+        (data || []).forEach(row => {
+          if (!byMerchant[row.merchant_token]) {
+            byMerchant[row.merchant_token] = { rows: [], total: 0 };
+          }
+          byMerchant[row.merchant_token].rows.push(row);
+          byMerchant[row.merchant_token].total += row.vote_count;
+        });
+
+        const map = {};
+        Object.entries(byMerchant).forEach(([token, info]) => {
+          // Sort by vote_count desc, take winner
+          info.rows.sort((a, b) => b.vote_count - a.vote_count);
+          const winner = info.rows[0];
+          const share = winner.vote_count / info.total;
+          if (share >= 0.6) {
+            map[token] = {
+              category: winner.category,
+              confidence: winner.vote_count >= 20 ? 'high' : winner.vote_count >= 10 ? 'medium' : 'low',
+              votes: winner.vote_count,
+            };
+          }
+        });
+
+        setCommunityMap(map);
+      } catch (e) {
+        setCommunityMap(null);
+      }
+    };
+    loadCommunityMap();
   }, [user]);
 
   // =============================================================
@@ -336,12 +396,26 @@ const Transactions = () => {
       if (!error) {
         setTransactions(prev => prev.map(t => t.id === editingTransaction.id ? { ...t, ...payload } : t));
         if (addToast) addToast({ type: 'success', title: 'Updated', message: 'Transaction updated' });
+        // Editing a transaction → user actively confirmed merchant→category. Vote.
+        if (payload.description && payload.category && payload.category !== 'Other' && payload.type === 'expense') {
+          supabase.rpc('vote_for_merchant_category', {
+            raw_merchant: payload.description,
+            raw_category: payload.category,
+          }).then(() => null).catch(() => null);
+        }
       }
     } else {
       const { data, error } = await supabase.from('transactions').insert([payload]).select();
       if (!error && data) {
         setTransactions(prev => [data[0], ...prev]);
         if (addToast) addToast({ type: 'success', title: 'Added', message: 'Transaction added' });
+        // Manual add → user explicitly chose merchant + category. Vote.
+        if (payload.description && payload.category && payload.category !== 'Other' && payload.type === 'expense') {
+          supabase.rpc('vote_for_merchant_category', {
+            raw_merchant: payload.description,
+            raw_category: payload.category,
+          }).then(() => null).catch(() => null);
+        }
       }
     }
 
@@ -597,6 +671,17 @@ const Transactions = () => {
     const { data, error } = await supabase.from('transactions').insert([payload]).select();
     if (!error && data) {
       setTransactions(prev => [data[0], ...prev]);
+
+      // Contribute the merchant→category to the community pool.
+      // The user has confirmed this categorisation by saving, so it's a high-quality vote.
+      // Server RPC handles all normalisation, validation and sensitive-keyword filtering.
+      if (payload.description && payload.category && payload.category !== 'Other' && payload.type === 'expense') {
+        supabase.rpc('vote_for_merchant_category', {
+          raw_merchant: payload.description,
+          raw_category: payload.category,
+        }).then(() => null).catch(() => null);
+      }
+
       const txDate = new Date(payload.date);
       const monthLabel = txDate.toLocaleDateString('en-GB', { month: 'long', year: 'numeric' });
       if (addToast) addToast({
@@ -737,9 +822,68 @@ const Transactions = () => {
     // existing categories during mapping.
     const result = parseImportRows(rows, categories, historyIndex);
     setImportErrors(result.errors || []);
+    setImportWarnings(result.warnings || []);
+    setImportStats(result.stats || null);
+    setImportExpanded(false);
     if (result.rows && result.rows.length > 0) setImportData(result.rows);
     else setImportData(null);
     setImportModalOpen(true);
+  };
+
+  const closeImportModal = () => {
+    setImportModalOpen(false);
+    setImportData(null);
+    setImportErrors([]);
+    setImportWarnings([]);
+    setImportStats(null);
+    setImportExpanded(false);
+  };
+
+  // Update the category for a single import row before saving
+  const updateImportRowCategory = (rowIdx, newCategory) => {
+    setImportData(prev => prev.map((r, i) =>
+      i === rowIdx ? { ...r, category: newCategory, _categorySource: 'user-edited' } : r
+    ));
+  };
+
+  // Contribute categorisations to the community pool so other users benefit.
+  // Calls vote_for_merchant_category once per unique merchant. The server-side
+  // RPC handles normalisation, sensitive-keyword filtering, and vote
+  // aggregation — we just send the raw merchant name + chosen category.
+  // Runs after a successful import. Failures are silent (community
+  // contribution is best-effort and the import has already succeeded).
+  const contributeToCommunity = async (importedRows) => {
+    try {
+      // Dedupe by raw description so we vote at most once per merchant per import
+      const seen = new Set();
+      const votes = [];
+      importedRows.forEach(r => {
+        if (!r.description || !r.category || r.category === 'Other') return;
+        // Skip rows where the user didn't engage with the categorisation
+        // (e.g. transparent income defaults). We want votes to reflect
+        // confirmed merchant→category pairings.
+        if (r._categorySource === 'income-default') return;
+        const key = r.description.trim().toLowerCase();
+        if (seen.has(key)) return;
+        seen.add(key);
+        votes.push({ merchant: r.description.trim(), category: r.category });
+      });
+
+      if (votes.length === 0) return;
+
+      // Fire all votes in parallel; server RPC does its own validation
+      // and silently rejects ones that don't meet the privacy/quality bar.
+      await Promise.all(
+        votes.map(v =>
+          supabase.rpc('vote_for_merchant_category', {
+            raw_merchant: v.merchant,
+            raw_category: v.category,
+          }).then(() => null).catch(() => null) // silent — never block
+        )
+      );
+    } catch (e) {
+      console.log('Community contribution skipped:', e.message);
+    }
   };
 
   const doImport = async () => {
@@ -768,22 +912,28 @@ const Transactions = () => {
     if (toInsert.length === 0) {
       if (addToast) addToast({ type: 'info', title: 'Nothing to import', message: `All ${importData.length} rows matched existing transactions.` });
       setImporting(false);
-      setImportModalOpen(false); setImportData(null);
+      closeImportModal();
       return;
     }
 
     const { data, error } = await supabase.from('transactions').insert(toInsert).select();
     if (!error && data) {
       setTransactions(prev => [...data, ...prev]);
+
+      // Contribute categorisations to the community pool (non-blocking, best-effort)
+      contributeToCommunity(importData);
+
       if (addToast) addToast({
         type: 'success',
         title: 'Imported',
         message: skipped > 0
           ? `${data.length} added, ${skipped} skipped as duplicates`
-          : `${data.length} transactions`
+          : `${data.length} transactions added`
       });
-      setImportModalOpen(false); setImportData(null);
+      closeImportModal();
       if (refreshInsights) refreshInsights();
+    } else if (error) {
+      setImportErrors([`Could not save: ${error.message}`]);
     }
     setImporting(false);
   };
@@ -1374,11 +1524,11 @@ const Transactions = () => {
 
       {/* Import Modal */}
       {importModalOpen && ReactDOM.createPortal(
-        <div className="tx-overlay" onClick={() => setImportModalOpen(false)}>
-          <div className="tx-modal import" onClick={e => e.stopPropagation()}>
+        <div className="tx-overlay" onClick={closeImportModal}>
+          <div className="tx-modal import" onClick={e => e.stopPropagation()} style={{ maxWidth: 720 }}>
             <div className="tx-modal-head">
-              <h2><Upload size={20} /> Import</h2>
-              <button onClick={() => setImportModalOpen(false)}><X size={20} /></button>
+              <h2><Upload size={20} /> Import Transactions</h2>
+              <button onClick={closeImportModal}><X size={20} /></button>
             </div>
             <div className="tx-import-body">
               {importErrors.length > 0 ? (
@@ -1405,22 +1555,213 @@ const Transactions = () => {
                 </div>
               ) : importData && importData.length > 0 ? (
                 <>
-                  <p className="tx-import-stat">{importData.length} transactions ready</p>
-                  <div className="tx-import-preview">
-                    {importData.slice(0, 5).map((r, i) => (
-                      <div key={i} className="tx-import-row">
-                        <span>{r.date}</span>
-                        <span>{r.description}</span>
-                        <span className={r.type}>{r.type === 'income' ? '+' : '-'}{formatCurrency(r.amount)}</span>
+                  {/* Stats banner */}
+                  <div style={{
+                    display: 'flex', flexWrap: 'wrap', gap: 8,
+                    marginBottom: 14, padding: '12px 14px',
+                    background: 'rgba(168,85,247,0.06)',
+                    border: '1px solid rgba(168,85,247,0.18)',
+                    borderRadius: 10,
+                  }}>
+                    <div style={{ flex: '1 1 auto', minWidth: 160 }}>
+                      <div style={{ fontSize: '1.4rem', fontWeight: 700, color: 'var(--text-primary)', lineHeight: 1 }}>
+                        {importData.length}
                       </div>
-                    ))}
-                    {importData.length > 5 && <p className="tx-import-more">+{importData.length - 5} more</p>}
+                      <div style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', marginTop: 2 }}>
+                        transactions ready to import
+                      </div>
+                    </div>
+                    {importStats && (
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 14, alignItems: 'center', fontSize: '0.78rem', color: 'var(--text-secondary)' }}>
+                        {importStats.autoCategorised > 0 && (
+                          <span title="Categories auto-detected from descriptions using your history, keywords, and community data">
+                            <Sparkles size={13} style={{ display: 'inline', verticalAlign: 'middle', marginRight: 4, color: '#A855F7' }} />
+                            <strong style={{ color: 'var(--text-primary)' }}>{importStats.autoCategorised}</strong> auto-categorised
+                          </span>
+                        )}
+                        {importStats.mapped > 0 && (
+                          <span title="Categories mapped from your file's category column">
+                            <Check size={13} style={{ display: 'inline', verticalAlign: 'middle', marginRight: 4, color: '#22C55E' }} />
+                            <strong style={{ color: 'var(--text-primary)' }}>{importStats.mapped}</strong> from file
+                          </span>
+                        )}
+                        {importStats.skipped > 0 && (
+                          <span title="Rows skipped due to invalid date or amount">
+                            <AlertCircle size={13} style={{ display: 'inline', verticalAlign: 'middle', marginRight: 4, color: '#F59E0B' }} />
+                            <strong style={{ color: 'var(--text-primary)' }}>{importStats.skipped}</strong> skipped
+                          </span>
+                        )}
+                      </div>
+                    )}
                   </div>
-                  <button className="tx-import-btn" onClick={doImport} disabled={importing}>
-                    {importing ? <><Loader size={16} className="spin" /> Importing...</> : <><Upload size={16} /> Import All</>}
+
+                  {/* Warnings about skipped rows */}
+                  {importWarnings && importWarnings.length > 0 && (
+                    <details style={{
+                      marginBottom: 12,
+                      fontSize: '0.78rem',
+                      color: 'var(--text-secondary)',
+                    }}>
+                      <summary style={{ cursor: 'pointer', color: '#F59E0B' }}>
+                        Show {importWarnings.length} skipped row{importWarnings.length > 1 ? 's' : ''}
+                      </summary>
+                      <ul style={{ margin: '8px 0 0', paddingLeft: 18, lineHeight: 1.6 }}>
+                        {importWarnings.map((w, i) => <li key={i}>{w}</li>)}
+                      </ul>
+                    </details>
+                  )}
+
+                  {/* Helper hint */}
+                  <div style={{
+                    fontSize: '0.75rem',
+                    color: 'var(--text-secondary)',
+                    marginBottom: 10,
+                    padding: '8px 12px',
+                    background: 'rgba(255,255,255,0.02)',
+                    borderRadius: 6,
+                    lineHeight: 1.5,
+                  }}>
+                    Review each row's category before importing. Tap any category to change it. Your choices help train Plumfolio's auto-categoriser for everyone.
+                  </div>
+
+                  {/* Per-row preview with editable categories */}
+                  <div className="tx-import-preview" style={{
+                    maxHeight: 360,
+                    overflowY: 'auto',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: 6,
+                    paddingRight: 4,
+                  }}>
+                    {(importExpanded ? importData : importData.slice(0, 8)).map((r, i) => {
+                      // Source label + colour for the badge
+                      const sourceLabels = {
+                        'explicit': { label: 'from file', color: '#22C55E', bg: 'rgba(34,197,94,0.1)' },
+                        'mapped': { label: 'mapped', color: '#22C55E', bg: 'rgba(34,197,94,0.1)' },
+                        'history-exact': { label: 'your history', color: '#A855F7', bg: 'rgba(168,85,247,0.12)' },
+                        'history-fuzzy': { label: 'your history', color: '#A855F7', bg: 'rgba(168,85,247,0.12)' },
+                        'keyword': { label: 'keyword match', color: '#3B82F6', bg: 'rgba(59,130,246,0.12)' },
+                        'community': { label: 'community', color: '#EC4899', bg: 'rgba(236,72,153,0.12)' },
+                        'merchant-db': { label: 'merchant DB', color: '#14B8A6', bg: 'rgba(20,184,166,0.12)' },
+                        'income-default': { label: 'income default', color: '#22C55E', bg: 'rgba(34,197,94,0.1)' },
+                        'user-edited': { label: 'edited by you', color: '#F59E0B', bg: 'rgba(245,158,11,0.12)' },
+                      };
+                      const src = sourceLabels[r._categorySource] || { label: 'auto', color: 'var(--text-muted)', bg: 'rgba(255,255,255,0.04)' };
+
+                      return (
+                        <div key={i} style={{
+                          display: 'grid',
+                          gridTemplateColumns: '90px 1fr auto',
+                          gap: 10,
+                          alignItems: 'center',
+                          padding: '10px 12px',
+                          background: 'rgba(255,255,255,0.02)',
+                          border: '1px solid var(--border-color)',
+                          borderRadius: 8,
+                          fontSize: '0.82rem',
+                        }}>
+                          {/* Date */}
+                          <span style={{ color: 'var(--text-secondary)', fontFamily: 'monospace', fontSize: '0.78rem' }}>
+                            {r.date}
+                          </span>
+
+                          {/* Description + category dropdown + source badge */}
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: 6, minWidth: 0 }}>
+                            <span style={{
+                              color: 'var(--text-primary)',
+                              fontWeight: 500,
+                              overflow: 'hidden',
+                              textOverflow: 'ellipsis',
+                              whiteSpace: 'nowrap',
+                            }}>
+                              {r.description || <em style={{ color: 'var(--text-muted)' }}>(no description)</em>}
+                            </span>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                              <select
+                                value={r.category}
+                                onChange={e => updateImportRowCategory(i, e.target.value)}
+                                style={{
+                                  background: 'rgba(255,255,255,0.04)',
+                                  border: '1px solid var(--border-color)',
+                                  borderRadius: 5,
+                                  color: 'var(--text-primary)',
+                                  padding: '3px 6px',
+                                  fontSize: '0.74rem',
+                                  cursor: 'pointer',
+                                  outline: 'none',
+                                }}
+                              >
+                                {categories.map(c => <option key={c} value={c}>{c}</option>)}
+                              </select>
+                              <span style={{
+                                fontSize: '0.66rem',
+                                color: src.color,
+                                background: src.bg,
+                                padding: '2px 7px',
+                                borderRadius: 10,
+                                fontWeight: 600,
+                                whiteSpace: 'nowrap',
+                              }}>
+                                {src.label}
+                              </span>
+                            </div>
+                          </div>
+
+                          {/* Amount */}
+                          <span className={r.type} style={{
+                            color: r.type === 'income' ? '#22C55E' : '#EF4444',
+                            fontWeight: 600,
+                            fontSize: '0.88rem',
+                            whiteSpace: 'nowrap',
+                          }}>
+                            {r.type === 'income' ? '+' : '-'}{formatCurrency(r.amount)}
+                          </span>
+                        </div>
+                      );
+                    })}
+
+                    {importData.length > 8 && (
+                      <button
+                        onClick={() => setImportExpanded(!importExpanded)}
+                        style={{
+                          background: 'rgba(255,255,255,0.04)',
+                          border: '1px dashed var(--border-color)',
+                          borderRadius: 8,
+                          padding: '10px',
+                          color: 'var(--text-secondary)',
+                          fontSize: '0.78rem',
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          gap: 6,
+                        }}
+                      >
+                        {importExpanded
+                          ? <>Show fewer <ChevronDown size={14} style={{ transform: 'rotate(180deg)' }} /></>
+                          : <>+{importData.length - 8} more — show all <ChevronDown size={14} /></>
+                        }
+                      </button>
+                    )}
+                  </div>
+
+                  <button
+                    className="tx-import-btn"
+                    onClick={doImport}
+                    disabled={importing}
+                    style={{ marginTop: 14 }}
+                  >
+                    {importing
+                      ? <><Loader size={16} className="spin" /> Importing...</>
+                      : <><Upload size={16} /> Import All ({importData.length})</>
+                    }
                   </button>
                 </>
-              ) : <p>No valid data found in this file. Make sure it has Date and Amount columns with at least one row of data.</p>}
+              ) : (
+                <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', lineHeight: 1.5 }}>
+                  No valid data found in this file. Make sure it has <code>Date</code> and <code>Amount</code> columns with at least one row of data below the headers.
+                </p>
+              )}
             </div>
           </div>
         </div>,
