@@ -124,16 +124,28 @@ export function generateCrossReferenceSignals(insights, predictions, { transacti
     });
   }
 
-  // ---- 6. Backdated transactions affecting forecasts ----
+  // ---- 6. Past-month transactions feeding forecasts ----
   const backdatedImpact = predictions.backdatedImpact;
   if (backdatedImpact && backdatedImpact.count > 0) {
     const affectedCount = backdatedImpact.affectedMonths.length;
+
+    // If there are recently-added past-month entries, raise severity
+    if (backdatedImpact.recentCount > 0) {
+      signals.push({
+        id: `cx_recent_backdate_${backdatedImpact.recentCount}`,
+        type: 'recent_backdate_impact',
+        severity: 'medium',
+        title: 'New Past-Month Data Affecting Forecasts',
+        message: `${backdatedImpact.recentCount} transaction${backdatedImpact.recentCount > 1 ? 's were' : ' was'} recently added to past months. All trend calculations, category forecasts, and budget projections have been recalculated to include this data.`,
+      });
+    }
+
     signals.push({
       id: `cx_backdated_forecast_${affectedCount}`,
       type: 'backdated_forecast_impact',
       severity: 'info',
-      title: 'Historical Data Updated',
-      message: `${backdatedImpact.count} backdated transaction${backdatedImpact.count > 1 ? 's' : ''} across ${affectedCount} past month${affectedCount > 1 ? 's have' : ' has'} been factored into trend calculations. Forecasts now reflect the corrected historical spending patterns.`,
+      title: 'Historical Data In Forecasts',
+      message: `${backdatedImpact.count} transaction${backdatedImpact.count > 1 ? 's' : ''} across ${affectedCount} past month${affectedCount > 1 ? 's are' : ' is'} factored into trend calculations. Every transaction — past or present — contributes to your forecasts in real-time.`,
     });
   }
 

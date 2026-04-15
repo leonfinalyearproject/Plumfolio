@@ -302,9 +302,10 @@ export function checkBudgetWarnings(transactions, budgets) {
 
 /**
  * Master function: Generate all predictions
- * Includes detection of backdated transactions that may have shifted
- * historical month totals — this is surfaced so the forecast page can
- * note that past-period data was retroactively updated.
+ * Includes analysis of ALL transactions from past months — every transaction
+ * regardless of when it was added contributes to trend calculations.
+ * The backdatedImpact field always reflects the full picture of historical
+ * data so the forecast page can show what's feeding the predictions.
  */
 export function generatePredictions(transactions, budgets = []) {
   if (!transactions || transactions.length === 0) {
@@ -317,34 +318,64 @@ export function generatePredictions(transactions, budgets = []) {
     };
   }
 
-  // Detect backdated transactions that may have shifted historical data
+  // Analyse how past-month transactions feed into forecasts
   const now = new Date();
   const currentMonthKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
-  const backdatedTxns = transactions.filter(t => {
-    if (t.type !== 'expense') return false;
+
+  // All transactions not in the current month
+  const pastMonthTxns = transactions.filter(t => {
     const txDate = new Date(t.date);
     const txMonthKey = `${txDate.getFullYear()}-${String(txDate.getMonth() + 1).padStart(2, '0')}`;
-    if (txMonthKey === currentMonthKey) return false;
-    if (t.created_at) {
-      const createdDate = new Date(t.created_at);
-      const daysBetween = Math.floor((createdDate - txDate) / (1000 * 60 * 60 * 24));
-      return daysBetween > 30;
-    }
-    return Math.floor((now - txDate) / (1000 * 60 * 60 * 24)) > 60;
+    return txMonthKey !== currentMonthKey;
+  });
+
+  // Recently added ones (within last 7 days) that went to past months
+  const sevenDaysAgo = new Date(now);
+  sevenDaysAgo.setDate(now.getDate() - 7);
+  const recentlyBackdated = pastMonthTxns.filter(t => {
+    if (!t.created_at) return false;
+    return new Date(t.created_at) >= sevenDaysAgo;
   });
 
   let backdatedImpact = null;
-  if (backdatedTxns.length > 0) {
-    const totalBackdated = backdatedTxns.reduce((s, t) => s + Math.abs(parseFloat(t.amount)), 0);
-    const affectedMonths = new Set(backdatedTxns.map(t => {
+  if (pastMonthTxns.length > 0) {
+    const affectedMonths = new Set();
+    pastMonthTxns.forEach(t => {
       const d = new Date(t.date);
-      return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-    }));
+      affectedMonths.add(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`);
+    });
+    const totalAmount = pastMonthTxns.reduce((s, t) => s + Math.abs(parseFloat(t.amount)), 0);
+
+    // Build per-month breakdown for the forecast notice
+    const monthBreakdown = {};
+    pastMonthTxns.forEach(t => {
+      const d = new Date(t.date);
+      const mk = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+      if (!monthBreakdown[mk]) monthBreakdown[mk] = { count: 0, total: 0 };
+      monthBreakdown[mk].count++;
+      monthBreakdown[mk].total += Math.abs(parseFloat(t.amount));
+    });
+
+    const breakdownStr = Object.entries(monthBreakdown)
+      .sort((a, b) => b[0].localeCompare(a[0]))
+      .slice(0, 4)
+      .map(([mk, d]) => {
+        const label = new Date(mk + '-01').toLocaleDateString('en-GB', { month: 'short', year: 'numeric' });
+        return `${label}: ¤${d.total.toFixed(0)} (${d.count})`;
+      })
+      .join(' · ');
+
+    const recentNote = recentlyBackdated.length > 0
+      ? ` ${recentlyBackdated.length} of these ${recentlyBackdated.length === 1 ? 'was' : 'were'} added in the last 7 days.`
+      : '';
+
     backdatedImpact = {
-      count: backdatedTxns.length,
-      total: totalBackdated,
+      count: pastMonthTxns.length,
+      total: totalAmount,
       affectedMonths: [...affectedMonths],
-      message: `${backdatedTxns.length} backdated transaction${backdatedTxns.length > 1 ? 's' : ''} (¤${totalBackdated.toFixed(2)}) across ${affectedMonths.size} past month${affectedMonths.size > 1 ? 's' : ''} ${affectedMonths.size > 1 ? 'are' : 'is'} included in these forecasts. Historical month totals have been adjusted accordingly, which may shift trend calculations.`,
+      recentCount: recentlyBackdated.length,
+      monthBreakdown,
+      message: `${pastMonthTxns.length} transaction${pastMonthTxns.length > 1 ? 's' : ''} (¤${totalAmount.toFixed(2)}) across ${affectedMonths.size} past month${affectedMonths.size > 1 ? 's' : ''} feed into these forecasts. ${breakdownStr}${affectedMonths.size > 4 ? ' · +more' : ''}.${recentNote}`,
     };
   }
   

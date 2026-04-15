@@ -361,81 +361,124 @@ export function analyseGoals(goals, transactions) {
 }
 
 /**
- * FR-5.5: Detect recently-added backdated transactions
- * Flags transactions whose date is significantly older than when they were
- * likely added (detected by comparing transaction date to the current month).
- * This helps users and the forecast engine understand that past-period data
- * has changed and totals for those periods have been retroactively updated.
+ * FR-5.5: Detect and analyse transactions filed to non-current months
+ * Every transaction — whether from a scan, manual entry, or import — gets
+ * analysed regardless of its date. When a transaction's date falls outside
+ * the current month, we generate insights about how it affects that period's
+ * totals, the all-time balance, and what it means for trend calculations.
+ *
+ * This runs on EVERY refresh (realtime, polling, manual), so any newly-added
+ * transaction immediately surfaces here.
  */
 export function detectBackdatedTransactions(transactions) {
   const now = new Date();
   const currentMonthKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
   const insights = [];
 
-  // Group transactions by their month
+  // Group ALL transactions by month
   const byMonth = groupByMonth(transactions);
 
-  // Look for months (other than current) that have transactions and check
-  // if any of those months got significantly more data recently. We detect
-  // this by finding transactions whose `created_at` (if available) is much
-  // newer than their `date`. If `created_at` isn't available, we look for
-  // transactions dated more than 60 days in the past — these are likely
-  // backdated entries from receipt scans.
-  const pastExpenses = transactions.filter(t => {
-    if (t.type !== 'expense') return false;
+  // Find transactions that belong to months OTHER than the current month.
+  // We use `created_at` (Supabase auto-timestamp) to detect recently-added
+  // ones vs ones that were always there. If created_at is within the last
+  // 7 days but the transaction date is in a different month, it's a fresh
+  // backdate that deserves a prominent insight.
+  const sevenDaysAgo = new Date(now);
+  sevenDaysAgo.setDate(now.getDate() - 7);
+
+  const pastMonthTxns = transactions.filter(t => {
     const txDate = new Date(t.date);
     const txMonthKey = `${txDate.getFullYear()}-${String(txDate.getMonth() + 1).padStart(2, '0')}`;
-    if (txMonthKey === currentMonthKey) return false;
-
-    // Check if created_at is significantly newer than the transaction date
-    if (t.created_at) {
-      const createdDate = new Date(t.created_at);
-      const daysBetween = Math.floor((createdDate - txDate) / (1000 * 60 * 60 * 24));
-      return daysBetween > 30; // Added more than 30 days after the transaction date
-    }
-
-    // Fallback: flag transactions dated more than 60 days ago
-    const daysAgo = Math.floor((now - txDate) / (1000 * 60 * 60 * 24));
-    return daysAgo > 60;
+    return txMonthKey !== currentMonthKey;
   });
 
-  if (pastExpenses.length === 0) return insights;
+  if (pastMonthTxns.length === 0) return insights;
 
-  // Group backdated transactions by their target month
-  const backdatedByMonth = {};
-  pastExpenses.forEach(t => {
+  // Separate recently-added backdated transactions (added in last 7 days)
+  const recentlyAdded = pastMonthTxns.filter(t => {
+    if (!t.created_at) return false;
+    const createdDate = new Date(t.created_at);
+    return createdDate >= sevenDaysAgo;
+  });
+
+  // Group all past-month transactions by their target month for analysis
+  const pastByMonth = {};
+  pastMonthTxns.forEach(t => {
     const txDate = new Date(t.date);
     const monthKey = `${txDate.getFullYear()}-${String(txDate.getMonth() + 1).padStart(2, '0')}`;
-    if (!backdatedByMonth[monthKey]) backdatedByMonth[monthKey] = [];
-    backdatedByMonth[monthKey].push(t);
+    if (!pastByMonth[monthKey]) pastByMonth[monthKey] = [];
+    pastByMonth[monthKey].push(t);
   });
 
-  // Only surface months where backdated entries are significant
-  Object.entries(backdatedByMonth).forEach(([monthKey, txns]) => {
-    const total = txns.reduce((s, t) => s + Math.abs(parseFloat(t.amount)), 0);
-    const allMonthTxns = byMonth[monthKey] || [];
-    const monthTotal = allMonthTxns
-      .filter(t => t.type === 'expense')
-      .reduce((s, t) => s + Math.abs(parseFloat(t.amount)), 0);
+  // Recently-added backdated transactions get individual attention
+  if (recentlyAdded.length > 0) {
+    const recentByMonth = {};
+    recentlyAdded.forEach(t => {
+      const txDate = new Date(t.date);
+      const monthKey = `${txDate.getFullYear()}-${String(txDate.getMonth() + 1).padStart(2, '0')}`;
+      if (!recentByMonth[monthKey]) recentByMonth[monthKey] = [];
+      recentByMonth[monthKey].push(t);
+    });
 
-    // Only flag if backdated amounts are meaningful (>10% of the month's total or >0)
-    if (total > 0 && monthTotal > 0) {
-      const pct = Math.round((total / monthTotal) * 100);
+    Object.entries(recentByMonth).forEach(([monthKey, txns]) => {
+      const total = txns.reduce((s, t) => s + Math.abs(parseFloat(t.amount)), 0);
       const monthLabel = new Date(monthKey + '-01').toLocaleDateString('en-GB', { month: 'long', year: 'numeric' });
+      const expenseCount = txns.filter(t => t.type === 'expense').length;
+      const incomeCount = txns.filter(t => t.type === 'income').length;
 
-      if (pct >= 10) {
-        insights.push({
-          type: 'backdated_entries',
-          severity: 'info',
-          category: null,
-          message: `${txns.length} backdated transaction${txns.length > 1 ? 's' : ''} (¤${total.toFixed(2)}) ${txns.length > 1 ? 'were' : 'was'} added to ${monthLabel}, accounting for ${pct}% of that month's expenses. Historical trends and forecasts have been updated to reflect this.`,
-          monthKey,
-          backdatedCount: txns.length,
-          backdatedTotal: total,
-        });
-      }
-    }
-  });
+      // Calculate how this changes the month's picture
+      const allMonthTxns = byMonth[monthKey] || [];
+      const monthExpenses = allMonthTxns.filter(t => t.type === 'expense')
+        .reduce((s, t) => s + Math.abs(parseFloat(t.amount)), 0);
+      const monthIncome = allMonthTxns.filter(t => t.type === 'income')
+        .reduce((s, t) => s + Math.abs(parseFloat(t.amount)), 0);
+      const monthNet = monthIncome - monthExpenses;
+
+      const parts = [];
+      if (expenseCount > 0) parts.push(`${expenseCount} expense${expenseCount > 1 ? 's' : ''}`);
+      if (incomeCount > 0) parts.push(`${incomeCount} income`);
+
+      insights.push({
+        type: 'backdated_recent',
+        severity: 'medium',
+        category: null,
+        message: `${txns.length} recently added transaction${txns.length > 1 ? 's' : ''} (${parts.join(' & ')}, totalling ¤${total.toFixed(2)}) filed to ${monthLabel}. That month's net is now ¤${Math.abs(monthNet).toFixed(2)} ${monthNet >= 0 ? 'positive' : 'negative'}. All-time balance, trends, and forecasts have been updated.`,
+        monthKey,
+        backdatedCount: txns.length,
+        backdatedTotal: total,
+        isRecent: true,
+      });
+    });
+  }
+
+  // General summary for all past-month data (always present so forecasts page shows it)
+  const totalPastMonths = Object.keys(pastByMonth).length;
+  const totalPastTxns = pastMonthTxns.length;
+  const totalPastAmount = pastMonthTxns.reduce((s, t) => s + Math.abs(parseFloat(t.amount)), 0);
+
+  if (totalPastTxns > 0) {
+    // Build a per-month breakdown string
+    const monthSummaries = Object.entries(pastByMonth)
+      .sort((a, b) => b[0].localeCompare(a[0])) // newest first
+      .slice(0, 3) // top 3
+      .map(([mk, txns]) => {
+        const label = new Date(mk + '-01').toLocaleDateString('en-GB', { month: 'short', year: 'numeric' });
+        const amt = txns.reduce((s, t) => s + Math.abs(parseFloat(t.amount)), 0);
+        return `${label}: ${txns.length} txn${txns.length > 1 ? 's' : ''} (¤${amt.toFixed(2)})`;
+      });
+
+    insights.push({
+      type: 'backdated_summary',
+      severity: 'info',
+      category: null,
+      message: `${totalPastTxns} transaction${totalPastTxns > 1 ? 's' : ''} across ${totalPastMonths} past month${totalPastMonths > 1 ? 's' : ''} (¤${totalPastAmount.toFixed(2)} total) are factored into your trends and forecasts. ${monthSummaries.join(' · ')}${totalPastMonths > 3 ? ` · +${totalPastMonths - 3} more` : ''}.`,
+      monthKey: null,
+      backdatedCount: totalPastTxns,
+      backdatedTotal: totalPastAmount,
+      pastMonthCount: totalPastMonths,
+      isRecent: false,
+    });
+  }
 
   return insights;
 }
