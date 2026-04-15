@@ -101,6 +101,29 @@ const Insights = () => {
         </div>
       )}
 
+      {/* Backdated / past-month data notice — always visible above tabs */}
+      {predictions && predictions.backdatedImpact && (
+        <div style={{
+          background: 'rgba(168,85,247,0.06)',
+          border: '1px solid rgba(168,85,247,0.18)',
+          borderRadius: 12, padding: '12px 16px',
+          marginBottom: 16,
+          display: 'flex', alignItems: 'flex-start', gap: 10,
+        }}>
+          <Calendar size={18} style={{ color: '#A855F7', flexShrink: 0, marginTop: 2 }} />
+          <div style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', lineHeight: 1.5 }}>
+            <strong style={{ color: 'var(--text-primary)' }}>
+              {predictions.backdatedImpact.count} past-month transaction{predictions.backdatedImpact.count > 1 ? 's' : ''}
+            </strong> across {predictions.backdatedImpact.affectedMonths.length} month{predictions.backdatedImpact.affectedMonths.length > 1 ? 's' : ''} feed
+            into all insights, trends, and forecasts below.
+            {predictions.backdatedImpact.recentCount > 0 && (
+              <span style={{ color: '#F59E0B' }}> {predictions.backdatedImpact.recentCount} added in the last 7 days.</span>
+            )}
+            {' '}Every transaction updates analysis in real-time regardless of its date.
+          </div>
+        </div>
+      )}
+
       <div className="insights-tabs">
         {[
           { id: 'insights', label: 'Spending Insights', icon: Lightbulb },
