@@ -196,6 +196,7 @@ export const InsightsProvider = ({ children }) => {
                      insight.type === 'goal_deadline_soon' ? 'Goal Deadline Approaching' :
                      insight.type === 'goal_behind_pace' ? 'Savings Pace Alert' :
                      insight.type === 'goal_completed' ? 'Goal Reached!' :
+                     insight.type === 'backdated_recent' ? 'Past-Month Transaction Added' :
                      'Forecast Insight',
               message: insight.message,
               severity: insight.severity,
