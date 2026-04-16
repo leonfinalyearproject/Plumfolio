@@ -50,8 +50,8 @@ export const InsightsProvider = ({ children }) => {
   const [totalIncomeReceived, setTotalIncomeReceived] = useState(0);
   const [totalExpensesPaid, setTotalExpensesPaid] = useState(0);
   const [currentMonthKey, setCurrentMonthKey] = useState(() => {
-    const now = new Date();
-    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+    // UTC to match transaction dates (stored via toISOString) and other pages.
+    return new Date().toISOString().slice(0, 7);
   });
   const prevSignalIdsRef = useRef(new Set());
   const [toasts, setToasts] = useState([]);
@@ -121,7 +121,7 @@ export const InsightsProvider = ({ children }) => {
       //   3. incomeBreakdown      — the 3 months that went into the average,
       //                             so we can show the user where the number came from
       const now = new Date();
-      const monthKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+      const monthKey = now.toISOString().slice(0, 7);
       setCurrentMonthKey(monthKey);
 
       const sumIncomeForMonth = (key) => txns
@@ -157,8 +157,8 @@ export const InsightsProvider = ({ children }) => {
       // labels) but it must never gate budget creation. Keep it informational.
       const last3Months = [];
       for (let i = 1; i <= 3; i++) {
-        const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
-        const k = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+        const d = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - i, 1));
+        const k = d.toISOString().slice(0, 7);
         const income = sumIncomeForMonth(k);
         last3Months.push({ monthKey: k, income });
       }
