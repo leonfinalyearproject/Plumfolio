@@ -4,7 +4,7 @@ import { useCurrency, CURRENCIES } from '../context/CurrencyContext';
 import { useInsights } from '../context/InsightsContext';
 import { supabase } from '../lib/supabase';
 import { validateFullName, validateEmail } from '../utils/validation';
-import { User, Mail, Lock, Shield, Trash2, Save, Globe, Check, Search, KeyRound, Activity, ScanLine } from 'lucide-react';
+import { User, Mail, Lock, Shield, Trash2, Save, Globe, Check, Search, KeyRound, Activity, ScanLine, LayoutDashboard } from 'lucide-react';
 import './Settings.css';
 
 const Settings = () => {
@@ -24,6 +24,32 @@ const Settings = () => {
   const [switchingTo, setSwitchingTo] = useState(null);
   const [message, setMessage] = useState({ type: '', text: '' });
   const [resetSent, setResetSent] = useState(false);
+
+  // Dashboard preferences (stored in localStorage, scoped per user).
+  // `showAllTimeNet` controls whether the all-time net sub-label is shown on
+  // the Balance card. Default: off, since the card is primarily month-focused.
+  const dashPrefsKey = user ? `plumfolio:dashboardPrefs:${user.id}` : null;
+  const [showAllTimeNet, setShowAllTimeNet] = useState(false);
+  useEffect(() => {
+    if (!dashPrefsKey) return;
+    try {
+      const raw = localStorage.getItem(dashPrefsKey);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        setShowAllTimeNet(!!parsed.showAllTimeNet);
+      }
+    } catch (_) { /* ignore parse errors */ }
+  }, [dashPrefsKey]);
+
+  const toggleShowAllTimeNet = () => {
+    const next = !showAllTimeNet;
+    setShowAllTimeNet(next);
+    if (dashPrefsKey) {
+      try {
+        localStorage.setItem(dashPrefsKey, JSON.stringify({ showAllTimeNet: next }));
+      } catch (_) { /* ignore quota errors */ }
+    }
+  };
 
   // AI scan usage — mirror of the logic in Transactions.js. We query
   // scan_usage directly (RLS already restricts to the current user) and
@@ -173,6 +199,7 @@ const Settings = () => {
 
   const tabs = [
     { id: 'profile', label: 'Profile', icon: User },
+    { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
     { id: 'currency', label: 'Currency', icon: Globe },
     { id: 'usage', label: 'Usage', icon: Activity },
     { id: 'security', label: 'Security', icon: Shield },
@@ -234,6 +261,32 @@ const Settings = () => {
               </div>
               <button className="save-btn" onClick={handleProfileSave} disabled={saving}>
                 {saving ? <span className="spinner" /> : <Save size={16} />} Save Changes
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* DASHBOARD PREFERENCES */}
+        {activeTab === 'dashboard' && (
+          <div className="settings-section">
+            <div className="section-header">
+              <h2>Dashboard Preferences</h2>
+              <p>Customize what appears on your dashboard.</p>
+            </div>
+            <div className="settings-form">
+              <button
+                type="button"
+                className="pref-toggle-row"
+                onClick={toggleShowAllTimeNet}
+                aria-pressed={showAllTimeNet}
+              >
+                <div className="pref-toggle-text">
+                  <span className="pref-toggle-label">Show all-time net on balance card</span>
+                  <span className="pref-toggle-hint">Displays your all-time net (income − expenses) as a sub-label under this month's balance. Off by default so the card stays focused on the current month.</span>
+                </div>
+                <span className={'pref-toggle-switch' + (showAllTimeNet ? ' on' : '')}>
+                  <span className="pref-toggle-knob" />
+                </span>
               </button>
             </div>
           </div>

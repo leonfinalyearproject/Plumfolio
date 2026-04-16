@@ -559,3 +559,75 @@
 .save-btn.outline:hover {
   background: rgba(168, 85, 247, 0.06);
 }
+
+/* ========== Dashboard preferences toggle ========== */
+.pref-toggle-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  width: 100%;
+  padding: 16px 18px;
+  background: rgba(168, 85, 247, 0.04);
+  border: 1px solid rgba(168, 85, 247, 0.15);
+  border-radius: 12px;
+  cursor: pointer;
+  text-align: left;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.pref-toggle-row:hover {
+  background: rgba(168, 85, 247, 0.08);
+  border-color: rgba(168, 85, 247, 0.25);
+}
+
+.pref-toggle-text {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  flex: 1;
+  min-width: 0;
+}
+
+.pref-toggle-label {
+  font-size: 0.92rem;
+  font-weight: 600;
+  color: #F0EFF4;
+}
+
+.pref-toggle-hint {
+  font-size: 0.78rem;
+  color: #7C7C8A;
+  line-height: 1.45;
+}
+
+.pref-toggle-switch {
+  position: relative;
+  flex: 0 0 auto;
+  width: 40px;
+  height: 22px;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 999px;
+  transition: background 0.2s ease, border-color 0.2s ease;
+}
+
+.pref-toggle-switch.on {
+  background: rgba(168, 85, 247, 0.9);
+  border-color: rgba(168, 85, 247, 1);
+}
+
+.pref-toggle-knob {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 16px;
+  height: 16px;
+  background: #F0EFF4;
+  border-radius: 50%;
+  transition: transform 0.2s ease;
+}
+
+.pref-toggle-switch.on .pref-toggle-knob {
+  transform: translateX(18px);
+}

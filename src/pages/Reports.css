@@ -144,3 +144,66 @@
   .quick-stats { grid-template-columns: 1fr; }
   .report-table th:nth-child(3), .report-table td:nth-child(3) { display: none; }
 }
+
+/* ========== All-time summary section ========== */
+.all-time-summary {
+  display: block;
+  margin-top: 16px;
+  padding: 16px 18px;
+  background: rgba(168, 85, 247, 0.04);
+  border: 1px solid rgba(168, 85, 247, 0.15);
+  border-radius: 12px;
+}
+
+.all-time-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: #C084FC;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  margin-bottom: 12px;
+}
+
+.all-time-count {
+  margin-left: auto;
+  color: var(--text-secondary);
+  font-weight: 500;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+.all-time-row {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 16px;
+}
+
+.all-time-stat {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.all-time-label {
+  font-size: 0.7rem;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-weight: 600;
+}
+
+.all-time-value {
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.all-time-value.income { color: #22C55E; }
+.all-time-value.expense { color: #EF4444; }
+
+@media (max-width: 720px) {
+  .all-time-row { grid-template-columns: repeat(2, 1fr); }
+}

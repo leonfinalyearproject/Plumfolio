@@ -90,6 +90,14 @@ const Reports = () => {
   const yoyIncome   = yoyPeriodKey ? sumFor(yoyPeriodKey, 'income')  : 0;
   const yoyExpenses = yoyPeriodKey ? sumFor(yoyPeriodKey, 'expense') : 0;
 
+  // --- All-time totals (ignores the period filter) ---
+  // Shown in a dedicated summary below the period stats. When the user is
+  // already viewing "All time", we skip this section to avoid duplication.
+  const allTimeIncome   = transactions.filter(t => t.type === 'income').reduce((s, t) => s + parseFloat(t.amount), 0);
+  const allTimeExpenses = transactions.filter(t => t.type === 'expense').reduce((s, t) => s + parseFloat(t.amount), 0);
+  const allTimeNet      = allTimeIncome - allTimeExpenses;
+  const allTimeSavingsRate = allTimeIncome > 0 ? ((allTimeNet / allTimeIncome) * 100).toFixed(1) : '0.0';
+
   const pctDelta = (curr, prev) => {
     if (!prev && !curr) return null;
     if (!prev) return { text: 'new', good: null };
@@ -397,6 +405,36 @@ tr:last-child td{border-bottom:none}
                       </span>}
                     </span>
                   </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* All-time summary (independent of the selected period). Skipped
+              when the user is already viewing "All time" to avoid duplication. */}
+          {period !== 'all' && transactions.length > 0 && (
+            <div className="report-summary all-time-summary">
+              <div className="all-time-header">
+                <Wallet size={14} />
+                <span>All-time summary</span>
+                <span className="all-time-count">{transactions.length} total transactions</span>
+              </div>
+              <div className="all-time-row">
+                <div className="all-time-stat">
+                  <span className="all-time-label">Total Income</span>
+                  <span className="all-time-value income">{formatCurrency(allTimeIncome)}</span>
+                </div>
+                <div className="all-time-stat">
+                  <span className="all-time-label">Total Expenses</span>
+                  <span className="all-time-value expense">{formatCurrency(allTimeExpenses)}</span>
+                </div>
+                <div className="all-time-stat">
+                  <span className="all-time-label">Net</span>
+                  <span className={'all-time-value ' + (allTimeNet >= 0 ? 'income' : 'expense')}>{formatCurrency(allTimeNet)}</span>
+                </div>
+                <div className="all-time-stat">
+                  <span className="all-time-label">Savings Rate</span>
+                  <span className="all-time-value">{allTimeSavingsRate}%</span>
                 </div>
               </div>
             </div>

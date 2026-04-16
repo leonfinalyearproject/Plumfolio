@@ -80,6 +80,20 @@ const Dashboard = () => {
   const [expensesByCategory, setExpensesByCategory] = useState({});
   const [loading, setLoading] = useState(true);
 
+  // Read the "show all-time net" preference set from Settings → Dashboard.
+  // Stored in localStorage (scoped per user). Default: off.
+  const [showAllTimeNet, setShowAllTimeNet] = useState(false);
+  useEffect(() => {
+    if (!user?.id) { setShowAllTimeNet(false); return; }
+    try {
+      const raw = localStorage.getItem(`plumfolio:dashboardPrefs:${user.id}`);
+      if (raw) setShowAllTimeNet(!!JSON.parse(raw).showAllTimeNet);
+      else setShowAllTimeNet(false);
+    } catch (_) {
+      setShowAllTimeNet(false);
+    }
+  }, [user?.id]);
+
   const userName = user?.user_metadata?.full_name?.split(' ')[0] || 'there';
 
   // Load goals from Supabase (with localStorage fallback if migration not applied)
@@ -152,7 +166,7 @@ const Dashboard = () => {
 
       // Calculate stats
       if (allTransactions) {
-        // --- All-time totals (balance) ---
+        // --- All-time totals (shown as sub-label on balance card) ---
         const income = allTransactions
           .filter(t => t.type === 'income')
           .reduce((sum, t) => sum + parseFloat(t.amount), 0);
@@ -318,12 +332,14 @@ const Dashboard = () => {
       <div className="stats-row">
         <div className="stat-card main">
           <div className="stat-top">
-            <span className="stat-label">Balance</span>
+            <span className="stat-label">Balance (this month)</span>
             <Wallet size={20} />
           </div>
           <div className="stat-amount-row">
-            <span className="stat-amount">{formatCurrency(stats.balance)}</span>
-            <span className="stat-inline-sub">All-time net (income − expenses)</span>
+            <span className="stat-amount">{formatCurrency(stats.thisMonthIncome - stats.thisMonthExpenses)}</span>
+            {showAllTimeNet && (
+              <span className="stat-inline-sub">All-time net: {formatCurrency(stats.balance)}</span>
+            )}
           </div>
           <DeltaBadge current={stats.thisMonthIncome - stats.thisMonthExpenses} previous={stats.lastMonthIncome - stats.lastMonthExpenses} positiveIsGood={true} formatCurrency={formatCurrency} />
         </div>
