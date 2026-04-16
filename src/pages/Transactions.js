@@ -348,8 +348,8 @@ const Transactions = () => {
     return totalB - totalA;
   });
 
-  const totalIncome = filtered.filter(t => t.type === 'income').reduce((s, t) => s + t.amount, 0);
-  const totalExpenses = filtered.filter(t => t.type === 'expense').reduce((s, t) => s + t.amount, 0);
+  const totalIncome = filtered.filter(t => t.type === 'income').reduce((s, t) => s + parseFloat(t.amount || 0), 0);
+  const totalExpenses = filtered.filter(t => t.type === 'expense').reduce((s, t) => s + parseFloat(t.amount || 0), 0);
   const netAmount = totalIncome - totalExpenses;
 
   // Period-scoped totals — used by the summary cards at the top.
@@ -365,8 +365,8 @@ const Transactions = () => {
     if (dateTo && t.date > dateTo) return false;
     return true;
   });
-  const periodIncome = periodTransactions.filter(t => t.type === 'income').reduce((s, t) => s + t.amount, 0);
-  const periodExpenses = periodTransactions.filter(t => t.type === 'expense').reduce((s, t) => s + t.amount, 0);
+  const periodIncome = periodTransactions.filter(t => t.type === 'income').reduce((s, t) => s + parseFloat(t.amount || 0), 0);
+  const periodExpenses = periodTransactions.filter(t => t.type === 'expense').reduce((s, t) => s + parseFloat(t.amount || 0), 0);
   const periodNet = periodIncome - periodExpenses;
 
   const clearFilters = () => {
@@ -459,29 +459,17 @@ const Transactions = () => {
   };
 
   const handleDelete = async (id) => {
-    // Grab the transaction BEFORE deleting so we know if it was a savings
-    // contribution that needs goal.saved to be recomputed afterwards.
+    // Grab the transaction BEFORE deleting so we can tailor the toast
+    // message if it was a goal contribution.
     const victim = transactions.find(t => t.id === id);
     const { error } = await supabase.from('transactions').delete().eq('id', id);
     if (!error) {
       setTransactions(prev => prev.filter(t => t.id !== id));
 
-      // If this was a goal contribution, recompute the goal's cached `saved`
-      // from its remaining contributions so the Budgets page stays honest.
-      if (victim?.goal_id) {
-        try {
-          const { data: remaining } = await supabase
-            .from('transactions')
-            .select('amount, type')
-            .eq('user_id', user.id)
-            .eq('goal_id', victim.goal_id);
-          const newSaved = (remaining || []).reduce((s, t) => {
-            const signed = t.type === 'expense' ? parseFloat(t.amount || 0) : -parseFloat(t.amount || 0);
-            return s + signed;
-          }, 0);
-          await supabase.from('savings_goals').update({ saved: Math.max(0, newSaved) }).eq('id', victim.goal_id);
-        } catch (_) { /* non-fatal — next Budgets visit will re-derive */ }
-      }
+      // Note: we do NOT update savings_goals.saved here. That column is the
+      // frozen legacy baseline; displayed progress = baseline + sum(linked
+      // contributions). Deleting a contribution transaction automatically
+      // reduces the sum on the next Budgets fetch.
 
       if (addToast) {
         addToast({

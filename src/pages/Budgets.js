@@ -108,10 +108,17 @@ const Budgets = () => {
     if (!user) return;
     try {
       // Pull goals + all their contribution transactions in parallel.
-      // A "contribution" is a real transaction with goal_id set — this is how
-      // savings money actually moves through the app now. The stored `saved`
-      // column on savings_goals is treated as a legacy cache that we keep in
-      // sync, but the TRUTH is the sum of linked transactions.
+      // A "contribution" is a real transaction with goal_id set.
+      //
+      // Model (Option C): goal.saved in the database is treated as a frozen
+      // baseline — whatever progress existed BEFORE the transaction-linked
+      // contribution system was introduced. We never touch it. The displayed
+      // progress is: baseline + sum(linked contribution transactions).
+      //
+      // This keeps legacy progress visible without polluting anyone's
+      // transaction history with fake backfill entries dated to today.
+      // Going forward, every new contribution is a real transaction that
+      // reconciles with balance/budgets/reports.
       const [goalsRes, contribRes] = await Promise.all([
         supabase.from('savings_goals').select('*').eq('user_id', user.id).order('created_at', { ascending: true }),
         supabase.from('transactions').select('id, goal_id, amount, type, date').eq('user_id', user.id).not('goal_id', 'is', null),
@@ -126,40 +133,20 @@ const Budgets = () => {
         return acc;
       }, {});
 
-      const rawGoals = (goalsRes.data || []).map(g => ({
-        ...g,
-        target: parseFloat(g.target),
-        saved: parseFloat(g.saved),
-      }));
-
-      // One-time backfill: any goal with saved > 0 but no linked contributions
-      // predates the new system. Create a single backfill transaction so
-      // progress isn't lost and everything reconciles going forward.
-      for (const g of rawGoals) {
-        const hasContribs = (contribsByGoal[g.id] || 0) > 0;
-        if (g.saved > 0 && !hasContribs) {
-          try {
-            await supabase.from('transactions').insert({
-              user_id: user.id,
-              type: 'expense',
-              amount: g.saved,
-              description: `Backfill: existing progress on ${g.name}`,
-              category: 'Savings',
-              date: (g.created_at || new Date().toISOString()).slice(0, 10),
-              goal_id: g.id,
-            });
-            contribsByGoal[g.id] = g.saved;
-          } catch (_) { /* if the insert fails, leave things as they were */ }
-        }
-      }
-
-      // Now derive `saved` from the contribution sum for every goal. If there
-      // are no contributions at all, fall back to the stored value (new goals
-      // that were just created with saved=0).
-      const normalised = rawGoals.map(g => ({
-        ...g,
-        saved: contribsByGoal[g.id] != null ? contribsByGoal[g.id] : g.saved,
-      }));
+      // Normalise and compute displayed saved = baseline + contribution sum.
+      // `savedBaseline` is the untouched legacy value; `saved` is what the
+      // UI should show. Everywhere else in the file that reads goal.saved
+      // now reflects the full progress (baseline + new contributions).
+      const normalised = (goalsRes.data || []).map(g => {
+        const baseline = parseFloat(g.saved || 0);
+        const contribs = contribsByGoal[g.id] || 0;
+        return {
+          ...g,
+          target: parseFloat(g.target),
+          savedBaseline: baseline,
+          saved: baseline + contribs,
+        };
+      });
       setGoals(normalised);
     } catch (e) {
       // Fall back to localStorage if table doesn't exist yet (migration not run)
@@ -436,7 +423,9 @@ const Budgets = () => {
     if (!parsed || parsed <= 0 || !isFinite(parsed)) return;
     const g = goals.find(x => x.id === id);
     if (!g) return;
-    // Cap at remaining room so we never overshoot the target.
+    // Cap at remaining room so we never overshoot the target. Note `g.saved`
+    // here is the DISPLAYED progress (baseline + contributions), not the raw
+    // DB column — which is exactly what we want for room calc.
     const room = Math.max(0, g.target - g.saved);
     const actuallyAdding = Math.min(parsed, room);
     if (actuallyAdding <= 0) return;
@@ -446,6 +435,11 @@ const Budgets = () => {
       // what makes contributions reconcile with balance, budgets, reports,
       // and insights — the money genuinely leaves spendable cash and lands
       // in the goal's tracked progress via goal_id.
+      //
+      // We deliberately do NOT update the savings_goals.saved column. That
+      // column is the FROZEN LEGACY BASELINE — current progress is always
+      // computed as baseline + sum(contribution transactions) on fetch.
+      // Writing to it would double-count.
       const today = new Date().toISOString().slice(0, 10);
       const { error: txnErr } = await supabase.from('transactions').insert({
         user_id: user.id,
@@ -458,14 +452,9 @@ const Budgets = () => {
       });
       if (txnErr) throw txnErr;
 
-      // Keep the legacy `saved` column roughly in sync for any code path that
-      // still reads it directly (it's also recomputed from contributions on
-      // next fetch, which is the authoritative source).
-      const newSaved = g.saved + actuallyAdding;
-      await supabase.from('savings_goals').update({ saved: newSaved }).eq('id', id);
-
       await fetchGoals();
       if (addToast) {
+        const newSaved = g.saved + actuallyAdding;
         const hit = newSaved >= g.target && g.saved < g.target;
         addToast({
           type: hit ? 'success' : 'info',
