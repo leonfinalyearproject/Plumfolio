@@ -60,10 +60,23 @@ export const InsightsProvider = ({ children }) => {
   const toastIdRef = useRef(0);
   const userIdRef = useRef(null);
 
-  // Toast functions using refs to avoid dependency issues
+  // Toast functions using refs to avoid dependency issues.
+  // Rules:
+  //   - Max 3 toasts visible at any time; oldest drops off when full.
+  //   - Dedupe: if a toast with the same title+message is already shown,
+  //     don't add a duplicate (prevents insight re-runs from stacking).
+  //   - Auto-dismiss after 8s.
   const addToast = useCallback((toast) => {
     const id = ++toastIdRef.current;
-    setToasts(prev => [...prev, { ...toast, id, timestamp: Date.now() }]);
+    const signature = `${toast.title || ''}::${toast.message || ''}`;
+    setToasts(prev => {
+      if (prev.some(t => `${t.title || ''}::${t.message || ''}` === signature)) {
+        return prev; // duplicate — skip
+      }
+      const next = [...prev, { ...toast, id, timestamp: Date.now() }];
+      // Cap at 3 visible; oldest is removed.
+      return next.length > 3 ? next.slice(next.length - 3) : next;
+    });
     setTimeout(() => {
       setToasts(prev => prev.filter(t => t.id !== id));
     }, 8000);
