@@ -385,3 +385,13 @@ input[type="month"]:hover::-webkit-calendar-picker-indicator { filter: invert(1)
   .form-row { grid-template-columns: 1fr; }
   .rule-splits { flex-direction: column; }
 }
+
+/* ========== Savings goal: contribution disclosure hint ========== */
+.goal-add-hint {
+  display: block;
+  font-size: 0.7rem;
+  color: var(--text-dim);
+  line-height: 1.4;
+  margin-top: 8px;
+  font-style: italic;
+}

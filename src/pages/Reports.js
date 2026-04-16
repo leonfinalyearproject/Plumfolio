@@ -68,8 +68,8 @@ const Reports = () => {
   const prevPeriodKey = (() => {
     if (period === 'month') {
       const [y, m] = selectedMonth.split('-').map(Number);
-      const prev = new Date(y, m - 2, 1); // m-1 is current, m-2 is previous
-      return `${prev.getFullYear()}-${String(prev.getMonth() + 1).padStart(2, '0')}`;
+      const prev = new Date(Date.UTC(y, m - 2, 1)); // m-1 is current, m-2 is previous (UTC for consistency)
+      return prev.toISOString().slice(0, 7);
     }
     if (period === 'year') return String(parseInt(selectedYear, 10) - 1);
     return null;

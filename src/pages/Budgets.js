@@ -107,17 +107,58 @@ const Budgets = () => {
   const fetchGoals = async () => {
     if (!user) return;
     try {
-      const { data, error } = await supabase
-        .from('savings_goals')
-        .select('*')
-        .eq('user_id', user.id)
-        .order('created_at', { ascending: true });
-      if (error) throw error;
-      // Normalise numeric fields (Supabase returns numerics as strings)
-      const normalised = (data || []).map(g => ({
+      // Pull goals + all their contribution transactions in parallel.
+      // A "contribution" is a real transaction with goal_id set — this is how
+      // savings money actually moves through the app now. The stored `saved`
+      // column on savings_goals is treated as a legacy cache that we keep in
+      // sync, but the TRUTH is the sum of linked transactions.
+      const [goalsRes, contribRes] = await Promise.all([
+        supabase.from('savings_goals').select('*').eq('user_id', user.id).order('created_at', { ascending: true }),
+        supabase.from('transactions').select('id, goal_id, amount, type, date').eq('user_id', user.id).not('goal_id', 'is', null),
+      ]);
+      if (goalsRes.error) throw goalsRes.error;
+
+      const contribsByGoal = (contribRes.data || []).reduce((acc, t) => {
+        // Expense contributions add to saved; income contributions (withdrawals)
+        // subtract. Signing rule: expense = +, income = −.
+        const signed = t.type === 'expense' ? parseFloat(t.amount || 0) : -parseFloat(t.amount || 0);
+        acc[t.goal_id] = (acc[t.goal_id] || 0) + signed;
+        return acc;
+      }, {});
+
+      const rawGoals = (goalsRes.data || []).map(g => ({
         ...g,
         target: parseFloat(g.target),
         saved: parseFloat(g.saved),
+      }));
+
+      // One-time backfill: any goal with saved > 0 but no linked contributions
+      // predates the new system. Create a single backfill transaction so
+      // progress isn't lost and everything reconciles going forward.
+      for (const g of rawGoals) {
+        const hasContribs = (contribsByGoal[g.id] || 0) > 0;
+        if (g.saved > 0 && !hasContribs) {
+          try {
+            await supabase.from('transactions').insert({
+              user_id: user.id,
+              type: 'expense',
+              amount: g.saved,
+              description: `Backfill: existing progress on ${g.name}`,
+              category: 'Savings',
+              date: (g.created_at || new Date().toISOString()).slice(0, 10),
+              goal_id: g.id,
+            });
+            contribsByGoal[g.id] = g.saved;
+          } catch (_) { /* if the insert fails, leave things as they were */ }
+        }
+      }
+
+      // Now derive `saved` from the contribution sum for every goal. If there
+      // are no contributions at all, fall back to the stored value (new goals
+      // that were just created with saved=0).
+      const normalised = rawGoals.map(g => ({
+        ...g,
+        saved: contribsByGoal[g.id] != null ? contribsByGoal[g.id] : g.saved,
       }));
       setGoals(normalised);
     } catch (e) {
@@ -395,15 +436,34 @@ const Budgets = () => {
     if (!parsed || parsed <= 0 || !isFinite(parsed)) return;
     const g = goals.find(x => x.id === id);
     if (!g) return;
-    const newSaved = Math.min(g.saved + parsed, g.target);
-    const actuallyAdded = newSaved - g.saved;
-    if (actuallyAdded <= 0) return;
+    // Cap at remaining room so we never overshoot the target.
+    const room = Math.max(0, g.target - g.saved);
+    const actuallyAdding = Math.min(parsed, room);
+    if (actuallyAdding <= 0) return;
+
     try {
-      const { error } = await supabase
-        .from('savings_goals')
-        .update({ saved: newSaved })
-        .eq('id', id);
-      if (error) throw error;
+      // Create a real expense transaction in the Savings category. This is
+      // what makes contributions reconcile with balance, budgets, reports,
+      // and insights — the money genuinely leaves spendable cash and lands
+      // in the goal's tracked progress via goal_id.
+      const today = new Date().toISOString().slice(0, 10);
+      const { error: txnErr } = await supabase.from('transactions').insert({
+        user_id: user.id,
+        type: 'expense',
+        amount: actuallyAdding,
+        description: `Contribution to ${g.name}`,
+        category: 'Savings',
+        date: today,
+        goal_id: id,
+      });
+      if (txnErr) throw txnErr;
+
+      // Keep the legacy `saved` column roughly in sync for any code path that
+      // still reads it directly (it's also recomputed from contributions on
+      // next fetch, which is the authoritative source).
+      const newSaved = g.saved + actuallyAdding;
+      await supabase.from('savings_goals').update({ saved: newSaved }).eq('id', id);
+
       await fetchGoals();
       if (addToast) {
         const hit = newSaved >= g.target && g.saved < g.target;
@@ -411,8 +471,8 @@ const Budgets = () => {
           type: hit ? 'success' : 'info',
           title: hit ? 'Goal Reached!' : 'Contribution Added',
           message: hit
-            ? `You've hit your ${g.name} target of ${formatCurrency(g.target)}.`
-            : `${formatCurrency(actuallyAdded)} added to ${g.name}.`
+            ? `You've hit your ${g.name} target of ${formatCurrency(g.target)}. Recorded as a ${formatCurrency(actuallyAdding)} Savings expense.`
+            : `${formatCurrency(actuallyAdding)} added to ${g.name} (recorded as a Savings expense).`
         });
       }
     } catch (err) {
@@ -864,6 +924,9 @@ const Budgets = () => {
                           <Plus size={14} /> Add
                         </button>
                       </div>
+                    )}
+                    {!isComplete && (
+                      <span className="goal-add-hint">Recorded as a Savings expense. To undo, delete the contribution from Transactions.</span>
                     )}
                   </div>
                 );

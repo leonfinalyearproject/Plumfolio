@@ -73,6 +73,11 @@ const Dashboard = () => {
     lastMonthIncome: 0,
     thisMonthExpenses: 0,
     lastMonthExpenses: 0,
+    remainingInBudgets: 0,
+    unallocated: 0,
+    unplannedSpending: 0,
+    savedThisMonth: 0,
+    hasBudgetsThisMonth: false,
   });
   const [transactions, setTransactions] = useState([]);
   const [budgets, setBudgets] = useState([]);
@@ -176,10 +181,14 @@ const Dashboard = () => {
           .reduce((sum, t) => sum + parseFloat(t.amount), 0);
 
         // --- This month vs last month deltas ---
+        // Use UTC month keys so they match how transactions are stored
+        // (`new Date().toISOString()` is UTC) and how Budgets.js / Transactions.js
+        // compute "this month". Mixing local and UTC caused off-by-one-month
+        // mismatches at day boundaries for timezones far from UTC.
         const now = new Date();
-        const thisMonthKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
-        const prev = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-        const lastMonthKey = `${prev.getFullYear()}-${String(prev.getMonth() + 1).padStart(2, '0')}`;
+        const thisMonthKey = now.toISOString().slice(0, 7);
+        const prev = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - 1, 1));
+        const lastMonthKey = prev.toISOString().slice(0, 7);
 
         const sumBy = (txns, type, key) => txns
           .filter(t => t.type === type && (t.date || '').slice(0, 7) === key)
@@ -190,6 +199,63 @@ const Dashboard = () => {
         const thisMonthExpenses = sumBy(allTransactions, 'expense', thisMonthKey);
         const lastMonthExpenses = sumBy(allTransactions, 'expense', lastMonthKey);
 
+        // --- Balance breakdown: in budgets / unallocated / unplanned ---
+        // A budget is a PLAN. Given that, balance decomposes into three pools:
+        //
+        //   remainingInBudgets = money still reserved inside this month's plans
+        //                        (sum of allocated minus sum of planned-spending,
+        //                         where planned-spending caps each budget at its
+        //                         allocated ceiling — overspend isn't "planned")
+        //   unallocated        = income you earned but never assigned to a plan
+        //                        (income minus total allocated, floored at 0)
+        //   unplannedSpending  = money spent OUTSIDE the plan: either in a
+        //                        category with no budget, or past a budget's cap
+        //
+        // Identity: balance = remainingInBudgets + unallocated − unplannedSpending
+        // So the three pills always reconcile to the headline balance.
+        //
+        // Buckets ("Needs", "Wants", etc.) span multiple categories — must be
+        // handled the same way Budgets.js does it so numbers match across pages.
+        const BUCKET_MAP = {
+          'Needs':    ['Food & Dining', 'Groceries', 'Transportation', 'Housing', 'Utilities', 'Health & Fitness', 'Healthcare', 'Education'],
+          'Wants':    ['Entertainment', 'Shopping', 'Personal Care', 'Travel', 'Subscriptions'],
+          'Savings':  ['Savings', 'Investments'],
+          'Giving':   ['Gifts & Donations'],
+          'Expenses': ['Food & Dining', 'Groceries', 'Transportation', 'Housing', 'Utilities', 'Health & Fitness', 'Healthcare', 'Education', 'Entertainment', 'Shopping', 'Personal Care', 'Travel', 'Subscriptions', 'Other'],
+          'Spending': ['Food & Dining', 'Groceries', 'Transportation', 'Housing', 'Utilities', 'Health & Fitness', 'Healthcare', 'Education', 'Entertainment', 'Shopping', 'Personal Care', 'Travel', 'Subscriptions', 'Other'],
+        };
+
+        const thisMonthSpendByCat = (allTransactions || [])
+          .filter(t => t.type === 'expense' && (t.date || '').slice(0, 7) === thisMonthKey)
+          .reduce((acc, t) => { acc[t.category] = (acc[t.category] || 0) + parseFloat(t.amount || 0); return acc; }, {});
+
+        const spentForBudget = (cat) => BUCKET_MAP[cat]
+          ? BUCKET_MAP[cat].reduce((s, c) => s + (thisMonthSpendByCat[c] || 0), 0)
+          : (thisMonthSpendByCat[cat] || 0);
+
+        const thisMonthBudgets = (budgetsData || []).filter(b => b.month_year === thisMonthKey);
+        const totalAllocated = thisMonthBudgets.reduce((s, b) => s + parseFloat(b.allocated || 0), 0);
+
+        // Planned spending: for each budget, sum actual spend capped at allocated.
+        // Anything above the cap is unplanned (overspend). Anything in a category
+        // with no budget is unplanned too — not counted here, captured below.
+        const plannedSpending = thisMonthBudgets.reduce((s, b) => {
+          const spent = spentForBudget(b.category);
+          const cap = parseFloat(b.allocated || 0);
+          return s + Math.min(spent, cap);
+        }, 0);
+
+        const remainingInBudgets = Math.max(0, totalAllocated - plannedSpending);
+        const unallocated = Math.max(0, thisMonthIncome - totalAllocated);
+        const unplannedSpending = Math.max(0, thisMonthExpenses - plannedSpending);
+        const hasBudgetsThisMonth = thisMonthBudgets.length > 0;
+
+        // Savings actually moved INTO goals this month: sum of expenses in the
+        // Savings category for the current month. These are real transactions
+        // created when the user adds to a goal, so this number reconciles
+        // exactly with goal contribution activity on the Budgets page.
+        const savedThisMonth = (thisMonthSpendByCat['Savings'] || 0);
+
         setStats({
           balance: income - expenses,
           income,
@@ -198,6 +264,11 @@ const Dashboard = () => {
           lastMonthIncome,
           thisMonthExpenses,
           lastMonthExpenses,
+          remainingInBudgets,
+          unallocated,
+          unplannedSpending,
+          savedThisMonth,
+          hasBudgetsThisMonth,
         });
 
         // Calculate expenses by category for pie chart
@@ -341,6 +412,33 @@ const Dashboard = () => {
               <span className="stat-inline-sub">All-time net: {formatCurrency(stats.balance)}</span>
             )}
           </div>
+          {(stats.hasBudgetsThisMonth || stats.savedThisMonth > 0) && (
+            <span className="balance-breakdown">
+              {stats.hasBudgetsThisMonth && (
+                <>
+                  <span className="balance-breakdown-item in-budgets">{formatCurrency(stats.remainingInBudgets)} in budgets</span>
+                  <span className="balance-breakdown-sep">+</span>
+                  <span className="balance-breakdown-item unallocated">{formatCurrency(stats.unallocated)} unallocated</span>
+                  {stats.unplannedSpending > 0 && (
+                    <>
+                      <span className="balance-breakdown-sep">−</span>
+                      <span className="balance-breakdown-item unplanned" title="Money spent outside your plan: either on a category with no budget, or past a budget's cap.">
+                        {formatCurrency(stats.unplannedSpending)} unplanned
+                      </span>
+                    </>
+                  )}
+                </>
+              )}
+              {stats.savedThisMonth > 0 && (
+                <>
+                  <span className="balance-breakdown-sep">·</span>
+                  <span className="balance-breakdown-item saved" title="Money moved into savings goals this month. Already counted as a Savings expense in the totals above.">
+                    {formatCurrency(stats.savedThisMonth)} saved
+                  </span>
+                </>
+              )}
+            </span>
+          )}
           <DeltaBadge current={stats.thisMonthIncome - stats.thisMonthExpenses} previous={stats.lastMonthIncome - stats.lastMonthExpenses} positiveIsGood={true} formatCurrency={formatCurrency} />
         </div>
 

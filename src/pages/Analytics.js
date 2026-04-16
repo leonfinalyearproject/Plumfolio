@@ -66,17 +66,20 @@ const Analytics = () => {
   };
 
 
-  // Get last 6 months dynamically
+  // Get last 6 months dynamically. Use UTC throughout so the month keys
+  // match how transaction dates are stored (YYYY-MM-DD in UTC via
+  // toISOString) and how Dashboard/Budgets/Transactions compute months.
+  // Mixing local + UTC caused off-by-one-month errors near day boundaries.
   const getLastSixMonths = () => {
     const months = [];
     const now = new Date();
     for (let i = 5; i >= 0; i--) {
-      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      const d = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - i, 1));
       months.push({
-        label: d.toLocaleDateString('en-US', { month: 'short' }),
-        year: d.getFullYear(),
-        month: d.getMonth() + 1,
-        key: `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
+        label: d.toLocaleDateString('en-US', { month: 'short', timeZone: 'UTC' }),
+        year: d.getUTCFullYear(),
+        month: d.getUTCMonth() + 1,
+        key: `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}`
       });
     }
     return months;

@@ -422,3 +422,55 @@
   border-radius: 2px;
 }
 .goal-chip-badge { color: #10B981; flex-shrink: 0; }
+
+/* ========== Balance card: in-budgets + unallocated breakdown ========== */
+.balance-breakdown {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin-top: 8px;
+  font-size: 0.72rem;
+  font-weight: 500;
+  line-height: 1.4;
+}
+
+.balance-breakdown-item {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: 6px;
+  white-space: nowrap;
+}
+
+.balance-breakdown-item.in-budgets {
+  background: rgba(168, 85, 247, 0.1);
+  color: #C084FC;
+  border: 1px solid rgba(168, 85, 247, 0.2);
+}
+
+.balance-breakdown-item.unallocated {
+  background: rgba(34, 197, 94, 0.08);
+  color: #4ADE80;
+  border: 1px solid rgba(34, 197, 94, 0.18);
+}
+
+.balance-breakdown-item.unplanned {
+  background: rgba(245, 158, 11, 0.1);
+  color: #FBBF24;
+  border: 1px solid rgba(245, 158, 11, 0.22);
+  cursor: help;
+}
+
+.balance-breakdown-item.saved {
+  background: rgba(20, 184, 166, 0.1);
+  color: #5EEAD4;
+  border: 1px solid rgba(20, 184, 166, 0.22);
+  cursor: help;
+}
+
+.balance-breakdown-sep {
+  color: var(--text-dim);
+  font-weight: 600;
+  opacity: 0.6;
+}

@@ -18,7 +18,7 @@ import {
   Coffee, Home, Car, Zap, GraduationCap, ShoppingCart, Wallet,
   Heart, Film, MoreHorizontal, Trash2, Edit, Receipt, Camera, FileText,
   Check, Loader, AlertCircle, Image, ScanLine, Calendar, DollarSign,
-  Star, ChevronDown, ChevronRight, Search, RefreshCw, TrendingUp, TrendingDown, Sparkles
+  Star, ChevronDown, ChevronRight, Search, RefreshCw, TrendingUp, TrendingDown, Sparkles, PiggyBank
 } from 'lucide-react';
 import './Transactions.css';
 
@@ -154,15 +154,22 @@ const Transactions = () => {
     document.head.appendChild(s);
   }, [scannerOpen]);
 
+  const [goalsById, setGoalsById] = useState({});
   useEffect(() => {
     if (!user) return;
     const fetchTransactions = async () => {
-      const { data, error } = await supabase
-        .from('transactions')
-        .select('*')
-        .eq('user_id', user.id)
-        .order('date', { ascending: false });
-      if (!error) setTransactions(data || []);
+      // Pull transactions and goals in parallel so we can show "→ Emergency
+      // Fund" on any transaction that's a savings-goal contribution.
+      const [txnRes, goalsRes] = await Promise.all([
+        supabase.from('transactions').select('*').eq('user_id', user.id).order('date', { ascending: false }),
+        supabase.from('savings_goals').select('id, name').eq('user_id', user.id),
+      ]);
+      if (!txnRes.error) setTransactions(txnRes.data || []);
+      if (!goalsRes.error) {
+        const lookup = {};
+        (goalsRes.data || []).forEach(g => { lookup[g.id] = g.name; });
+        setGoalsById(lookup);
+      }
       setLoading(false);
     };
     fetchTransactions();
@@ -452,10 +459,39 @@ const Transactions = () => {
   };
 
   const handleDelete = async (id) => {
+    // Grab the transaction BEFORE deleting so we know if it was a savings
+    // contribution that needs goal.saved to be recomputed afterwards.
+    const victim = transactions.find(t => t.id === id);
     const { error } = await supabase.from('transactions').delete().eq('id', id);
     if (!error) {
       setTransactions(prev => prev.filter(t => t.id !== id));
-      if (addToast) addToast({ type: 'info', title: 'Deleted', message: 'Transaction removed' });
+
+      // If this was a goal contribution, recompute the goal's cached `saved`
+      // from its remaining contributions so the Budgets page stays honest.
+      if (victim?.goal_id) {
+        try {
+          const { data: remaining } = await supabase
+            .from('transactions')
+            .select('amount, type')
+            .eq('user_id', user.id)
+            .eq('goal_id', victim.goal_id);
+          const newSaved = (remaining || []).reduce((s, t) => {
+            const signed = t.type === 'expense' ? parseFloat(t.amount || 0) : -parseFloat(t.amount || 0);
+            return s + signed;
+          }, 0);
+          await supabase.from('savings_goals').update({ saved: Math.max(0, newSaved) }).eq('id', victim.goal_id);
+        } catch (_) { /* non-fatal — next Budgets visit will re-derive */ }
+      }
+
+      if (addToast) {
+        addToast({
+          type: 'info',
+          title: 'Deleted',
+          message: victim?.goal_id
+            ? 'Contribution removed — goal progress updated.'
+            : 'Transaction removed'
+        });
+      }
       if (refreshInsights) refreshInsights();
     }
   };
@@ -1245,6 +1281,11 @@ const Transactions = () => {
                       <div key={t.id} className="tx-item">
                         <div className="tx-item-main">
                           <span className="tx-item-desc">{t.description}</span>
+                          {t.goal_id && goalsById[t.goal_id] && (
+                            <span className="tx-item-goal-tag" title="This transaction is a contribution to a savings goal. Delete it to undo.">
+                              <PiggyBank size={11} /> {goalsById[t.goal_id]}
+                            </span>
+                          )}
                           <span className="tx-item-date">{formatDate(t.date)}</span>
                         </div>
                         <div className="tx-item-right">
