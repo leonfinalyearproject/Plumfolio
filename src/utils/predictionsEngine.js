@@ -50,23 +50,18 @@ function calculateTrend(values) {
 function getMonthlyTotals(transactions, type, months) {
   const totals = [];
   const now = new Date();
-  
+
   for (let i = months - 1; i >= 0; i--) {
-    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
-    const monthKey = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-    
+    const d = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - i, 1));
+    const monthKey = d.toISOString().slice(0, 7);
+
     const monthTotal = transactions
-      .filter(t => {
-        if (t.type !== type) return false;
-        const td = new Date(t.date);
-        const tKey = `${td.getFullYear()}-${String(td.getMonth() + 1).padStart(2, '0')}`;
-        return tKey === monthKey;
-      })
+      .filter(t => t.type === type && (t.date || '').slice(0, 7) === monthKey)
       .reduce((sum, t) => sum + Math.abs(parseFloat(t.amount)), 0);
-    
+
     totals.push({ month: monthKey, total: monthTotal });
   }
-  
+
   return totals;
 }
 
@@ -230,9 +225,9 @@ export function checkBudgetWarnings(transactions, budgets) {
   };
 
   const now = new Date();
-  const currentMonthKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
-  const dayOfMonth = now.getDate();
-  const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+  const currentMonthKey = now.toISOString().slice(0, 7);
+  const dayOfMonth = now.getUTCDate();
+  const daysInMonth = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 0)).getUTCDate();
   const monthProgress = dayOfMonth / daysInMonth;
 
   const warnings = [];
@@ -246,12 +241,9 @@ export function checkBudgetWarnings(transactions, budgets) {
     const tracks = BUCKET_MAP[budget.category] || [budget.category];
 
     const spent = transactions
-      .filter(t => {
-        if (t.type !== 'expense') return false;
-        const td = new Date(t.date);
-        const tKey = `${td.getFullYear()}-${String(td.getMonth() + 1).padStart(2, '0')}`;
-        return tKey === currentMonthKey && tracks.includes(t.category || 'Uncategorised');
-      })
+      .filter(t => t.type === 'expense'
+        && (t.date || '').slice(0, 7) === currentMonthKey
+        && tracks.includes(t.category || 'Uncategorised'))
       .reduce((sum, t) => sum + Math.abs(parseFloat(t.amount)), 0);
 
     const allocated = parseFloat(budget.allocated);
@@ -320,13 +312,12 @@ export function generatePredictions(transactions, budgets = []) {
 
   // Analyse how past-month transactions feed into forecasts
   const now = new Date();
-  const currentMonthKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+  const currentMonthKey = now.toISOString().slice(0, 7);
 
   // All transactions not in the current month
   const pastMonthTxns = transactions.filter(t => {
-    const txDate = new Date(t.date);
-    const txMonthKey = `${txDate.getFullYear()}-${String(txDate.getMonth() + 1).padStart(2, '0')}`;
-    return txMonthKey !== currentMonthKey;
+    const txMonthKey = (t.date || '').slice(0, 7);
+    return txMonthKey && txMonthKey !== currentMonthKey;
   });
 
   // Recently added ones (within last 7 days) that went to past months
@@ -341,16 +332,16 @@ export function generatePredictions(transactions, budgets = []) {
   if (pastMonthTxns.length > 0) {
     const affectedMonths = new Set();
     pastMonthTxns.forEach(t => {
-      const d = new Date(t.date);
-      affectedMonths.add(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`);
+      const mk = (t.date || '').slice(0, 7);
+      if (mk) affectedMonths.add(mk);
     });
     const totalAmount = pastMonthTxns.reduce((s, t) => s + Math.abs(parseFloat(t.amount)), 0);
 
     // Build per-month breakdown for the forecast notice
     const monthBreakdown = {};
     pastMonthTxns.forEach(t => {
-      const d = new Date(t.date);
-      const mk = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+      const mk = (t.date || '').slice(0, 7);
+      if (!mk) return;
       if (!monthBreakdown[mk]) monthBreakdown[mk] = { count: 0, total: 0 };
       monthBreakdown[mk].count++;
       monthBreakdown[mk].total += Math.abs(parseFloat(t.amount));

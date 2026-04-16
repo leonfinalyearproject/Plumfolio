@@ -26,8 +26,11 @@ function stdDev(arr) {
 function groupByMonth(transactions) {
   const grouped = {};
   transactions.forEach(t => {
-    const d = new Date(t.date);
-    const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+    // Transaction dates are stored as YYYY-MM-DD (UTC). Slicing is safer
+    // and cheaper than re-parsing through Date, which would apply the
+    // browser's local timezone and drift month keys near day boundaries.
+    const key = (t.date || '').slice(0, 7);
+    if (!key) return;
     if (!grouped[key]) grouped[key] = [];
     grouped[key].push(t);
   });
@@ -54,8 +57,9 @@ function getLastNMonths(n) {
   const months = [];
   const now = new Date();
   for (let i = 0; i < n; i++) {
-    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
-    months.push(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`);
+    // UTC so keys match stored transaction dates and other modules.
+    const d = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - i, 1));
+    months.push(d.toISOString().slice(0, 7));
   }
   return months;
 }
@@ -78,21 +82,13 @@ export function analyseSpendingPatterns(transactions) {
     
     // Current month total for this category
     const currentTotal = catExpenses
-      .filter(t => {
-        const d = new Date(t.date);
-        const m = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-        return m === currentMonth;
-      })
+      .filter(t => (t.date || '').slice(0, 7) === currentMonth)
       .reduce((sum, t) => sum + Math.abs(parseFloat(t.amount)), 0);
 
     // 3-month average for this category
     const prevTotals = previousMonths.map(month => {
       return catExpenses
-        .filter(t => {
-          const d = new Date(t.date);
-          const m = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-          return m === month;
-        })
+        .filter(t => (t.date || '').slice(0, 7) === month)
         .reduce((sum, t) => sum + Math.abs(parseFloat(t.amount)), 0);
     });
 
@@ -372,7 +368,7 @@ export function analyseGoals(goals, transactions) {
  */
 export function detectBackdatedTransactions(transactions) {
   const now = new Date();
-  const currentMonthKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+  const currentMonthKey = now.toISOString().slice(0, 7);
   const insights = [];
 
   // Group ALL transactions by month
@@ -387,9 +383,8 @@ export function detectBackdatedTransactions(transactions) {
   sevenDaysAgo.setDate(now.getDate() - 7);
 
   const pastMonthTxns = transactions.filter(t => {
-    const txDate = new Date(t.date);
-    const txMonthKey = `${txDate.getFullYear()}-${String(txDate.getMonth() + 1).padStart(2, '0')}`;
-    return txMonthKey !== currentMonthKey;
+    const txMonthKey = (t.date || '').slice(0, 7);
+    return txMonthKey && txMonthKey !== currentMonthKey;
   });
 
   if (pastMonthTxns.length === 0) return insights;
@@ -404,8 +399,8 @@ export function detectBackdatedTransactions(transactions) {
   // Group all past-month transactions by their target month for analysis
   const pastByMonth = {};
   pastMonthTxns.forEach(t => {
-    const txDate = new Date(t.date);
-    const monthKey = `${txDate.getFullYear()}-${String(txDate.getMonth() + 1).padStart(2, '0')}`;
+    const monthKey = (t.date || '').slice(0, 7);
+    if (!monthKey) return;
     if (!pastByMonth[monthKey]) pastByMonth[monthKey] = [];
     pastByMonth[monthKey].push(t);
   });
@@ -414,8 +409,8 @@ export function detectBackdatedTransactions(transactions) {
   if (recentlyAdded.length > 0) {
     const recentByMonth = {};
     recentlyAdded.forEach(t => {
-      const txDate = new Date(t.date);
-      const monthKey = `${txDate.getFullYear()}-${String(txDate.getMonth() + 1).padStart(2, '0')}`;
+      const monthKey = (t.date || '').slice(0, 7);
+      if (!monthKey) return;
       if (!recentByMonth[monthKey]) recentByMonth[monthKey] = [];
       recentByMonth[monthKey].push(t);
     });
