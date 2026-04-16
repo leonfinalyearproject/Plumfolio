@@ -1,6 +1,35 @@
-/* src/components/AIInsightWidget.css */
+/* src/components/AIInsightWidget.css
+ *
+ * Design principles (v2):
+ *   - Small & unobtrusive: popovers shouldn't compete with page content
+ *   - Severity through a left accent stripe, not filled backgrounds
+ *   - Three tiers: critical (red), warning (amber), info (muted)
+ *   - Single accent per-container; no multi-color rainbow
+ *   - Compact typography: 0.75rem title, 0.7rem body
+ *   - Mobile-friendly: breaks to full-width bottom sheet on narrow screens
+ */
 
-/* === TOAST NOTIFICATIONS === */
+:root {
+  --ain-bg:          #11111a;
+  --ain-border:      rgba(255,255,255,0.08);
+  --ain-border-h:    rgba(255,255,255,0.12);
+  --ain-text:        rgba(255,255,255,0.85);
+  --ain-text-mute:   rgba(255,255,255,0.55);
+  --ain-text-dim:    rgba(255,255,255,0.38);
+
+  --ain-critical:    #EF4444;
+  --ain-critical-bg: rgba(239,68,68,0.08);
+  --ain-warning:     #F59E0B;
+  --ain-warning-bg:  rgba(245,158,11,0.08);
+  --ain-info:        #A78BFA;
+  --ain-info-bg:     rgba(167,139,250,0.06);
+  --ain-ok:          #34D399;
+}
+
+/* ============================================================
+   TOAST STACK — right-side stream of insight notifications
+   ============================================================ */
+
 .ai-toasts-container {
   position: fixed;
   top: 16px;
@@ -8,287 +37,305 @@
   z-index: 9999;
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  max-width: 380px;
+  gap: 6px;
+  max-width: 320px;
+  pointer-events: none;
 }
 
 .ai-toast {
+  pointer-events: auto;
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   gap: 10px;
-  padding: 12px 14px;
+  padding: 10px 12px 10px 14px;
   border-radius: 10px;
-  background: #1a1a2e;
-  border: 1px solid rgba(255,255,255,0.08);
-  box-shadow: 0 8px 24px rgba(0,0,0,0.4);
-  animation: toastSlideIn 0.3s ease-out;
-  backdrop-filter: blur(20px);
+  background: var(--ain-bg);
+  border: 1px solid var(--ain-border);
+  box-shadow: 0 6px 18px rgba(0,0,0,0.35);
+  animation: toastSlideIn 0.25s cubic-bezier(0.2, 0, 0.1, 1);
+  position: relative;
+  overflow: hidden;
 }
 
-.ai-toast-high, .ai-toast-warning {
-  border-left: 3px solid #e74c3c;
+/* Left accent stripe — the ONLY color signal per toast */
+.ai-toast::before {
+  content: "";
+  position: absolute;
+  left: 0; top: 0; bottom: 0;
+  width: 3px;
 }
 
-.ai-toast-medium, .ai-toast-info {
-  border-left: 3px solid #e67e22;
-}
+.ai-toast-high::before,
+.ai-toast-warning::before    { background: var(--ain-critical); }
+.ai-toast-medium::before     { background: var(--ain-warning); }
+.ai-toast-info::before,
+.ai-toast-positive::before,
+.ai-toast-success::before    { background: var(--ain-info); }
 
 .ai-toast-icon {
   flex-shrink: 0;
-  width: 28px;
-  height: 28px;
-  border-radius: 6px;
+  width: 20px; height: 20px;
   display: flex;
   align-items: center;
   justify-content: center;
+  color: var(--ain-text-mute);
 }
 
-.ai-toast-high .ai-toast-icon,
-.ai-toast-warning .ai-toast-icon {
-  background: rgba(231,76,60,0.15);
-  color: #e74c3c;
-}
-
-.ai-toast-medium .ai-toast-icon,
-.ai-toast-info .ai-toast-icon {
-  background: rgba(230,126,34,0.15);
-  color: #e67e22;
-}
+.ai-toast-high  .ai-toast-icon,
+.ai-toast-warning .ai-toast-icon  { color: var(--ain-critical); }
+.ai-toast-medium  .ai-toast-icon  { color: var(--ain-warning); }
 
 .ai-toast-content {
   flex: 1;
   min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
 }
 
 .ai-toast-title {
-  display: block;
-  font-size: 0.8rem;
+  font-size: 0.75rem;
   font-weight: 600;
-  color: #f2ede5;
-  margin-bottom: 2px;
+  color: var(--ain-text);
+  line-height: 1.3;
 }
 
 .ai-toast-message {
   margin: 0;
-  font-size: 0.75rem;
-  color: rgba(255,255,255,0.5);
-  line-height: 1.35;
+  font-size: 0.7rem;
+  color: var(--ain-text-mute);
+  line-height: 1.4;
+  /* cap visible height so toasts stay compact */
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
 }
 
 .ai-toast-close {
   flex-shrink: 0;
   background: none;
   border: none;
-  color: rgba(255,255,255,0.3);
+  color: var(--ain-text-dim);
   cursor: pointer;
   padding: 2px;
+  border-radius: 4px;
+  transition: color 0.15s;
+  align-self: flex-start;
+  margin-top: -2px;
 }
-
 .ai-toast-close:hover {
-  color: rgba(255,255,255,0.6);
+  color: var(--ain-text);
+  background: rgba(255,255,255,0.06);
 }
 
 @keyframes toastSlideIn {
-  from { transform: translateX(100%); opacity: 0; }
-  to { transform: translateX(0); opacity: 1; }
+  from { transform: translateX(110%); opacity: 0; }
+  to   { transform: translateX(0);    opacity: 1; }
 }
 
-/* === FLOATING ACTION BUTTON (minimised state) === */
+/* ============================================================
+   FLOATING ACTION BUTTON — minimised widget state
+   ============================================================ */
+
 .ai-widget-fab {
   z-index: 1001 !important;
   position: fixed;
   bottom: 20px;
   right: 20px;
-  z-index: 1001;
-  width: 48px;
-  height: 48px;
+  width: 44px; height: 44px;
   border-radius: 50%;
-  background: linear-gradient(135deg, #7B2D8E, #5a1d6b);
-  border: none;
-  color: white;
-  cursor: pointer;
+  background: var(--ain-bg);
+  border: 1px solid var(--ain-border);
+  color: var(--ain-text-mute);
   display: flex;
   align-items: center;
   justify-content: center;
-  box-shadow: 0 4px 16px rgba(123,45,142,0.4);
+  cursor: pointer;
+  box-shadow: 0 6px 18px rgba(0,0,0,0.4);
   transition: all 0.2s;
 }
-
 .ai-widget-fab:hover {
-  transform: scale(1.1);
-  box-shadow: 0 6px 24px rgba(123,45,142,0.5);
+  color: var(--ain-text);
+  border-color: var(--ain-border-h);
+  transform: translateY(-1px);
 }
-
 .ai-widget-fab.fab-urgent {
-  animation: fabPulse 2s ease-in-out infinite;
+  color: var(--ain-critical);
+  border-color: var(--ain-critical);
+  box-shadow: 0 6px 18px rgba(239,68,68,0.25);
 }
 
 .fab-badge {
   position: absolute;
-  top: -4px;
-  right: -4px;
-  width: 18px;
-  height: 18px;
-  border-radius: 50%;
-  background: #e74c3c;
-  font-size: 0.65rem;
+  top: -3px; right: -3px;
+  min-width: 16px; height: 16px;
+  padding: 0 4px;
+  border-radius: 8px;
+  background: var(--ain-critical);
+  color: white;
+  font-size: 0.6rem;
   font-weight: 700;
   display: flex;
   align-items: center;
   justify-content: center;
 }
 
-@keyframes fabPulse {
-  0%, 100% { box-shadow: 0 4px 16px rgba(123,45,142,0.4); }
-  50% { box-shadow: 0 4px 24px rgba(231,76,60,0.5); }
-}
+/* ============================================================
+   FLOATING PAGE-SUMMARY WIDGET — collapsible card, bottom-right
+   ============================================================ */
 
-/* === FLOATING WIDGET === */
 .ai-widget {
   position: fixed;
   bottom: 20px;
   right: 20px;
   z-index: 1001;
-  width: 320px;
-  background: #12121c;
-  border: 1px solid rgba(255,255,255,0.08);
-  border-radius: 14px;
-  box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+  width: 280px;
+  background: var(--ain-bg);
+  border: 1px solid var(--ain-border);
+  border-radius: 12px;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.45);
   overflow: hidden;
-  transition: all 0.3s ease;
+  transition: width 0.25s ease, max-height 0.25s ease;
 }
 
 .ai-widget-expanded {
-  width: 360px;
+  width: 320px;
 }
 
-/* Header */
+/* Header (always visible) */
 .ai-widget-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 10px 14px;
-  background: rgba(123,45,142,0.08);
+  padding: 8px 10px 8px 12px;
   cursor: pointer;
   user-select: none;
+  transition: background 0.15s;
 }
-
 .ai-widget-header:hover {
-  background: rgba(123,45,142,0.12);
+  background: rgba(255,255,255,0.02);
 }
 
 .ai-widget-header-left {
   display: flex;
   align-items: center;
-  gap: 8px;
-  color: rgba(255,255,255,0.7);
+  gap: 7px;
+  color: var(--ain-text-mute);
+  min-width: 0;
 }
 
 .ai-widget-dot {
-  width: 6px;
-  height: 6px;
+  width: 6px; height: 6px;
   border-radius: 50%;
+  flex-shrink: 0;
 }
-
-.dot-urgent {
-  background: #e74c3c;
-  animation: dotPulse 1.5s ease-in-out infinite;
-}
-
-.dot-ok {
-  background: #27ae60;
-}
+.dot-urgent   { background: var(--ain-critical); animation: dotPulse 1.6s ease-in-out infinite; }
+.dot-positive { background: var(--ain-ok); }
+.dot-ok       { background: var(--ain-text-dim); }
 
 @keyframes dotPulse {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.4; }
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50%      { opacity: 0.5; transform: scale(0.85); }
 }
 
 .ai-widget-title {
-  font-size: 0.8rem;
+  font-size: 0.73rem;
   font-weight: 600;
-  color: rgba(255,255,255,0.8);
+  color: var(--ain-text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .ai-widget-count {
-  font-size: 0.65rem;
-  background: rgba(123,45,142,0.3);
-  color: #7B2D8E;
+  font-size: 0.62rem;
+  background: var(--ain-info-bg);
+  color: var(--ain-info);
   padding: 1px 6px;
-  border-radius: 10px;
+  border-radius: 8px;
   font-weight: 600;
+  border: 1px solid rgba(167,139,250,0.2);
 }
 
 .ai-widget-header-right {
   display: flex;
   align-items: center;
-  gap: 4px;
-  color: rgba(255,255,255,0.3);
+  gap: 2px;
+  color: var(--ain-text-dim);
 }
 
 .ai-widget-minimize {
   background: none;
   border: none;
-  color: rgba(255,255,255,0.3);
+  color: var(--ain-text-dim);
   cursor: pointer;
-  padding: 2px;
+  padding: 3px;
   border-radius: 4px;
+  display: flex;
+  align-items: center;
+  transition: all 0.15s;
 }
-
 .ai-widget-minimize:hover {
-  color: rgba(255,255,255,0.6);
-  background: rgba(255,255,255,0.05);
+  color: var(--ain-text);
+  background: rgba(255,255,255,0.06);
 }
 
-/* Summary (collapsed) */
+/* Collapsed summary row */
 .ai-widget-summary {
-  padding: 8px 14px 10px;
+  padding: 0 12px 10px;
   cursor: pointer;
 }
-
 .ai-widget-summary span {
   display: flex;
   align-items: center;
   gap: 6px;
-  font-size: 0.75rem;
+  font-size: 0.7rem;
+  color: var(--ain-text-mute);
+  line-height: 1.4;
 }
+.summary-urgent   { color: var(--ain-critical) !important; }
+.summary-positive { color: var(--ain-ok) !important; }
+.summary-neutral  { color: var(--ain-text-mute) !important; }
 
-.summary-urgent { color: #e74c3c; }
-.summary-positive { color: #27ae60; }
-.summary-neutral { color: rgba(255,255,255,0.4); }
-
-/* Body (expanded) */
+/* Expanded body */
 .ai-widget-body {
-  padding: 0 14px 14px;
-  max-height: 350px;
+  border-top: 1px solid var(--ain-border);
+  max-height: 60vh;
   overflow-y: auto;
+  padding: 10px;
 }
 
-/* Quick stats */
+.ai-widget-body::-webkit-scrollbar        { width: 4px; }
+.ai-widget-body::-webkit-scrollbar-thumb  { background: rgba(255,255,255,0.1); border-radius: 2px; }
+
+/* Quick stats bar at top of expanded body */
 .ai-widget-stats {
   display: flex;
   gap: 8px;
+  padding: 8px 10px;
+  margin: 0 0 10px;
+  background: rgba(255,255,255,0.02);
+  border: 1px solid var(--ain-border);
+  border-radius: 8px;
   flex-wrap: wrap;
-  margin-bottom: 10px;
-  padding-top: 6px;
 }
-
 .widget-stat {
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: 5px;
   font-size: 0.68rem;
-  color: rgba(255,255,255,0.4);
-  background: rgba(255,255,255,0.03);
-  padding: 4px 8px;
-  border-radius: 6px;
+  color: var(--ain-text-mute);
 }
-
 .widget-stat strong {
-  color: rgba(255,255,255,0.7);
+  color: var(--ain-text);
+  font-weight: 600;
+}
+.widget-stat svg {
+  color: var(--ain-text-dim);
 }
 
-/* Insights list */
+/* Insight cards inside expanded body */
 .ai-widget-insights {
   display: flex;
   flex-direction: column;
@@ -297,118 +344,127 @@
 
 .widget-insight {
   display: flex;
+  align-items: flex-start;
   gap: 8px;
-  padding: 8px 10px;
+  padding: 8px 10px 8px 12px;
   border-radius: 8px;
   background: rgba(255,255,255,0.02);
-  border: 1px solid rgba(255,255,255,0.04);
+  border: 1px solid var(--ain-border);
+  position: relative;
+  overflow: hidden;
 }
 
-.widget-insight-high { border-left: 2px solid #e74c3c; }
-.widget-insight-medium { border-left: 2px solid #e67e22; }
-.widget-insight-positive { border-left: 2px solid #27ae60; }
-.widget-insight-info { border-left: 2px solid #3498db; }
+/* Severity left stripe */
+.widget-insight::before {
+  content: "";
+  position: absolute;
+  left: 0; top: 0; bottom: 0;
+  width: 2px;
+  background: var(--ain-text-dim);
+}
+.widget-insight-high::before     { background: var(--ain-critical); }
+.widget-insight-medium::before   { background: var(--ain-warning); }
+.widget-insight-positive::before { background: var(--ain-ok); }
+.widget-insight-info::before     { background: var(--ain-info); }
 
 .widget-insight-icon {
+  width: 18px; height: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--ain-text-dim);
   flex-shrink: 0;
-  margin-top: 2px;
+  margin-top: 1px;
 }
+.widget-insight-high .widget-insight-icon     { color: var(--ain-critical); }
+.widget-insight-medium .widget-insight-icon   { color: var(--ain-warning); }
+.widget-insight-positive .widget-insight-icon { color: var(--ain-ok); }
 
 .widget-insight-content {
   flex: 1;
   min-width: 0;
 }
-
 .widget-insight-context {
-  display: inline-block;
+  display: block;
   font-size: 0.6rem;
-  font-weight: 600;
   text-transform: uppercase;
-  letter-spacing: 0.5px;
-  color: rgba(255,255,255,0.3);
+  letter-spacing: 0.06em;
+  color: var(--ain-text-dim);
+  font-weight: 600;
   margin-bottom: 2px;
 }
-
-.widget-insight-high .widget-insight-icon { color: #e74c3c; }
-.widget-insight-medium .widget-insight-icon { color: #e67e22; }
-.widget-insight-positive .widget-insight-icon { color: #27ae60; }
-.widget-insight-info .widget-insight-icon { color: #3498db; }
-
-.dot-positive { background: #27ae60; }
-
-.widget-insight p {
+.widget-insight-content p {
   margin: 0;
   font-size: 0.72rem;
-  line-height: 1.35;
-  color: rgba(255,255,255,0.55);
+  color: var(--ain-text-mute);
+  line-height: 1.4;
 }
 
 .ai-widget-empty {
-  font-size: 0.75rem;
-  color: rgba(255,255,255,0.25);
   text-align: center;
-  padding: 12px 0;
+  padding: 16px 8px;
+  color: var(--ain-text-dim);
+  font-size: 0.72rem;
   margin: 0;
 }
 
-/* View all button */
+/* View-full-analysis link at the bottom of expanded body */
 .ai-widget-viewall {
+  width: 100%;
+  margin-top: 10px;
+  padding: 8px 10px;
+  background: transparent;
+  border: 1px solid var(--ain-border);
+  border-radius: 7px;
+  color: var(--ain-text-mute);
+  font-size: 0.7rem;
+  font-weight: 500;
+  cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 6px;
-  width: 100%;
-  padding: 8px;
-  margin-top: 8px;
-  background: rgba(123,45,142,0.08);
-  border: 1px solid rgba(123,45,142,0.15);
-  border-radius: 8px;
-  color: #7B2D8E;
-  font-size: 0.75rem;
-  font-weight: 500;
-  cursor: pointer;
-  transition: all 0.2s;
+  gap: 5px;
+  transition: all 0.15s;
 }
-
 .ai-widget-viewall:hover {
-  background: rgba(123,45,142,0.15);
+  color: var(--ain-text);
+  border-color: var(--ain-border-h);
+  background: rgba(255,255,255,0.03);
 }
 
-/* Scrollbar */
-.ai-widget-body::-webkit-scrollbar { width: 4px; }
-.ai-widget-body::-webkit-scrollbar-track { background: transparent; }
-.ai-widget-body::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 2px; }
-
-/* Mobile — position above bottom nav. The page-level Scan/Add FABs are
-   hidden on mobile (duplicates of the top action bar), so the brain FAB
-   has the bottom-right corner to itself. */
-@media (max-width: 768px) {
-  .ai-widget-fab {
-    bottom: calc(80px + env(safe-area-inset-bottom)) !important;
-    right: 16px !important;
-    left: auto !important;
-    width: 44px !important;
-    height: 44px !important;
-    z-index: 1001 !important;
+/* ============================================================
+   MOBILE — toast stack moves above the bottom nav; widget becomes
+   full-width at the bottom so it never covers main content awkwardly.
+   ============================================================ */
+@media (max-width: 640px) {
+  .ai-toasts-container {
+    top: auto;
+    bottom: 76px;
+    left: 8px; right: 8px;
+    max-width: none;
   }
+
+  .ai-toast {
+    padding: 8px 10px 8px 12px;
+  }
+
   .ai-widget {
-    bottom: calc(80px + env(safe-area-inset-bottom)) !important;
-    right: 12px !important;
-    left: auto !important;
-    width: calc(100vw - 24px) !important;
-    max-width: 340px !important;
-    z-index: 1001 !important;
+    bottom: 72px;
+    right: 8px;
+    left: 8px;
+    width: auto !important;
+    max-width: none;
   }
   .ai-widget-expanded {
-    width: calc(100vw - 24px) !important;
-    max-width: 360px !important;
+    width: auto !important;
   }
-  .ai-toasts-container {
-    top: auto !important;
-    bottom: calc(140px + env(safe-area-inset-bottom)) !important;
-    right: 12px !important;
-    left: 12px !important;
-    max-width: none !important;
-    z-index: 1001 !important;
+
+  .ai-widget-fab {
+    bottom: 76px;
+    right: 12px;
+  }
+
+  .ai-widget-body {
+    max-height: 50vh;
   }
 }
