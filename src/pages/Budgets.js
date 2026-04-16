@@ -700,19 +700,22 @@ const Budgets = () => {
                   <div>
                     <div style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 2 }}>
                       {noIncomeYet ? `No income received in ${viewMonthLabel} yet` :
-                       overBudgeted ? 'Over-budgeted by' : 'Left to budget'}
+                       overBudgeted ? 'Over-budgeted by' : 'Unallocated income'}
                     </div>
                     <div style={{ fontSize: '1.4rem', fontWeight: 700, color: overBudgeted ? '#EF4444' : noIncomeYet ? '#F59E0B' : 'var(--text-primary)' }}>
                       {noIncomeYet ? 'P0' : formatCurrency(Math.abs(leftToBudget))}
                     </div>
                   </div>
-                  <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', textAlign: 'right', maxWidth: 440 }}>
+                  <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', textAlign: 'right', maxWidth: 460 }}>
                     {noIncomeYet ? (
                       <>Add income transactions for {viewMonthLabel} before creating budgets — you can only budget money you've actually received.</>
+                    ) : overBudgeted ? (
+                      <>
+                        You've planned <strong style={{ color: '#EF4444' }}>{formatCurrency(monthAllocated)}</strong> against <strong style={{ color: '#22C55E' }}>{formatCurrency(monthIncome)}</strong> in {viewMonthLabel} income. Lower a budget or add income to balance.
+                      </>
                     ) : (
                       <>
-                        {viewMonthLabel} income: <strong style={{ color: '#22C55E' }}>{formatCurrency(monthIncome)}</strong>
-                        {' · '}Budgeted: <strong style={{ color: overBudgeted ? '#EF4444' : 'var(--text-primary)' }}>{formatCurrency(monthAllocated)}</strong>
+                        <strong style={{ color: 'var(--text-primary)' }}>{formatCurrency(Math.abs(leftToBudget))}</strong> of your {viewMonthLabel} income isn't yet assigned to any budget. Consider allocating it — or let it sit as free cash for savings.
                       </>
                     )}
                   </div>
