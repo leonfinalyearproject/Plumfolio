@@ -122,14 +122,20 @@ const Budgets = () => {
     if (target) {
       setViewMonth(target.month_year);
       setActiveTab('budgets');
-      handleEdit(target);
+      setEditingBudget(target);
+      setFormData({
+        category: target.category,
+        allocated: target.allocated.toString(),
+        month_year: target.month_year,
+      });
+      setFormErrors({});
+      setModalOpen(true);
       // Remove the param so a refresh or back-nav doesn't retrigger the modal.
       const next = new URLSearchParams(searchParams);
       next.delete('edit');
       setSearchParams(next, { replace: true });
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [budgets, searchParams]);
+  }, [budgets, searchParams, modalOpen, setSearchParams]);
 
   const fetchGoals = async () => {
     if (!user) return;
