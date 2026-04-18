@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { supabase } from '../lib/supabase';
 import { useCurrency } from '../context/CurrencyContext';
@@ -99,10 +100,36 @@ const Budgets = () => {
   const [selectedRule, setSelectedRule] = useState(null);
   const [ruleIncome, setRuleIncome] = useState('');
 
+  // Query params — when the Dashboard's "Adjust" button routes us here with
+  // `?edit=<budgetId>`, auto-open the edit modal for that budget once data
+  // has loaded. Also switch to the correct month view so the user can see
+  // context around the budget they're editing.
+  const [searchParams, setSearchParams] = useSearchParams();
+
   useEffect(() => {
     if (user) { fetchBudgets(); fetchGoals(); }
     else setLoading(false);
   }, [user?.id]);
+
+  // Watch for ?edit=<id> after budgets have loaded. Runs whenever the URL
+  // param OR the budgets list changes, so it still works if the user arrives
+  // before fetch completes. Once handled, we strip the param so a browser
+  // refresh doesn't reopen the modal.
+  useEffect(() => {
+    const editId = searchParams.get('edit');
+    if (!editId || budgets.length === 0 || modalOpen) return;
+    const target = budgets.find(b => String(b.id) === String(editId));
+    if (target) {
+      setViewMonth(target.month_year);
+      setActiveTab('budgets');
+      handleEdit(target);
+      // Remove the param so a refresh or back-nav doesn't retrigger the modal.
+      const next = new URLSearchParams(searchParams);
+      next.delete('edit');
+      setSearchParams(next, { replace: true });
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [budgets, searchParams]);
 
   const fetchGoals = async () => {
     if (!user) return;

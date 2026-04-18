@@ -19,7 +19,8 @@ import {
   PiggyBank,
   Target, Plane, Laptop, Smartphone, GraduationCap, Dumbbell,
   Gamepad2, Baby, Gem, Umbrella, Music, Award, Sparkles,
-  RefreshCw, Heart, Briefcase, MoreHorizontal, Film, ShoppingCart
+  RefreshCw, Heart, Briefcase, MoreHorizontal, Film, ShoppingCart,
+  SlidersHorizontal
 } from 'lucide-react';
 import { Doughnut } from 'react-chartjs-2';
 import { Chart as ChartJS, ArcElement, Tooltip, Legend } from 'chart.js';
@@ -282,18 +283,33 @@ const Dashboard = () => {
         setExpensesByCategory(categoryTotals);
       }
 
-      // Calculate spent per category for budgets
+      // Compute this month's key in the outer scope so we can both filter
+      // budgets by month_year and compute this-month-only spend below.
+      // (The inner if-block has its own `thisMonthKey` but isn't in scope here.)
+      const outerNow = new Date();
+      const outerThisMonthKey = outerNow.toISOString().slice(0, 7);
+
+      /* Spent per category — MONTHLY. Using all-time spend against a monthly
+         budget caused absurd percentages (e.g. P39,000 all-time Housing
+         spend against a P5,500 April budget = 709%). Budgets reset monthly,
+         so progress should compare month-to-date spend against the cap. */
       const spentByCategory = (allTransactions || [])
-        .filter(t => t.type === 'expense')
+        .filter(t => t.type === 'expense' && (t.date || '').slice(0, 7) === outerThisMonthKey)
         .reduce((acc, t) => {
           acc[t.category] = (acc[t.category] || 0) + parseFloat(t.amount);
           return acc;
         }, {});
 
-      const budgetsWithSpent = (budgetsData || []).map(b => ({
-        ...b,
-        spent: spentByCategory[b.category] || 0,
-      }));
+      const budgetsWithSpent = (budgetsData || [])
+        /* Only include budgets for the current month. Without this filter,
+           categories that carry budgets across multiple months (e.g. Shopping,
+           Subscriptions) show up multiple times in the Budget Progress list —
+           once per month_year row in the database. */
+        .filter(b => b.month_year === outerThisMonthKey)
+        .map(b => ({
+          ...b,
+          spent: spentByCategory[b.category] || 0,
+        }));
 
       setTransactions(recentTransactions || []);
       setBudgets(budgetsWithSpent);
@@ -545,31 +561,101 @@ const Dashboard = () => {
               Manage <ChevronRight size={16} />
             </Link>
           </div>
-          
-          {budgets.length > 0 ? (
-            <div className="budgets-list">
-              {budgets.map((b) => {
-                const pct = Math.min((b.spent / b.allocated) * 100, 100);
-                const over = b.spent > b.allocated;
-                return (
-                  <div key={b.id} className="budget-row">
-                    <div className="budget-info">
-                      <span className="budget-name">{b.category}</span>
-                      <span className="budget-nums">
-                        {formatCurrency(b.spent)} of {formatCurrency(parseFloat(b.allocated))}
-                      </span>
-                    </div>
-                    <div className="budget-bar">
-                      <div 
-                        className={`budget-fill ${over ? 'over' : ''}`} 
-                        style={{ width: `${pct}%` }} 
-                      />
-                    </div>
+
+          {budgets.length > 0 ? (() => {
+            /* Build a sorted, annotated list so the card shows the most
+               urgent budgets first. Ordering: over-budget (highest % first),
+               then near-limit (80–100%), then on-track. Capped at 5 rows to
+               keep the dashboard digestible; the full list lives on /budgets. */
+            const MAX_ROWS = 5;
+            const annotated = budgets.map(b => {
+              const allocated = parseFloat(b.allocated) || 0;
+              const spent = parseFloat(b.spent) || 0;
+              const rawPct = allocated > 0 ? (spent / allocated) * 100 : 0;
+              const status = rawPct > 100 ? 'over' : rawPct >= 80 ? 'near' : 'ok';
+              return { ...b, allocated, spent, rawPct, status };
+            }).sort((a, b) => {
+              const rank = { over: 0, near: 1, ok: 2 };
+              if (rank[a.status] !== rank[b.status]) return rank[a.status] - rank[b.status];
+              return b.rawPct - a.rawPct;
+            });
+
+            const overCount = annotated.filter(b => b.status === 'over').length;
+            const nearCount = annotated.filter(b => b.status === 'near').length;
+            const okCount = annotated.filter(b => b.status === 'ok').length;
+            const visible = annotated.slice(0, MAX_ROWS);
+            const hiddenCount = annotated.length - visible.length;
+
+            return (
+              <>
+                {/* Summary pills — at-a-glance health check. */}
+                <div className="budget-summary">
+                  <div className={'budget-summary-pill status-over' + (overCount === 0 ? ' dim' : '')}>
+                    <span className="pill-label">Over</span>
+                    <span className="pill-value">{overCount}</span>
                   </div>
-                );
-              })}
-            </div>
-          ) : (
+                  <div className={'budget-summary-pill status-near' + (nearCount === 0 ? ' dim' : '')}>
+                    <span className="pill-label">Near limit</span>
+                    <span className="pill-value">{nearCount}</span>
+                  </div>
+                  <div className={'budget-summary-pill status-ok' + (okCount === 0 ? ' dim' : '')}>
+                    <span className="pill-label">On track</span>
+                    <span className="pill-value">{okCount}</span>
+                  </div>
+                </div>
+
+                <div className="budgets-list">
+                  {visible.map((b) => {
+                    const displayPct = Math.min(b.rawPct, 100);
+                    return (
+                      <div key={b.id} className={`budget-row status-${b.status}`}>
+                        <div className="budget-info">
+                          <div className="budget-info-left">
+                            <span className="budget-name">{b.category}</span>
+                            <span className={`budget-pct-pill status-${b.status}`}>
+                              {Math.round(b.rawPct)}%
+                            </span>
+                          </div>
+                          <div className="budget-info-right">
+                            <span className="budget-nums">
+                              {formatCurrency(b.spent)} of {formatCurrency(b.allocated)}
+                            </span>
+                            {/* Only show the Adjust shortcut on over-budget rows — that's
+                                where raising the cap (or reviewing the category) is
+                                actually actionable. For near/ok rows we stay quiet. */}
+                            {b.status === 'over' && (
+                              <Link
+                                to={`/budgets?edit=${b.id}`}
+                                className="budget-adjust-btn"
+                                title="Adjust this budget"
+                                aria-label={`Adjust ${b.category} budget`}
+                              >
+                                <SlidersHorizontal size={12} />
+                                <span>Adjust</span>
+                              </Link>
+                            )}
+                          </div>
+                        </div>
+                        <div className="budget-bar">
+                          <div
+                            className={`budget-fill status-${b.status}`}
+                            style={{ width: `${displayPct}%` }}
+                          />
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {hiddenCount > 0 && (
+                  <Link to="/budgets" className="budget-view-more">
+                    + {hiddenCount} more {hiddenCount === 1 ? 'budget' : 'budgets'} · view all
+                    <ChevronRight size={14} />
+                  </Link>
+                )}
+              </>
+            );
+          })() : (
             <div className="empty-state horizontal">
               <Wallet size={40} strokeWidth={1} />
               <div>

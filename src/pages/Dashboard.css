@@ -272,30 +272,173 @@
 /* ================================================
    BUDGETS (dashboard card)
    ================================================ */
-.budgets-list { display: flex; flex-direction: column; gap: 12px; }
+.budgets-list { display: flex; flex-direction: column; gap: 8px; }
 
+/* Summary pills — at-a-glance health check shown above the row list. */
+.budget-summary {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+  margin-bottom: 16px;
+}
+.budget-summary-pill {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid transparent;
+  background: rgba(255, 255, 255, 0.02);
+  transition: opacity 0.2s;
+}
+.budget-summary-pill.dim { opacity: 0.4; }
+.budget-summary-pill .pill-label {
+  font-size: 0.62rem;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+.budget-summary-pill .pill-value {
+  font-size: 1.2rem;
+  font-weight: 700;
+  line-height: 1;
+}
+.budget-summary-pill.status-over {
+  background: rgba(239, 68, 68, 0.08);
+  border-color: rgba(239, 68, 68, 0.15);
+}
+.budget-summary-pill.status-over .pill-label { color: rgba(239, 68, 68, 0.8); }
+.budget-summary-pill.status-over .pill-value { color: #ff6b6b; }
+.budget-summary-pill.status-near {
+  background: rgba(245, 158, 11, 0.08);
+  border-color: rgba(245, 158, 11, 0.15);
+}
+.budget-summary-pill.status-near .pill-label { color: rgba(245, 158, 11, 0.85); }
+.budget-summary-pill.status-near .pill-value { color: #fbbf24; }
+.budget-summary-pill.status-ok {
+  background: rgba(39, 174, 96, 0.08);
+  border-color: rgba(39, 174, 96, 0.15);
+}
+.budget-summary-pill.status-ok .pill-label { color: rgba(39, 174, 96, 0.85); }
+.budget-summary-pill.status-ok .pill-value { color: #4ecdc4; }
+
+/* Individual budget row — compact, colour-coded by status. */
 .budget-row {
   display: flex;
   flex-direction: column;
   gap: 6px;
-  padding: 10px 12px;
+  padding: 9px 12px;
   border-radius: 10px;
+  border: 1px solid transparent;
   transition: all 0.25s;
   animation: fadeInUp 0.4s var(--ease-out) forwards;
   opacity: 0;
 }
+.budget-row.status-over {
+  border-color: rgba(239, 68, 68, 0.12);
+  background: rgba(239, 68, 68, 0.03);
+}
+.budget-row.status-near {
+  border-color: rgba(245, 158, 11, 0.1);
+  background: rgba(245, 158, 11, 0.025);
+}
 .budget-row:nth-child(1) { animation-delay: 0.3s; }
 .budget-row:nth-child(2) { animation-delay: 0.35s; }
 .budget-row:nth-child(3) { animation-delay: 0.4s; }
-.budget-row:hover { background: rgba(255,255,255,0.015); }
+.budget-row:nth-child(4) { animation-delay: 0.45s; }
+.budget-row:nth-child(5) { animation-delay: 0.5s; }
+.budget-row:hover { background: rgba(255, 255, 255, 0.03); }
+.budget-row.status-over:hover { background: rgba(239, 68, 68, 0.06); }
+.budget-row.status-near:hover { background: rgba(245, 158, 11, 0.05); }
 
-.budget-info { display: flex; align-items: center; justify-content: space-between; }
-.budget-name { font-weight: 600; font-size: 0.85rem; }
-.budget-nums { font-size: 0.75rem; color: var(--text-muted); }
+.budget-info { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.budget-info-left { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.budget-info-right { display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
+.budget-name {
+  font-weight: 600;
+  font-size: 0.85rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.budget-nums {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
 
-.budget-bar { height: 5px; background: rgba(255,255,255,0.04); border-radius: 3px; overflow: hidden; }
-.budget-fill { height: 100%; border-radius: 3px; background: linear-gradient(90deg, #7B2D8E, #A855F7); animation: progressFill 1s var(--ease-out) forwards; }
-.budget-fill.over { background: linear-gradient(90deg, #EF4444, #F87171); }
+/* Adjust button — only shown on over-budget rows. Deep-links into
+   /budgets?edit=<id> so the edit modal opens for this specific budget. */
+.budget-adjust-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px;
+  border-radius: 8px;
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.2px;
+  text-decoration: none;
+  background: rgba(239, 68, 68, 0.12);
+  color: #ff8a8a;
+  border: 1px solid rgba(239, 68, 68, 0.18);
+  transition: all 0.2s;
+  white-space: nowrap;
+}
+.budget-adjust-btn:hover {
+  background: rgba(239, 68, 68, 0.2);
+  color: #ffb3b3;
+  transform: translateY(-1px);
+}
+.budget-adjust-btn svg { flex-shrink: 0; }
+
+/* Percentage pill next to category name */
+.budget-pct-pill {
+  font-size: 0.62rem;
+  font-weight: 700;
+  padding: 2px 7px;
+  border-radius: 10px;
+  letter-spacing: 0.3px;
+  flex-shrink: 0;
+}
+.budget-pct-pill.status-over {
+  background: rgba(239, 68, 68, 0.18);
+  color: #ff6b6b;
+}
+.budget-pct-pill.status-near {
+  background: rgba(245, 158, 11, 0.18);
+  color: #fbbf24;
+}
+.budget-pct-pill.status-ok {
+  background: rgba(168, 85, 247, 0.15);
+  color: #C084FC;
+}
+
+.budget-bar { height: 5px; background: rgba(255, 255, 255, 0.04); border-radius: 3px; overflow: hidden; }
+.budget-fill { height: 100%; border-radius: 3px; animation: progressFill 1s var(--ease-out) forwards; }
+.budget-fill.status-over { background: #ef4444; }
+.budget-fill.status-near { background: #f59e0b; }
+.budget-fill.status-ok   { background: linear-gradient(90deg, #7B2D8E, #A855F7); }
+/* Keep the old .over class working if anything else still uses it */
+.budget-fill.over { background: #ef4444; }
+
+/* "+ N more budgets · view all" footer link */
+.budget-view-more {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  margin-top: 10px;
+  padding: 10px;
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  text-decoration: none;
+  border-top: 1px solid rgba(255, 255, 255, 0.04);
+  transition: color 0.2s;
+}
+.budget-view-more:hover { color: #C084FC; }
 
 /* ================================================
    EMPTY STATES
