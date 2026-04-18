@@ -13,8 +13,20 @@ const Insights = () => {
   const { insights, predictions, loading, refreshInsights } = useInsights();
   const { formatCurrency, symbol } = useCurrency();
 
-  // Replace currency placeholder in insight messages
-  const fmt = (msg) => msg ? msg.replace(/¤/g, symbol) : msg;
+  // Replace currency placeholders in insight messages.
+  // Engines emit amounts as `¤123.45` or `¤123` where the number is the raw
+  // BWP value. We match the placeholder + the number together, then route
+  // through formatCurrency() so the displayed amount is converted to the
+  // user's selected currency with proper locale formatting (e.g. $8.76,
+  // £6.92). Falls back to a plain symbol swap if the amount can't be parsed.
+  const fmt = (msg) => {
+    if (!msg) return msg;
+    return String(msg).replace(/¤(-?\d+(?:\.\d+)?)/g, (_, num) => {
+      const parsed = parseFloat(num);
+      if (isNaN(parsed)) return symbol + num;
+      return formatCurrency(parsed);
+    }).replace(/¤/g, symbol); // catch any stray placeholders with no number
+  };
   const [activeTab, setActiveTab] = useState('insights');
 
   const getSeverityIcon = (severity) => {
@@ -180,7 +192,7 @@ const Insights = () => {
                   <h3 style={{ color: '#F59E0B', fontSize: '0.9rem' }}>Backdated Data Included</h3>
                 </div>
                 <p className="forecast-detail" style={{ marginTop: 6, lineHeight: 1.5 }}>
-                  {predictions.backdatedImpact.message}
+                  {fmt(predictions.backdatedImpact.message)}
                 </p>
               </div>
             )}
@@ -255,7 +267,7 @@ const Insights = () => {
                     <div className="recurring-icon"><Repeat size={18} /></div>
                     <div className="recurring-body">
                       <h4>{rec.description}</h4>
-                      <p>{rec.message}</p>
+                      <p>{fmt(rec.message)}</p>
                       <div className="recurring-meta">
                         <span className="recurring-freq">{rec.frequency}</span>
                         <span className="recurring-amount">{formatCurrency(rec.amount)}</span>
@@ -289,7 +301,7 @@ const Insights = () => {
                   <div key={i} className={`warning-card warning-${warn.severity}`}>
                     <div className="warning-icon"><AlertTriangle size={18} /></div>
                     <div className="warning-body">
-                      <p className="warning-message">{warn.message}</p>
+                      <p className="warning-message">{fmt(warn.message)}</p>
                       <div className="warning-bar">
                         <div className="warning-bar-fill" style={{ width: `${Math.min(100, (warn.spent / warn.allocated) * 100)}%` }} />
                       </div>
