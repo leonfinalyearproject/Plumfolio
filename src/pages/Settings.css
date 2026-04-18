@@ -6,7 +6,9 @@
   width: 100%;
   margin: 0 auto;
 }
-.settings-page > * { width: 100%; }
+/* All direct children fill the page width, EXCEPT the tab pill which shrinks
+   to its natural size so no stray scrollbar can show under it. */
+.settings-page > *:not(.settings-tabs) { width: 100%; }
 .settings-section {
   width: 100% !important;
   max-width: 100% !important;
@@ -14,11 +16,13 @@
   overflow: hidden;
 }
 .settings-content { width: 100%; max-width: 100%; }
-.settings-tabs { width: 100%; max-width: 100%; box-sizing: border-box; }
 /* Prevent currency items from forcing width */
 .currency-item, .currency-preview, .currency-search-box { max-width: 100%; box-sizing: border-box; }
 
-/* Tabs */
+/* Tabs — pill-style segmented control.
+   Size to the content, center with margin auto, hide the scrollbar
+   cosmetically while keeping overflow-x: auto as a fallback for very narrow
+   viewports where tabs truly can't fit. */
 .settings-tabs {
   display: flex;
   gap: 2px;
@@ -26,16 +30,41 @@
   padding: 3px;
   border-radius: 9999px;
   border: 1px solid rgba(255, 255, 255, 0.06);
-  margin-bottom: 24px;
+  margin: 0 auto 24px;
   animation: fadeInUp 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
   overflow-x: auto;
+  /* Let the pill size to its content, not stretch to fill the parent.
+     A 100%-wide container with overflow-x:auto was rendering a permanent
+     scrollbar track beneath the pill even when nothing needed to scroll. */
+  width: max-content;
+  /* The parent .settings-page caps at 420px, which is too narrow for 5 tabs.
+     Allow the tab pill to break out of that constraint up to the viewport
+     width so all tabs fit on desktop without needing to scroll. */
+  max-width: calc(100vw - 48px);
+  box-sizing: border-box;
+  /* Hide the scrollbar in Firefox */
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+/* Hide the scrollbar across every WebKit/Blink browser. Using multiple
+   selectors + rules because a single `display: none` on ::-webkit-scrollbar
+   is known to misbehave in certain Chromium versions — combining all three
+   guarantees the bar never paints. */
+.settings-tabs::-webkit-scrollbar,
+.settings-tabs::-webkit-scrollbar-track,
+.settings-tabs::-webkit-scrollbar-thumb,
+.settings-tabs::-webkit-scrollbar-corner {
+  display: none !important;
+  width: 0 !important;
+  height: 0 !important;
+  background: transparent !important;
 }
 
 .settings-tab {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 9px 18px;
+  gap: 7px;
+  padding: 9px 16px;
   border-radius: 9999px;
   font-size: 0.8rem;
   font-weight: 500;
@@ -45,6 +74,7 @@
   white-space: nowrap;
   background: none;
   border: none;
+  flex-shrink: 0;
 }
 
 .settings-tab:hover { color: #7C7C8A; }
