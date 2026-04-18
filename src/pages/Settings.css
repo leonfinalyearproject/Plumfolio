@@ -2,7 +2,10 @@
    SETTINGS — Lusion
    ================================================ */
 .settings-page {
-  max-width: 420px;
+  /* Widened from 420px so the Profile / Dashboard / etc. cards match the
+     width of the 5-tab pill above them. 620px comfortably holds all 5 tabs
+     plus a little breathing room on either side of the cards. */
+  max-width: 620px;
   width: 100%;
   margin: 0 auto;
 }
@@ -37,9 +40,9 @@
      A 100%-wide container with overflow-x:auto was rendering a permanent
      scrollbar track beneath the pill even when nothing needed to scroll. */
   width: max-content;
-  /* The parent .settings-page caps at 420px, which is too narrow for 5 tabs.
-     Allow the tab pill to break out of that constraint up to the viewport
-     width so all tabs fit on desktop without needing to scroll. */
+  /* The parent .settings-page used to cap at 420px. Now at 620px it's wide
+     enough for all 5 tabs, but we still allow the pill to grow up to nearly
+     the full viewport as a safety net on narrower windows. */
   max-width: calc(100vw - 48px);
   box-sizing: border-box;
   /* Hide the scrollbar in Firefox */
