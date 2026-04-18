@@ -370,8 +370,17 @@ function getPageInsights(pathname, insights, predictions, formatCurrency, crossS
 // === Toast Notifications ===
 export const AIToasts = () => {
   const { toasts, dismissToast } = useInsights();
-  const { symbol } = useCurrency();
-  const fmt = (msg) => (msg ? String(msg).replace(/¤/g, symbol) : msg);
+  const { formatCurrency, symbol } = useCurrency();
+  // Replace ¤<number> placeholders with converted + formatted currency.
+  // See Insights.js for the detailed rationale; same logic lives there.
+  const fmt = (msg) => {
+    if (!msg) return msg;
+    return String(msg).replace(/¤(-?\d+(?:\.\d+)?)/g, (_, num) => {
+      const parsed = parseFloat(num);
+      if (isNaN(parsed)) return symbol + num;
+      return formatCurrency(parsed);
+    }).replace(/¤/g, symbol);
+  };
   if (toasts.length === 0) return null;
 
   // Pick a severity-appropriate icon for each toast.
@@ -411,7 +420,15 @@ export const AIToasts = () => {
 const AIInsightWidget = () => {
   const { insights, predictions, crossSignals, loading } = useInsights();
   const { formatCurrency, symbol } = useCurrency();
-  const fmt = (msg) => msg ? msg.replace(/¤/g, symbol) : msg;
+  // Replace ¤<number> placeholders with converted + formatted currency.
+  const fmt = (msg) => {
+    if (!msg) return msg;
+    return String(msg).replace(/¤(-?\d+(?:\.\d+)?)/g, (_, num) => {
+      const parsed = parseFloat(num);
+      if (isNaN(parsed)) return symbol + num;
+      return formatCurrency(parsed);
+    }).replace(/¤/g, symbol);
+  };
   const [expanded, setExpanded] = useState(false);
   const [minimised, setMinimised] = useState(false);
   const location = useLocation();
