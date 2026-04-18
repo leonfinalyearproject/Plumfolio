@@ -11,9 +11,13 @@
   gap: 10px;
   max-width: 360px;
   width: calc(100vw - 40px);
-  max-height: calc(100vh - 120px);
+  /* Leave room for the Forecast Analysis widget in the bottom-right (~120px
+     tall when collapsed) plus breathing space, so toasts never sit behind it. */
+  max-height: calc(100vh - 180px);
   overflow-y: auto;
+  overflow-x: hidden;
   pointer-events: none;
+  padding-right: 4px; /* prevent shadow clipping against right edge */
   /* Hide scrollbar but keep scroll functional when many toasts stack */
   scrollbar-width: none;
 }
@@ -25,14 +29,20 @@
   display: flex;
   align-items: flex-start;
   gap: 11px;
-  padding: 13px 14px 15px;
+  padding: 13px 14px 18px;
   border-radius: 12px;
   background: rgba(18, 18, 28, 0.92);
   border: 1px solid rgba(255, 255, 255, 0.06);
   box-shadow: 0 14px 40px rgba(0, 0, 0, 0.55), 0 0 0 1px rgba(255, 255, 255, 0.02);
   backdrop-filter: blur(24px);
   -webkit-backdrop-filter: blur(24px);
-  overflow: hidden;
+  /* CRITICAL: flex items in a column container shrink by default when the
+     container runs out of space. That was clipping multi-line messages.
+     flex-shrink: 0 keeps each toast at its natural height; the container
+     scrolls when the total exceeds max-height. */
+  flex-shrink: 0;
+  /* Small buffer below text so the progress bar never visually overlaps the
+     last line of the message on 3+ line toasts. */
   animation: toastSlideIn 0.35s cubic-bezier(0.16, 1, 0.3, 1);
   transition: transform 0.2s ease, box-shadow 0.2s ease;
 }
@@ -149,6 +159,9 @@
   right: 0;
   height: 2px;
   background: rgba(255, 255, 255, 0.05);
+  /* Round only the bottom corners so the bar tucks neatly into the toast.
+     No overflow: hidden on the toast itself (it would clip the message). */
+  border-radius: 0 0 12px 12px;
   overflow: hidden;
 }
 .ai-toast-progress-bar {
