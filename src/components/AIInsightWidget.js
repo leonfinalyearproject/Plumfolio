@@ -374,20 +374,33 @@ export const AIToasts = () => {
   const fmt = (msg) => (msg ? String(msg).replace(/¤/g, symbol) : msg);
   if (toasts.length === 0) return null;
 
+  // Pick a severity-appropriate icon for each toast.
+  const iconFor = (sev) => {
+    switch (sev) {
+      case 'high': return <AlertTriangle size={16} />;
+      case 'medium': return <TrendingUp size={16} />;
+      case 'positive': return <TrendingDown size={16} />;
+      default: return <Lightbulb size={16} />;
+    }
+  };
+
   return (
     <div className="ai-toasts-container">
       {toasts.map(toast => (
-        <div key={toast.id} className={`ai-toast ai-toast-${toast.severity || toast.type}`}>
+        <div key={toast.id} className={`ai-toast ai-toast-${toast.severity || toast.type || 'info'}`}>
+          <div className="ai-toast-accent" />
           <div className="ai-toast-icon">
-            {toast.severity === 'high' ? <AlertTriangle size={16} /> : <Lightbulb size={16} />}
+            {iconFor(toast.severity)}
           </div>
           <div className="ai-toast-content">
             <span className="ai-toast-title">{fmt(toast.title)}</span>
             <p className="ai-toast-message">{fmt(toast.message)}</p>
           </div>
-          <button className="ai-toast-close" onClick={() => dismissToast(toast.id)}>
+          <button className="ai-toast-close" onClick={() => dismissToast(toast.id)} aria-label="Dismiss">
             <X size={14} />
           </button>
+          {/* Auto-dismiss progress bar — matches the 8s timer in InsightsContext. */}
+          <div className="ai-toast-progress"><div className="ai-toast-progress-bar" /></div>
         </div>
       ))}
     </div>
