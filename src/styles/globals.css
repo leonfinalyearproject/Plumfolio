@@ -330,23 +330,50 @@ input, textarea, select {
 /* ============================================================
    Native date/time picker icons — global visibility fix
    ============================================================
-   On dark themes, Chrome/Edge render the calendar/clock icons
-   as near-black SVGs that disappear into the background. This
-   inverts them to white across the entire app so users can see
-   what to click. Also applied to month, time, week, datetime-local.
-   Uses !important because various page-level CSS files compete for
-   this rule and we always want the visible-on-dark version to win. */
+   On dark themes, Chrome/Edge sometimes render the calendar/clock
+   icons as near-black SVGs that disappear into the background.
+   We replace the native indicator with a guaranteed-white inline
+   SVG via background-image so the icon is always visible regardless
+   of the browser's color-scheme handling. Uses !important because
+   page-level CSS files competed with this rule previously and we
+   always want the visible-on-dark version to win. */
 input[type="date"]::-webkit-calendar-picker-indicator,
 input[type="month"]::-webkit-calendar-picker-indicator,
 input[type="week"]::-webkit-calendar-picker-indicator,
-input[type="time"]::-webkit-calendar-picker-indicator,
 input[type="datetime-local"]::-webkit-calendar-picker-indicator {
-  filter: invert(1) brightness(2) !important;
-  opacity: 0.9 !important;
+  filter: none !important;
+  opacity: 0.85 !important;
   cursor: pointer;
+  width: 16px;
+  height: 16px;
   padding: 2px;
+  margin-left: 4px;
   border-radius: 4px;
-  transition: opacity 0.15s, background 0.15s;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><rect x='3' y='4' width='18' height='18' rx='2' ry='2'/><line x1='16' y1='2' x2='16' y2='6'/><line x1='8' y1='2' x2='8' y2='6'/><line x1='3' y1='10' x2='21' y2='10'/></svg>") !important;
+  background-repeat: no-repeat !important;
+  background-position: center !important;
+  background-size: 16px 16px !important;
+  background-color: transparent !important;
+  color: transparent !important;
+  transition: opacity 0.15s, background-color 0.15s;
+}
+
+input[type="time"]::-webkit-calendar-picker-indicator {
+  filter: none !important;
+  opacity: 0.85 !important;
+  cursor: pointer;
+  width: 16px;
+  height: 16px;
+  padding: 2px;
+  margin-left: 4px;
+  border-radius: 4px;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><circle cx='12' cy='12' r='10'/><polyline points='12 6 12 12 16 14'/></svg>") !important;
+  background-repeat: no-repeat !important;
+  background-position: center !important;
+  background-size: 16px 16px !important;
+  background-color: transparent !important;
+  color: transparent !important;
+  transition: opacity 0.15s, background-color 0.15s;
 }
 
 input[type="date"]:hover::-webkit-calendar-picker-indicator,
@@ -355,11 +382,11 @@ input[type="week"]:hover::-webkit-calendar-picker-indicator,
 input[type="time"]:hover::-webkit-calendar-picker-indicator,
 input[type="datetime-local"]:hover::-webkit-calendar-picker-indicator {
   opacity: 1 !important;
-  background: rgba(255, 255, 255, 0.1);
+  background-color: rgba(168, 85, 247, 0.15) !important;
 }
 
 /* Tells Firefox + modern Safari to use dark-themed native UI for these
-   inputs, which auto-styles the picker icons appropriately. */
+   inputs, which auto-styles the picker popup appropriately. */
 input[type="date"],
 input[type="month"],
 input[type="week"],
