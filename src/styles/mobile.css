@@ -69,10 +69,14 @@
     z-index: 1001 !important;
   }
   .ai-toasts-container {
-    bottom: 145px !important;
+    top: auto !important;
+    bottom: 150px !important;
     right: 12px !important;
-    max-width: 290px !important;
-    z-index: 1001 !important;
+    left: 12px !important;
+    max-width: none !important;
+    width: auto !important;
+    max-height: 50vh !important;
+    z-index: 1002 !important;
   }
 
   /* Dashboard */
