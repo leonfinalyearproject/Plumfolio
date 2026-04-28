@@ -117,10 +117,25 @@ export const InsightsProvider = ({ children }) => {
 
       const txns = txnRes.data || [];
       const budgs = budgetRes.data || [];
-      // Goals query may fail if migration hasn't been run — fall back to [] silently
-      const gls = (goalRes && !goalRes.error && Array.isArray(goalRes.data))
-        ? goalRes.data.map(g => ({ ...g, target: parseFloat(g.target), saved: parseFloat(g.saved) }))
+      // Goals query may fail if migration hasn't been run — fall back to [] silently.
+      // Compute progress the same way Budgets.js does: displayed saved =
+      // frozen DB baseline + sum of linked contribution transactions (goal_id).
+      // This ensures insights/toasts use the same number as the Budgets page.
+      const rawGls = (goalRes && !goalRes.error && Array.isArray(goalRes.data))
+        ? goalRes.data
         : [];
+      const contribsByGoal = txns
+        .filter(t => t.goal_id)
+        .reduce((acc, t) => {
+          const signed = t.type === 'expense' ? parseFloat(t.amount || 0) : -parseFloat(t.amount || 0);
+          acc[t.goal_id] = (acc[t.goal_id] || 0) + signed;
+          return acc;
+        }, {});
+      const gls = rawGls.map(g => {
+        const baseline = parseFloat(g.saved || 0);
+        const contribs = contribsByGoal[g.id] || 0;
+        return { ...g, target: parseFloat(g.target), savedBaseline: baseline, saved: baseline + contribs };
+      });
 
       setTransactions(txns);
       setBudgets(budgs);
