@@ -132,6 +132,12 @@
 .goal-info { flex: 1; }
 .goal-info h3 { font-size: 0.95rem; font-weight: 600; color: var(--text-primary); margin-bottom: 2px; }
 .goal-deadline { font-size: 0.7rem; color: var(--text-dim); }
+.goal-budget-source {
+  display: inline-flex; align-items: center; gap: 3px;
+  font-size: 0.68rem; font-weight: 500; color: #7B2D8E;
+  background: rgba(123,45,142,0.12); padding: 2px 7px; border-radius: 20px;
+  margin-bottom: 3px;
+}
 .goal-complete-badge {
   display: inline-flex; align-items: center; gap: 4px;
   font-size: 0.7rem; font-weight: 600; color: #22C55E;

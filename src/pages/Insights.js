@@ -2,9 +2,9 @@
 import React, { useState } from 'react';
 import { useInsights } from '../context/InsightsContext';
 import {
-  Brain, TrendingUp, TrendingDown, AlertTriangle, RefreshCw,
+  TrendingUp, TrendingDown, AlertTriangle, RefreshCw,
   ArrowUpRight, ArrowDownRight, Repeat, Lightbulb, Target,
-  BarChart3, DollarSign, Calendar, Shield, ChevronRight
+  BarChart3, DollarSign, Shield, ChevronRight, PiggyBank
 } from 'lucide-react';
 import { useCurrency } from '../context/CurrencyContext';
 import './Insights.css';
@@ -13,65 +13,72 @@ const Insights = () => {
   const { insights, predictions, loading, refreshInsights } = useInsights();
   const { formatCurrency, symbol } = useCurrency();
 
-  // Replace currency placeholders in insight messages.
-  // Engines emit amounts as `¤123.45` or `¤123` where the number is the raw
-  // BWP value. We match the placeholder + the number together, then route
-  // through formatCurrency() so the displayed amount is converted to the
-  // user's selected currency with proper locale formatting (e.g. $8.76,
-  // £6.92). Falls back to a plain symbol swap if the amount can't be parsed.
+  // Replace currency placeholders emitted by the insights engine (¤123.45 → formatted)
   const fmt = (msg) => {
     if (!msg) return msg;
     return String(msg).replace(/¤(-?\d+(?:\.\d+)?)/g, (_, num) => {
       const parsed = parseFloat(num);
       if (isNaN(parsed)) return symbol + num;
       return formatCurrency(parsed);
-    }).replace(/¤/g, symbol); // catch any stray placeholders with no number
-  };
-  const [activeTab, setActiveTab] = useState('insights');
-
-  const getSeverityIcon = (severity) => {
-    switch (severity) {
-      case 'high': return <AlertTriangle size={18} />;
-      case 'medium': return <TrendingUp size={18} />;
-      case 'positive': return <TrendingDown size={18} />;
-      default: return <Lightbulb size={18} />;
-    }
+    }).replace(/¤/g, symbol);
   };
 
-  const getSeverityClass = (severity) => {
-    switch (severity) {
-      case 'high': return 'severity-high';
-      case 'medium': return 'severity-medium';
-      case 'positive': return 'severity-positive';
-      default: return 'severity-info';
-    }
-  };
+  const [activeTab, setActiveTab] = useState('next-month');
 
-  const getConfidenceClass = (confidence) => {
-    switch (confidence) {
-      case 'high': return 'confidence-high';
-      case 'medium': return 'confidence-medium';
-      default: return 'confidence-low';
-    }
+  // Map internal confidence levels to plain language
+  const confidenceLabel = (c) => ({
+    high: 'Reliable estimate',
+    medium: 'Rough estimate',
+    low: 'Early estimate',
+  }[c] || 'Estimate');
+
+  const confidenceClass = (c) => ({
+    high: 'confidence-high',
+    medium: 'confidence-medium',
+    low: 'confidence-low',
+  }[c] || 'confidence-low');
+
+  const severityIcon = (s) => {
+    if (s === 'high') return <AlertTriangle size={18} />;
+    if (s === 'medium') return <TrendingUp size={18} />;
+    if (s === 'positive') return <TrendingDown size={18} />;
+    return <Lightbulb size={18} />;
   };
+  const severityClass = (s) => ({
+    high: 'severity-high',
+    medium: 'severity-medium',
+    positive: 'severity-positive',
+    info: 'severity-info',
+  }[s] || 'severity-info');
+
+  const tabs = [
+    { id: 'next-month', label: 'Next Month',    icon: BarChart3  },
+    { id: 'warnings',   label: 'Warnings',       icon: Shield     },
+    { id: 'tips',       label: 'Spending Tips',  icon: Lightbulb  },
+    { id: 'bills',      label: 'Regular Bills',  icon: Repeat     },
+  ];
 
   if (loading) {
     return (
       <div className="insights-loading">
-        <Brain size={40} className="loading-icon" />
-        <p>Analysing your financial data...</p>
+        <PiggyBank size={40} className="loading-icon" />
+        <p>Analysing your finances...</p>
       </div>
     );
   }
 
+  // Count warnings for the badge
+  const warningCount = predictions?.budgetWarnings?.length || 0;
+
   return (
     <div className="insights-page">
+
+      {/* Header */}
       <div className="insights-header">
         <div className="insights-header-left">
-          <Brain size={24} />
           <div>
-            <h2>Forecast Analysis</h2>
-            <p>Real-time forecasting from your transaction history — trends, predictions, and recurring patterns</p>
+            <h2>Forecasts</h2>
+            <p>Based on your transaction history — what to expect next month</p>
           </div>
         </div>
         <button className="refresh-btn" onClick={refreshInsights}>
@@ -80,88 +87,180 @@ const Insights = () => {
         </button>
       </div>
 
+      {/* Summary bar — 3 key numbers at a glance */}
       {insights && predictions && (
         <div className="insights-summary-cards">
-          <div className="summary-card">
-            <div className="summary-icon insights-icon"><Lightbulb size={20} /></div>
-            <div className="summary-content">
-              <span className="summary-value">{insights.summary.totalInsights}</span>
-              <span className="summary-label">Active Insights</span>
-            </div>
-          </div>
           <div className="summary-card">
             <div className="summary-icon prediction-icon"><Target size={20} /></div>
             <div className="summary-content">
               <span className="summary-value">{formatCurrency(predictions.totalForecast.predicted || 0)}</span>
-              <span className="summary-label">Predicted Next Month</span>
+              <span className="summary-label">Predicted expenses next month</span>
             </div>
           </div>
           <div className="summary-card">
             <div className="summary-icon savings-icon"><DollarSign size={20} /></div>
             <div className="summary-content">
               <span className="summary-value">{insights.summary.savingsRate}%</span>
-              <span className="summary-label">Savings Rate</span>
+              <span className="summary-label">Savings rate this month</span>
             </div>
           </div>
           <div className="summary-card">
             <div className="summary-icon recurring-icon"><Repeat size={20} /></div>
             <div className="summary-content">
               <span className="summary-value">{insights.recurring?.length || 0}</span>
-              <span className="summary-label">Recurring Detected</span>
+              <span className="summary-label">Regular bills detected</span>
+            </div>
+          </div>
+          <div className="summary-card">
+            <div className={`summary-icon ${warningCount > 0 ? 'warning-icon-sum' : 'ok-icon'}`}>
+              <Shield size={20} />
+            </div>
+            <div className="summary-content">
+              <span className="summary-value">{warningCount}</span>
+              <span className="summary-label">{warningCount === 1 ? 'Budget warning' : 'Budget warnings'}</span>
             </div>
           </div>
         </div>
       )}
 
-      {/* Backdated / past-month data notice — always visible above tabs */}
-      {predictions && predictions.backdatedImpact && (
-        <div style={{
-          background: 'rgba(168,85,247,0.06)',
-          border: '1px solid rgba(168,85,247,0.18)',
-          borderRadius: 12, padding: '12px 16px',
-          marginBottom: 16,
-          display: 'flex', alignItems: 'flex-start', gap: 10,
-        }}>
-          <Calendar size={18} style={{ color: '#A855F7', flexShrink: 0, marginTop: 2 }} />
-          <div style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', lineHeight: 1.5 }}>
-            <strong style={{ color: 'var(--text-primary)' }}>
-              {predictions.backdatedImpact.count} past-month transaction{predictions.backdatedImpact.count > 1 ? 's' : ''}
-            </strong> across {predictions.backdatedImpact.affectedMonths.length} month{predictions.backdatedImpact.affectedMonths.length > 1 ? 's' : ''} feed
-            into all insights, trends, and forecasts below.
-            {predictions.backdatedImpact.recentCount > 0 && (
-              <span style={{ color: '#F59E0B' }}> {predictions.backdatedImpact.recentCount} added in the last 7 days.</span>
-            )}
-            {' '}Every transaction updates analysis in real-time regardless of its date.
-          </div>
-        </div>
-      )}
-
+      {/* Tabs */}
       <div className="insights-tabs">
-        {[
-          { id: 'insights', label: 'Spending Insights', icon: Lightbulb },
-          { id: 'predictions', label: 'Predictions', icon: BarChart3 },
-          { id: 'recurring', label: 'Recurring', icon: Repeat },
-          { id: 'warnings', label: 'Budget Warnings', icon: Shield },
-        ].map(tab => (
-          <button key={tab.id} className={`tab-btn ${activeTab === tab.id ? 'active' : ''}`} onClick={() => setActiveTab(tab.id)}>
-            <tab.icon size={16} /> {tab.label}
+        {tabs.map(tab => (
+          <button
+            key={tab.id}
+            className={`tab-btn ${activeTab === tab.id ? 'active' : ''}`}
+            onClick={() => setActiveTab(tab.id)}
+          >
+            <tab.icon size={16} />
+            {tab.label}
+            {tab.id === 'warnings' && warningCount > 0 && (
+              <span className="tab-badge">{warningCount}</span>
+            )}
           </button>
         ))}
       </div>
 
+      {/* Tab content */}
       <div className="insights-content">
-        {activeTab === 'insights' && insights && (
+
+        {/* NEXT MONTH */}
+        {activeTab === 'next-month' && predictions && (
+          <div className="predictions-section">
+
+            {/* Hero forecast card */}
+            <div className="forecast-card main-forecast">
+              <div className="forecast-header">
+                <Target size={20} />
+                <h3>Expected total spending</h3>
+                <span className={`confidence-badge ${confidenceClass(predictions.totalForecast.confidence)}`}>
+                  {confidenceLabel(predictions.totalForecast.confidence)}
+                </span>
+              </div>
+              <div className="forecast-value">{formatCurrency(predictions.totalForecast.predicted || 0)}</div>
+              <p className="forecast-detail">
+                Predicted expenses for {predictions.totalForecast.nextMonth || 'next month'}
+                {predictions.totalForecast.trend > 0 && ' — your spending is trending upward.'}
+                {predictions.totalForecast.trend < 0 && ' — your spending is trending downward.'}
+                {predictions.totalForecast.trend === 0 && ' — your spending looks stable.'}
+              </p>
+            </div>
+
+            {/* Per-category breakdown */}
+            {Object.keys(predictions.categoryForecasts).length > 0 && (
+              <>
+                <h3 className="section-title">Breakdown by category</h3>
+                <div className="category-forecasts">
+                  {Object.entries(predictions.categoryForecasts).map(([cat, pred]) => (
+                    <div key={cat} className="category-forecast-card">
+                      <div className="cat-forecast-header">
+                        <span className="cat-name">{cat}</span>
+                        <span className={`trend-badge trend-${pred.trend}`}>
+                          {pred.trend === 'increasing' && <ArrowUpRight size={12} />}
+                          {pred.trend === 'decreasing' && <ArrowDownRight size={12} />}
+                          {pred.trend === 'increasing' ? 'Going up' : pred.trend === 'decreasing' ? 'Going down' : 'Stable'}
+                        </span>
+                      </div>
+                      <div className="cat-forecast-value">{formatCurrency(pred.predicted)}</div>
+                    </div>
+                  ))}
+                </div>
+              </>
+            )}
+
+            {/* Budget suggestions */}
+            {predictions.budgetSuggestions.length > 0 && (
+              <>
+                <h3 className="section-title">Suggested budgets for next month</h3>
+                <p className="section-subtitle">Based on your predicted spending, with a small buffer added.</p>
+                <div className="budget-suggestions">
+                  {predictions.budgetSuggestions.map((sug, i) => (
+                    <div key={i} className="suggestion-card">
+                      <div className="suggestion-header">
+                        <span>{sug.category}</span>
+                        <span className="suggested-amount">{formatCurrency(sug.suggestedAmount)}</span>
+                      </div>
+                      <p className="suggestion-detail">
+                        You're likely to spend around {formatCurrency(sug.predictedSpend)} — this adds a 10% safety buffer.
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              </>
+            )}
+
+            {Object.keys(predictions.categoryForecasts).length === 0 && predictions.budgetSuggestions.length === 0 && (
+              <div className="empty-state">
+                <BarChart3 size={48} />
+                <h3>Not enough data yet</h3>
+                <p>Keep adding transactions and forecasts will appear automatically after a few weeks.</p>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* WARNINGS */}
+        {activeTab === 'warnings' && predictions && (
+          <div className="warnings-section">
+            {predictions.budgetWarnings.length === 0 ? (
+              <div className="empty-state">
+                <Shield size={48} />
+                <h3>All budgets look good</h3>
+                <p>Nothing to worry about — keep it up!</p>
+              </div>
+            ) : (
+              <div className="warnings-list">
+                {predictions.budgetWarnings.map((warn, i) => (
+                  <div key={i} className={`warning-card warning-${warn.severity}`}>
+                    <div className="warning-icon"><AlertTriangle size={18} /></div>
+                    <div className="warning-body">
+                      <p className="warning-message">{fmt(warn.message)}</p>
+                      <div className="warning-bar">
+                        <div className="warning-bar-fill" style={{ width: `${Math.min(100, (warn.spent / warn.allocated) * 100)}%` }} />
+                      </div>
+                      <span className="warning-detail">
+                        Spent {formatCurrency(warn.spent)} of {formatCurrency(warn.allocated)} budget
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* SPENDING TIPS */}
+        {activeTab === 'tips' && insights && (
           <div className="insights-list">
             {insights.insights.length === 0 ? (
               <div className="empty-state">
                 <Lightbulb size={48} />
-                <h3>No insights yet</h3>
-                <p>Add more transactions to start receiving spending insights and forecasts.</p>
+                <h3>No tips yet</h3>
+                <p>Add more transactions and tips will appear based on your spending patterns.</p>
               </div>
             ) : (
               insights.insights.map((insight, i) => (
-                <div key={i} className={`insight-card ${getSeverityClass(insight.severity)}`}>
-                  <div className="insight-icon">{getSeverityIcon(insight.severity)}</div>
+                <div key={i} className={`insight-card ${severityClass(insight.severity)}`}>
+                  <div className="insight-icon">{severityIcon(insight.severity)}</div>
                   <div className="insight-body">
                     <p className="insight-message">{fmt(insight.message)}</p>
                     {insight.category && <span className="insight-tag">{insight.category}</span>}
@@ -178,72 +277,37 @@ const Insights = () => {
           </div>
         )}
 
-        {activeTab === 'predictions' && predictions && (
-          <div className="predictions-section">
-            {/* Backdated data notice */}
-            {predictions.backdatedImpact && (
-              <div className="forecast-card" style={{
-                background: 'rgba(245,158,11,0.06)',
-                border: '1px solid rgba(245,158,11,0.2)',
-                marginBottom: 16,
-              }}>
-                <div className="forecast-header" style={{ gap: 8 }}>
-                  <Calendar size={18} style={{ color: '#F59E0B' }} />
-                  <h3 style={{ color: '#F59E0B', fontSize: '0.9rem' }}>Backdated Data Included</h3>
-                </div>
-                <p className="forecast-detail" style={{ marginTop: 6, lineHeight: 1.5 }}>
-                  {fmt(predictions.backdatedImpact.message)}
-                </p>
+        {/* REGULAR BILLS */}
+        {activeTab === 'bills' && insights && (
+          <div className="recurring-section">
+            {(!insights.recurring || insights.recurring.length === 0) ? (
+              <div className="empty-state">
+                <Repeat size={48} />
+                <h3>No regular bills detected yet</h3>
+                <p>Recurring payments like subscriptions and rent will appear here once a pattern is spotted.</p>
               </div>
-            )}
-
-            <div className="forecast-card main-forecast">
-              <div className="forecast-header">
-                <Target size={20} />
-                <h3>Total Expense Forecast</h3>
-                <span className={`confidence-badge ${getConfidenceClass(predictions.totalForecast.confidence)}`}>
-                  {predictions.totalForecast.confidence} confidence
-                </span>
-              </div>
-              <div className="forecast-value">{formatCurrency(predictions.totalForecast.predicted || 0)}</div>
-              <p className="forecast-detail">Predicted expenses for {predictions.totalForecast.nextMonth || 'next month'}</p>
-              {predictions.totalForecast.trend !== undefined && (
-                <p className="forecast-method">
-                  Method: Weighted Moving Average with Trend Analysis
-                  {predictions.totalForecast.trend > 0 ? ' (upward trend)' : predictions.totalForecast.trend < 0 ? ' (downward trend)' : ' (stable)'}
-                </p>
-              )}
-            </div>
-
-            <h3 className="section-title">Predicted Spending by Category</h3>
-            <div className="category-forecasts">
-              {Object.entries(predictions.categoryForecasts).map(([cat, pred]) => (
-                <div key={cat} className="category-forecast-card">
-                  <div className="cat-forecast-header">
-                    <span className="cat-name">{cat}</span>
-                    <span className={`trend-badge trend-${pred.trend}`}>
-                      {pred.trend === 'increasing' && <ArrowUpRight size={12} />}
-                      {pred.trend === 'decreasing' && <ArrowDownRight size={12} />}
-                      {pred.trend}
-                    </span>
-                  </div>
-                  <div className="cat-forecast-value">{formatCurrency(pred.predicted)}</div>
-                  <span className={`confidence-badge small ${getConfidenceClass(pred.confidence)}`}>{pred.confidence}</span>
-                </div>
-              ))}
-            </div>
-
-            {predictions.budgetSuggestions.length > 0 && (
+            ) : (
               <>
-                <h3 className="section-title">Suggested Budget Allocations</h3>
-                <div className="budget-suggestions">
-                  {predictions.budgetSuggestions.map((sug, i) => (
-                    <div key={i} className="suggestion-card">
-                      <div className="suggestion-header">
-                        <span>{sug.category}</span>
-                        <span className="suggested-amount">{formatCurrency(sug.suggestedAmount)}</span>
+                <p className="section-subtitle" style={{ marginBottom: 16 }}>
+                  These are payments that happen regularly based on your transaction history.
+                </p>
+                <div className="recurring-list">
+                  {insights.recurring.map((rec, i) => (
+                    <div key={i} className="recurring-card">
+                      <div className="recurring-icon"><Repeat size={18} /></div>
+                      <div className="recurring-body">
+                        <h4>{rec.description}</h4>
+                        <div className="recurring-meta">
+                          <span className="recurring-freq">{rec.frequency}</span>
+                          <span className="recurring-amount">{formatCurrency(rec.amount)}</span>
+                          <span className="recurring-count">{rec.occurrences}× detected</span>
+                          {rec.nextExpected && (
+                            <span className="recurring-next">
+                              Next: {new Date(rec.nextExpected).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}
+                            </span>
+                          )}
+                        </div>
                       </div>
-                      <p className="suggestion-detail">Based on predicted spend of {formatCurrency(sug.predictedSpend)} + 10% buffer</p>
                     </div>
                   ))}
                 </div>
@@ -252,67 +316,6 @@ const Insights = () => {
           </div>
         )}
 
-        {activeTab === 'recurring' && insights && (
-          <div className="recurring-section">
-            {(!insights.recurring || insights.recurring.length === 0) ? (
-              <div className="empty-state">
-                <Repeat size={48} />
-                <h3>No recurring transactions detected</h3>
-                <p>Recurring patterns will be identified as you add more transactions over time.</p>
-              </div>
-            ) : (
-              <div className="recurring-list">
-                {insights.recurring.map((rec, i) => (
-                  <div key={i} className="recurring-card">
-                    <div className="recurring-icon"><Repeat size={18} /></div>
-                    <div className="recurring-body">
-                      <h4>{rec.description}</h4>
-                      <p>{fmt(rec.message)}</p>
-                      <div className="recurring-meta">
-                        <span className="recurring-freq">{rec.frequency}</span>
-                        <span className="recurring-amount">{formatCurrency(rec.amount)}</span>
-                        <span className="recurring-count">{rec.occurrences} occurrences</span>
-                        {rec.nextExpected && (
-                          <span className="recurring-next">
-                            <Calendar size={12} />
-                            Next: {new Date(rec.nextExpected).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        )}
-
-        {activeTab === 'warnings' && predictions && (
-          <div className="warnings-section">
-            {predictions.budgetWarnings.length === 0 ? (
-              <div className="empty-state">
-                <Shield size={48} />
-                <h3>No budget warnings</h3>
-                <p>All budgets are on track. Keep up the good work!</p>
-              </div>
-            ) : (
-              <div className="warnings-list">
-                {predictions.budgetWarnings.map((warn, i) => (
-                  <div key={i} className={`warning-card warning-${warn.severity}`}>
-                    <div className="warning-icon"><AlertTriangle size={18} /></div>
-                    <div className="warning-body">
-                      <p className="warning-message">{fmt(warn.message)}</p>
-                      <div className="warning-bar">
-                        <div className="warning-bar-fill" style={{ width: `${Math.min(100, (warn.spent / warn.allocated) * 100)}%` }} />
-                      </div>
-                      <span className="warning-detail">{formatCurrency(warn.spent)} / {formatCurrency(warn.allocated)}</span>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        )}
       </div>
     </div>
   );

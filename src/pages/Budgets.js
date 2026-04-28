@@ -712,46 +712,31 @@ const Budgets = () => {
             </div>
           )}
 
-          {/* FUNDS SUMMARY — shows this month's income as the ceiling,
-              how much of it has been budgeted, and what's left. */}
+          {/* Over-budget warning only — shown when the user has planned more than they earned */}
           {visibleBudgets.length > 0 && (() => {
             const monthIncome = incomeForMonth(viewMonth);
             const monthAllocated = allocatedForMonth(viewMonth);
-            const leftToBudget = monthIncome - monthAllocated;
-            const overBudgeted = leftToBudget < 0;
-            const noIncomeYet = monthIncome === 0;
-
+            const overBudgeted = monthAllocated > monthIncome && monthIncome > 0;
+            if (!overBudgeted) return null;
             return (
               <div style={{
-                background: overBudgeted ? 'rgba(239,68,68,0.06)' : noIncomeYet ? 'rgba(245,158,11,0.06)' : 'rgba(168,85,247,0.04)',
-                border: `1px solid ${overBudgeted ? 'rgba(239,68,68,0.3)' : noIncomeYet ? 'rgba(245,158,11,0.25)' : 'rgba(168,85,247,0.15)'}`,
+                background: 'rgba(239,68,68,0.06)',
+                border: '1px solid rgba(239,68,68,0.3)',
                 borderRadius: 12,
                 padding: '14px 18px',
                 marginBottom: 16,
+                display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap',
               }}>
-                <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap' }}>
-                  <div>
-                    <div style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 2 }}>
-                      {noIncomeYet ? `No income received in ${viewMonthLabel} yet` :
-                       overBudgeted ? 'Over-budgeted by' : 'Unallocated income'}
-                    </div>
-                    <div style={{ fontSize: '1.4rem', fontWeight: 700, color: overBudgeted ? '#EF4444' : noIncomeYet ? '#F59E0B' : 'var(--text-primary)' }}>
-                      {noIncomeYet ? 'P0' : formatCurrency(Math.abs(leftToBudget))}
-                    </div>
+                <div>
+                  <div style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 2 }}>
+                    Over-budgeted by
                   </div>
-                  <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', textAlign: 'right', maxWidth: 460 }}>
-                    {noIncomeYet ? (
-                      <>Add income transactions for {viewMonthLabel} before creating budgets — you can only budget money you've actually received.</>
-                    ) : overBudgeted ? (
-                      <>
-                        You've planned <strong style={{ color: '#EF4444' }}>{formatCurrency(monthAllocated)}</strong> against <strong style={{ color: '#22C55E' }}>{formatCurrency(monthIncome)}</strong> in {viewMonthLabel} income. Lower a budget or add income to balance.
-                      </>
-                    ) : (
-                      <>
-                        <strong style={{ color: 'var(--text-primary)' }}>{formatCurrency(Math.abs(leftToBudget))}</strong> of your {viewMonthLabel} income isn't yet assigned to any budget. Consider allocating it — or let it sit as free cash for savings.
-                      </>
-                    )}
+                  <div style={{ fontSize: '1.4rem', fontWeight: 700, color: '#EF4444' }}>
+                    {formatCurrency(monthAllocated - monthIncome)}
                   </div>
+                </div>
+                <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', textAlign: 'right', maxWidth: 460 }}>
+                  You've planned <strong style={{ color: '#EF4444' }}>{formatCurrency(monthAllocated)}</strong> against <strong style={{ color: '#22C55E' }}>{formatCurrency(monthIncome)}</strong> in {viewMonthLabel} income. Lower a budget or add more income to balance.
                 </div>
               </div>
             );
@@ -909,6 +894,9 @@ const Budgets = () => {
                       </div>
                       <div className="goal-info">
                         <h3>{goal.name}</h3>
+                        <span className="goal-budget-source" title="Contributions are deducted from your Savings budget">
+                          <PiggyBank size={11} /> Savings budget
+                        </span>
                         {daysLeft !== null && !isComplete && (
                           <span className="goal-deadline">{daysLeft} days left</span>
                         )}
@@ -951,7 +939,9 @@ const Budgets = () => {
                       </div>
                     )}
                     {!isComplete && (
-                      <span className="goal-add-hint">Recorded as a Savings expense. To undo, delete the contribution from Transactions.</span>
+                      <span className="goal-add-hint">
+                        Contributions are logged as <strong>Savings</strong> expense transactions — so the money is deducted from your Savings budget and your monthly balance. To undo, delete the transaction from the Transactions page.
+                      </span>
                     )}
                   </div>
                 );

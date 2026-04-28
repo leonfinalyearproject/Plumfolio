@@ -102,23 +102,40 @@ const Dashboard = () => {
 
   const userName = user?.user_metadata?.full_name?.split(' ')[0] || 'there';
 
-  // Load goals from Supabase (with localStorage fallback if migration not applied)
+  // Load goals from Supabase, computing progress the same way Budgets.js does:
+  // displayed saved = frozen DB baseline + sum of goal_id contribution transactions.
+  // This keeps the number consistent across Dashboard, Budgets, and Insights.
   useEffect(() => {
     if (!user?.id) { setGoals([]); return; }
 
     const loadGoals = async () => {
       try {
-        const { data, error } = await supabase
-          .from('savings_goals')
-          .select('*')
-          .eq('user_id', user.id)
-          .order('created_at', { ascending: true });
-        if (error) throw error;
-        const normalised = (data || []).map(g => ({
-          ...g,
-          target: parseFloat(g.target),
-          saved: parseFloat(g.saved),
-        }));
+        const [goalsRes, contribRes] = await Promise.all([
+          supabase
+            .from('savings_goals')
+            .select('*')
+            .eq('user_id', user.id)
+            .order('created_at', { ascending: true }),
+          supabase
+            .from('transactions')
+            .select('id, goal_id, amount, type')
+            .eq('user_id', user.id)
+            .not('goal_id', 'is', null),
+        ]);
+        if (goalsRes.error) throw goalsRes.error;
+
+        // Build a map of total contributions per goal (expense = +, income/withdrawal = −)
+        const contribsByGoal = (contribRes.data || []).reduce((acc, t) => {
+          const signed = t.type === 'expense' ? parseFloat(t.amount || 0) : -parseFloat(t.amount || 0);
+          acc[t.goal_id] = (acc[t.goal_id] || 0) + signed;
+          return acc;
+        }, {});
+
+        const normalised = (goalsRes.data || []).map(g => {
+          const baseline = parseFloat(g.saved || 0);
+          const contribs = contribsByGoal[g.id] || 0;
+          return { ...g, target: parseFloat(g.target), saved: baseline + contribs };
+        });
         setGoals(normalised);
       } catch (e) {
         // Fall back to localStorage if table doesn't exist yet
@@ -428,31 +445,11 @@ const Dashboard = () => {
               <span className="stat-inline-sub">All-time net: {formatCurrency(stats.balance)}</span>
             )}
           </div>
-          {(stats.hasBudgetsThisMonth || stats.savedThisMonth > 0) && (
+          {stats.savedThisMonth > 0 && (
             <span className="balance-breakdown">
-              {stats.hasBudgetsThisMonth && (
-                <>
-                  <span className="balance-breakdown-item in-budgets">{formatCurrency(stats.remainingInBudgets)} in budgets</span>
-                  <span className="balance-breakdown-sep">+</span>
-                  <span className="balance-breakdown-item unallocated">{formatCurrency(stats.unallocated)} unallocated</span>
-                  {stats.unplannedSpending > 0 && (
-                    <>
-                      <span className="balance-breakdown-sep">−</span>
-                      <span className="balance-breakdown-item unplanned" title="Money spent outside your plan: either on a category with no budget, or past a budget's cap.">
-                        {formatCurrency(stats.unplannedSpending)} unplanned
-                      </span>
-                    </>
-                  )}
-                </>
-              )}
-              {stats.savedThisMonth > 0 && (
-                <>
-                  <span className="balance-breakdown-sep">·</span>
-                  <span className="balance-breakdown-item saved" title="Money moved into savings goals this month. Already counted as a Savings expense in the totals above.">
-                    {formatCurrency(stats.savedThisMonth)} saved
-                  </span>
-                </>
-              )}
+              <span className="balance-breakdown-item saved" title="Money moved into savings goals this month. Already counted as a Savings expense in the totals above.">
+                {formatCurrency(stats.savedThisMonth)} saved this month
+              </span>
             </span>
           )}
           <DeltaBadge current={stats.thisMonthIncome - stats.thisMonthExpenses} previous={stats.lastMonthIncome - stats.lastMonthExpenses} positiveIsGood={true} formatCurrency={formatCurrency} />
