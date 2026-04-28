@@ -756,7 +756,7 @@ const Budgets = () => {
               >
                 <Zap size={16} /> Budget Formula
               </button>
-              <button className="add-budget-btn" onClick={() => { setFormData({ category: 'Food & Dining', allocated: '', month_year: viewMonth >= currentMonthKey ? viewMonth : currentMonthKey }); setFormErrors({}); setEditingBudget(null); setModalOpen(true); }}>
+              <button className="add-budget-btn" onClick={() => { const month = viewMonth >= currentMonthKey ? viewMonth : currentMonthKey; const roomLeft = Math.max(0, incomeForMonth(month) - allocatedForMonth(month)); setFormData({ category: 'Food & Dining', allocated: roomLeft > 0 ? roomLeft.toFixed(2) : '', month_year: month }); setFormErrors({}); setEditingBudget(null); setModalOpen(true); }}>
                 <Plus size={18} /> Add Budget
               </button>
             </div>
@@ -857,7 +857,7 @@ const Budgets = () => {
                     >
                       <Zap size={18} /> Use a Formula
                     </button>
-                    <button className="empty-action-btn primary" onClick={() => { setFormData({ category: 'Food & Dining', allocated: '', month_year: viewMonth }); setFormErrors({}); setEditingBudget(null); setModalOpen(true); }}>
+                    <button className="empty-action-btn primary" onClick={() => { const roomLeft = Math.max(0, incomeForMonth(viewMonth) - allocatedForMonth(viewMonth)); setFormData({ category: 'Food & Dining', allocated: roomLeft > 0 ? roomLeft.toFixed(2) : '', month_year: viewMonth }); setFormErrors({}); setEditingBudget(null); setModalOpen(true); }}>
                       <Plus size={18} /> Create Budget
                     </button>
                   </div>
@@ -986,20 +986,6 @@ const Budgets = () => {
               )}
 
               {/* Available-funds hint — one line, using THIS month's income */}
-              {!modalIsPast && !modalExceedsFunds && modalMonthIncome > 0 && (
-                <div style={{
-                  fontSize: '0.75rem',
-                  color: 'var(--text-secondary)',
-                  marginBottom: 10,
-                  padding: '8px 12px',
-                  background: 'rgba(168,85,247,0.05)',
-                  borderRadius: 8,
-                }}>
-                  {formData.month_year} income: <strong style={{ color: '#22C55E' }}>{formatCurrency(modalMonthIncome)}</strong>
-                  {existingThisMonthAllocated > 0 && <> · Already budgeted: {formatCurrency(existingThisMonthAllocated)}</>}
-                  {' · '}Max for this budget: <strong style={{ color: '#22C55E' }}>{formatCurrency(modalRoomLeft)}</strong>
-                </div>
-              )}
               {!modalIsPast && modalMonthIncome === 0 && (
                 <div style={{
                   background: 'rgba(245,158,11,0.08)',
@@ -1027,7 +1013,7 @@ const Budgets = () => {
                   display: 'flex', alignItems: 'center', gap: 6,
                 }}>
                   <AlertTriangle size={14} />
-                  Too much. Max is {formatCurrency(modalRoomLeft)}.
+                  Amount exceeds your available income ({formatCurrency(modalRoomLeft)} remaining).
                 </div>
               )}
 
@@ -1057,8 +1043,7 @@ const Budgets = () => {
                 {formErrors.allocated
                   ? <span className="field-error">{formErrors.allocated}</span>
                   : <span className="field-hint">
-                      {modalAlreadySpent > 0 && `Already spent ${formatCurrency(modalAlreadySpent)}. `}
-                      Max {formatCurrency(modalRoomLeft)}
+                      {modalAlreadySpent > 0 && `Already spent ${formatCurrency(modalAlreadySpent)} this month.`}
                     </span>}
               </div>
               <div className={`form-group ${formErrors.month_year ? 'has-error' : ''}`}>
