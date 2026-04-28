@@ -184,6 +184,10 @@
   from { transform: translateX(110%); opacity: 0; }
   to   { transform: translateX(0); opacity: 1; }
 }
+@keyframes toastSlideUp {
+  from { transform: translateY(20px); opacity: 0; }
+  to   { transform: translateY(0); opacity: 1; }
+}
 @keyframes toastProgress {
   from { transform: scaleX(1); }
   to   { transform: scaleX(0); }
@@ -518,6 +522,9 @@
     max-width: none !important;
     width: auto !important;
     max-height: 50vh !important;
-    z-index: 1001 !important;
+    z-index: 1002 !important;
+  }
+  .ai-toast {
+    animation: toastSlideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1);
   }
 }
