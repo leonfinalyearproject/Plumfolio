@@ -87,27 +87,33 @@ const SignUp = () => {
     setLoading(true);
     setServerError('');
 
-    const { error } = await signUp(
+    const { data, error } = await signUp(
       formData.email.trim(),
       formData.password,
       formData.fullName.trim(),
     );
 
-    if (error) {
-      const isDuplicate =
-        error.message?.toLowerCase().includes('user already registered') ||
-        error.message?.toLowerCase().includes('already been registered') ||
-        error.message?.toLowerCase().includes('email address is already') ||
-        error.message?.toLowerCase().includes('already in use') ||
-        error.code === '23505';   // Postgres unique-violation code
-      if (isDuplicate) {
-        // Show the error on the email field so it's impossible to miss
-        setErrors(prev => ({ ...prev, email: 'This email is already registered. Sign in instead.' }));
-        setTouched(prev => ({ ...prev, email: true }));
-        setServerError('');
-      } else {
-        setServerError(error.message);
-      }
+    // Supabase silently "succeeds" for duplicate emails when email confirmation
+    // is enabled — it returns no error but gives back a user with an empty
+    // identities array. Detect and reject this case explicitly.
+    const isDuplicateSilent =
+      !error && data?.user && Array.isArray(data.user.identities) && data.user.identities.length === 0;
+
+    const isDuplicateError = error && (
+      error.message?.toLowerCase().includes('user already registered') ||
+      error.message?.toLowerCase().includes('already been registered') ||
+      error.message?.toLowerCase().includes('email address is already') ||
+      error.message?.toLowerCase().includes('already in use') ||
+      error.code === '23505'
+    );
+
+    if (isDuplicateSilent || isDuplicateError) {
+      setErrors(prev => ({ ...prev, email: 'This email is already registered. Sign in instead.' }));
+      setTouched(prev => ({ ...prev, email: true }));
+      setServerError('');
+      setLoading(false);
+    } else if (error) {
+      setServerError(error.message);
       setLoading(false);
     } else {
       setSuccess(true);
