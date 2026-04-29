@@ -251,7 +251,8 @@ const Budgets = () => {
   // If the user has already started doing (b), we lock (a) so the formula
   // doesn't steamroll over their manual choices. If they want to start over,
   // they can delete their existing budgets and the formula re-enables.
-  const hasManualBudgetsThisMonth = budgets.some(b => b.month_year === currentMonthKey);
+  // Lock the formula only for the month currently being viewed, not globally
+  const hasManualBudgetsThisMonth = budgets.some(b => b.month_year === viewMonth);
 
   // =============================================================
   // AVAILABLE TO BUDGET — per-month rule
@@ -516,11 +517,10 @@ const Budgets = () => {
     if (selectedRule === null || !ruleIncome) return;
     const income = parseFloat(ruleIncome);
     const rule = budgetRules[selectedRule];
-    // Always apply formulas to the current month (you can't plan the past).
-    const monthYear = new Date().toISOString().slice(0, 7);
+    // Apply formula to the currently viewed month (current or future only — no past).
+    const monthYear = viewMonth < currentMonthKey ? currentMonthKey : viewMonth;
 
-    // Belt-and-braces: refuse if manual budgets already exist this month.
-    // The button should already be disabled, but never trust the UI.
+    // Belt-and-braces: refuse if manual budgets already exist for this month.
     if (hasManualBudgetsThisMonth) {
       if (addToast) addToast({
         type: 'warning',
@@ -530,20 +530,8 @@ const Budgets = () => {
       return;
     }
 
-    // Hard block: can only allocate what came in this month, minus what's
-    // already been budgeted for this month.
-    const thisMonthIncome = incomeForMonth(monthYear);
     const existingForThisMonth = allocatedForMonth(monthYear);
-    const room = thisMonthIncome - existingForThisMonth;
-
-    if (thisMonthIncome === 0) {
-      if (addToast) addToast({
-        type: 'warning',
-        title: 'No income yet',
-        message: `No income received in ${monthYear}. Add income transactions before budgeting.`,
-      });
-      return;
-    }
+    const room = income - existingForThisMonth;
 
     if (income > room + 0.01) {
       if (addToast) addToast({
@@ -755,7 +743,7 @@ const Budgets = () => {
             <div className="budgets-header-actions">
               <button
                 className="rule-btn"
-                onClick={() => { const avail = Math.max(0, incomeForMonth(currentMonthKey) - allocatedForMonth(currentMonthKey)); setRuleIncome(avail > 0 ? avail.toFixed(0) : ''); setShowRuleModal(true); }}
+                onClick={() => { const avail = Math.max(0, incomeForMonth(viewMonth) - allocatedForMonth(viewMonth)); setRuleIncome(avail > 0 ? avail.toFixed(0) : ''); setShowRuleModal(true); }}
                 disabled={hasManualBudgetsThisMonth}
                 title={hasManualBudgetsThisMonth
                   ? "You've already created budgets manually for this month. Delete them first if you want to use the formula instead."
@@ -773,7 +761,7 @@ const Budgets = () => {
           {/* Explainer when the formula is locked — sits between the header
               and the budget grid so users immediately understand why the
               formula button is dimmed. */}
-          {hasManualBudgetsThisMonth && viewMonth === currentMonthKey && (
+          {hasManualBudgetsThisMonth && (
             <div style={{
               background: 'rgba(168,85,247,0.04)',
               border: '1px solid rgba(168,85,247,0.15)',
@@ -856,7 +844,7 @@ const Budgets = () => {
                   <div className="empty-state-actions">
                     <button
                       className="empty-action-btn"
-                      onClick={() => { const avail = Math.max(0, incomeForMonth(currentMonthKey) - allocatedForMonth(currentMonthKey)); setRuleIncome(avail > 0 ? avail.toFixed(0) : ''); setShowRuleModal(true); }}
+                      onClick={() => { const avail = Math.max(0, incomeForMonth(viewMonth) - allocatedForMonth(viewMonth)); setRuleIncome(avail > 0 ? avail.toFixed(0) : ''); setShowRuleModal(true); }}
                       disabled={hasManualBudgetsThisMonth}
                       title={hasManualBudgetsThisMonth
                         ? "You've already created budgets manually for this month. Delete them first to use the formula."
