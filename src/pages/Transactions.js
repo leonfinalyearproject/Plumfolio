@@ -454,6 +454,40 @@ const Transactions = () => {
               ? `${payload.description} — ${formatCurrency(payload.amount)} applied to your ${payload.category} budget`
               : `${payload.description} — ${formatCurrency(payload.amount)}`,
         });
+        // Budget breach detection — warn if this expense pushed a category or
+        // the total budget over the limit.
+        if (payload.type === 'expense' && addToast && Object.keys(budgetsByCategory).length > 0) {
+          const currentMonth = new Date().toISOString().slice(0, 7);
+          const allTxns = [data[0], ...transactions];
+          const monthExpenses = allTxns.filter(
+            t => t.type === 'expense' && (t.date || '').startsWith(currentMonth)
+          );
+          // Check individual category budget
+          if (matchedBudget) {
+            const catSpent = monthExpenses
+              .filter(t => t.category === payload.category)
+              .reduce((s, t) => s + t.amount, 0);
+            if (catSpent > matchedBudget.allocated) {
+              addToast({
+                type: 'warning',
+                title: `${payload.category} Budget Exceeded`,
+                message: `You've spent ${formatCurrency(catSpent)} of your ${formatCurrency(matchedBudget.allocated)} ${payload.category} budget — over by ${formatCurrency(catSpent - matchedBudget.allocated)}.`,
+              });
+            }
+          }
+          // Check total budget
+          const totalBudgeted = Object.values(budgetsByCategory).reduce((s, b) => s + b.allocated, 0);
+          const totalSpent = monthExpenses
+            .filter(t => budgetsByCategory[t.category])
+            .reduce((s, t) => s + t.amount, 0);
+          if (totalSpent > totalBudgeted) {
+            addToast({
+              type: 'warning',
+              title: 'Total Budget Exceeded',
+              message: `Your total budgeted spending (${formatCurrency(totalSpent)}) has exceeded your total budget of ${formatCurrency(totalBudgeted)} by ${formatCurrency(totalSpent - totalBudgeted)}.`,
+            });
+          }
+        }
         // Manual add → user explicitly chose merchant + category. Vote.
         if (payload.description && payload.category && payload.category !== 'Other' && payload.type === 'expense') {
           supabase.rpc('vote_for_merchant_category', {
