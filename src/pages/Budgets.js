@@ -245,14 +245,6 @@ const Budgets = () => {
   const currentMonthKey = new Date().toISOString().slice(0, 7);
   const isPastMonth = (my) => my && my < currentMonthKey;
 
-  // Current month's real balance: income received minus expenses paid this month.
-  // This is the honest "how much money do I actually have?" for the current month,
-  // matching what the Dashboard shows. Used as the reference when creating budgets.
-  const thisMonthExpenses = (ctxTransactions || [])
-    .filter(t => t.type === 'expense' && (t.date || '').slice(0, 7) === currentMonthKey)
-    .reduce((s, t) => s + parseFloat(t.amount || 0), 0);
-  const thisMonthBalance = incomeForMonth(currentMonthKey) - thisMonthExpenses;
-
   // Budget Formula vs Manual budgets — mutually exclusive.
   // The two ways of setting up a month are (a) click the formula and let
   // it auto-split your income, OR (b) add budgets one by one manually.
@@ -287,6 +279,13 @@ const Budgets = () => {
       return true;
     })
     .reduce((s, b) => s + parseFloat(b.allocated || 0), 0);
+
+  // Current month's real balance: income minus expenses this month.
+  // Matches what the Dashboard shows as "Balance (this month)".
+  const thisMonthExpenses = (ctxTransactions || [])
+    .filter(t => t.type === 'expense' && (t.date || '').slice(0, 7) === currentMonthKey)
+    .reduce((s, t) => s + parseFloat(t.amount || 0), 0);
+  const thisMonthBalance = incomeForMonth(currentMonthKey) - thisMonthExpenses;
 
   // Live modal values
   const modalMonthIncome = incomeForMonth(formData.month_year);
