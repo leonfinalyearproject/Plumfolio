@@ -6,6 +6,7 @@ import {
   FileText, Download, Calendar, TrendingUp, TrendingDown,
   PieChart, BarChart3, ArrowUpCircle, ArrowDownCircle, Wallet
 } from 'lucide-react';
+import MonthPicker from '../components/MonthPicker';
 import './Reports.css';
 
 // Delta line shown beneath each report summary metric
@@ -323,7 +324,10 @@ tr:last-child td{border-bottom:none}
         </div>
         <div className="period-selector">
           {period === 'month' && (
-            <input type="month" value={selectedMonth} onChange={e => setSelectedMonth(e.target.value)} />
+            <MonthPicker
+              value={selectedMonth}
+              onChange={v => v && setSelectedMonth(v)}
+            />
           )}
           {period === 'year' && (
             <select value={selectedYear} onChange={e => setSelectedYear(e.target.value)}>
