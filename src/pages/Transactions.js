@@ -1790,7 +1790,7 @@ const Transactions = () => {
                                 value={r.category}
                                 onChange={e => updateImportRowCategory(i, e.target.value)}
                                 style={{
-                                  background: 'rgba(255,255,255,0.04)',
+                                  background: 'var(--bg-secondary, #1e1e2e)',
                                   border: '1px solid var(--border-color)',
                                   borderRadius: 5,
                                   color: 'var(--text-primary)',
@@ -1798,6 +1798,7 @@ const Transactions = () => {
                                   fontSize: '0.74rem',
                                   cursor: 'pointer',
                                   outline: 'none',
+                                  colorScheme: 'dark',
                                 }}
                               >
                                 {categories.map(c => <option key={c} value={c}>{c}</option>)}
