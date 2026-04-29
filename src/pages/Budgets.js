@@ -322,7 +322,10 @@ const Budgets = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     const { isValid, errors } = validateBudgetForm(formData, categories);
-    if (!isValid) {
+    // When editing, the month is already fixed — skip month_year validation errors
+    // (the value came from the existing record, not user input).
+    if (editingBudget) delete errors.month_year;
+    if (!isValid && Object.keys(errors).length > 0) {
       setFormErrors(errors);
       return;
     }
@@ -464,7 +467,18 @@ const Budgets = () => {
 
   const addToGoal = async (id, amount) => {
     const parsed = parseFloat(amount);
-    if (!parsed || parsed <= 0 || !isFinite(parsed)) return;
+    if (!amount || !amount.toString().trim()) {
+      if (addToast) addToast({ type: 'warning', title: 'Enter an amount', message: 'Type a value before clicking Add.' });
+      return;
+    }
+    if (isNaN(parsed) || !isFinite(parsed) || parsed <= 0) {
+      if (addToast) addToast({ type: 'warning', title: 'Invalid amount', message: 'Amount must be a positive number.' });
+      return;
+    }
+    if (parsed > 10000000) {
+      if (addToast) addToast({ type: 'warning', title: 'Amount too high', message: 'Max contribution is 10,000,000.' });
+      return;
+    }
     const g = goals.find(x => x.id === id);
     if (!g) return;
     // Cap at remaining room so we never overshoot the target. Note `g.saved`
@@ -472,7 +486,10 @@ const Budgets = () => {
     // DB column — which is exactly what we want for room calc.
     const room = Math.max(0, g.target - g.saved);
     const actuallyAdding = Math.min(parsed, room);
-    if (actuallyAdding <= 0) return;
+    if (actuallyAdding <= 0) {
+      if (addToast) addToast({ type: 'info', title: 'Goal already complete', message: `${g.name} has already reached its target.` });
+      return;
+    }
 
     try {
       // Create a real expense transaction in the Savings category. This is

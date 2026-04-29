@@ -1374,7 +1374,7 @@ const Transactions = () => {
                 <label>Amount</label>
                 <div className="tx-amt-input">
                   <span>{symbol}</span>
-                  <input type="number" step="0.01" value={formData.amount} onChange={e => { setFormData({...formData, amount: e.target.value}); setDuplicateMatches([]); }} placeholder="0.00" />
+                  <input type="number" step="0.01" min="0.01" max="10000000" value={formData.amount} onChange={e => { setFormData({...formData, amount: e.target.value}); setDuplicateMatches([]); }} placeholder="0.00" />
                 </div>
                 {formErrors.amount && <span className="tx-err">{formErrors.amount}</span>}
               </div>
