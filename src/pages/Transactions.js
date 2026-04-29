@@ -393,8 +393,8 @@ const Transactions = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    const errors = validateTransactionForm(formData);
-    if (Object.keys(errors).length > 0) { setFormErrors(errors); return; }
+    const { isValid, errors } = validateTransactionForm(formData);
+    if (!isValid) { setFormErrors(errors); return; }
 
     const payload = {
       user_id: user.id,
