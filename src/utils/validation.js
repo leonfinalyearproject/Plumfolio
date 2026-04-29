@@ -130,10 +130,10 @@ export const validateMonth = (value) => {
   if (month < 1 || month > 12) return 'Invalid month';
   const now = new Date();
   const target = new Date(year, month - 1, 1);
-  const minDate = new Date(now.getFullYear(), now.getMonth() - 12, 1);
-  const maxDate = new Date(now.getFullYear(), now.getMonth() + 12, 1);
-  if (target < minDate) return 'Month cannot be more than 12 months in the past';
-  if (target > maxDate) return 'Month cannot be more than 12 months in the future';
+  const minDate = new Date(now.getFullYear() - 5, 0, 1);
+  const maxDate = new Date(now.getFullYear(), now.getMonth() + 24, 1);
+  if (target < minDate) return 'Month cannot be more than 5 years in the past';
+  if (target > maxDate) return 'Month cannot be more than 2 years in the future';
   return '';
 };
 
