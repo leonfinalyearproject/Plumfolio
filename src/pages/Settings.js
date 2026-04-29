@@ -47,7 +47,7 @@ const Settings = () => {
         console.error('Delete error:', firstError.error);
       }
       // Attempt to call server-side function to remove the auth user (optional)
-      await supabase.rpc('delete_own_account').catch(() => {});
+      try { await supabase.rpc('delete_own_account'); } catch (_) {}
       // Clear any local storage scoped to this user
       Object.keys(localStorage)
         .filter(k => k.includes(uid) || k.startsWith('plumfolio:'))
