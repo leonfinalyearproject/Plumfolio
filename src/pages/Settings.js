@@ -33,18 +33,31 @@ const Settings = () => {
     setDeleting(true);
     try {
       const uid = user.id;
-      // Delete all user data from app tables
-      await Promise.all([
+      // Delete all user data from every app table.
+      // Supabase client returns { error } rather than throwing, so we check each.
+      const deletes = await Promise.all([
         supabase.from('transactions').delete().eq('user_id', uid),
         supabase.from('budgets').delete().eq('user_id', uid),
         supabase.from('savings_goals').delete().eq('user_id', uid),
+        supabase.from('scan_usage').delete().eq('user_id', uid),
+        supabase.from('profiles').delete().eq('id', uid),
       ]);
-      // Attempt to call server-side function to remove auth user (if available)
+      const firstError = deletes.find(r => r.error);
+      if (firstError) {
+        console.error('Delete error:', firstError.error);
+      }
+      // Attempt to call server-side function to remove the auth user (optional)
       await supabase.rpc('delete_own_account').catch(() => {});
-      // Sign out and redirect
+      // Clear any local storage scoped to this user
+      Object.keys(localStorage)
+        .filter(k => k.includes(uid) || k.startsWith('plumfolio:'))
+        .forEach(k => localStorage.removeItem(k));
+      // Sign out
       await signOut();
-      if (addToast) addToast({ type: 'info', title: 'Account Deleted', message: 'Your account and all data have been removed.' });
+      // Force redirect in case signOut doesn't navigate
+      window.location.href = '/';
     } catch (err) {
+      console.error('Account deletion failed:', err);
       if (addToast) addToast({ type: 'warning', title: 'Deletion Failed', message: err.message || 'Something went wrong. Please try again.' });
       setDeleting(false);
     }
