@@ -54,8 +54,8 @@ const Settings = () => {
         .forEach(k => localStorage.removeItem(k));
       // Sign out
       await signOut();
-      // Force redirect in case signOut doesn't navigate
-      window.location.href = '/';
+      // Force redirect to sign-in page (respects GitHub Pages basename)
+      window.location.href = (process.env.PUBLIC_URL || '') + '/signin';
     } catch (err) {
       console.error('Account deletion failed:', err);
       if (addToast) addToast({ type: 'warning', title: 'Deletion Failed', message: err.message || 'Something went wrong. Please try again.' });
