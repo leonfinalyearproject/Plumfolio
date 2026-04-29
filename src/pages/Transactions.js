@@ -48,6 +48,7 @@ const Transactions = () => {
   const [formData, setFormData] = useState({
     type: 'expense', amount: '', description: '',
     category: 'Food & Dining', date: new Date().toISOString().split('T')[0],
+    goal_id: '',
   });
   const [formErrors, setFormErrors] = useState({});
   // Duplicate-detection state: when we find potential matches, we block the
@@ -155,20 +156,28 @@ const Transactions = () => {
   }, [scannerOpen]);
 
   const [goalsById, setGoalsById] = useState({});
+  // budgetsByCategory: { 'Food & Dining': { allocated: 3000 }, ... } for current month
+  const [budgetsByCategory, setBudgetsByCategory] = useState({});
   useEffect(() => {
     if (!user) return;
     const fetchTransactions = async () => {
-      // Pull transactions and goals in parallel so we can show "→ Emergency
-      // Fund" on any transaction that's a savings-goal contribution.
-      const [txnRes, goalsRes] = await Promise.all([
+      const currentMonthKey = new Date().toISOString().slice(0, 7);
+      // Pull transactions, goals, and this month's budgets in parallel.
+      const [txnRes, goalsRes, budgetsRes] = await Promise.all([
         supabase.from('transactions').select('*').eq('user_id', user.id).order('date', { ascending: false }),
         supabase.from('savings_goals').select('id, name').eq('user_id', user.id),
+        supabase.from('budgets').select('category, allocated').eq('user_id', user.id).eq('month_year', currentMonthKey),
       ]);
       if (!txnRes.error) setTransactions(txnRes.data || []);
       if (!goalsRes.error) {
         const lookup = {};
         (goalsRes.data || []).forEach(g => { lookup[g.id] = g.name; });
         setGoalsById(lookup);
+      }
+      if (!budgetsRes.error) {
+        const bLookup = {};
+        (budgetsRes.data || []).forEach(b => { bLookup[b.category] = b; });
+        setBudgetsByCategory(bLookup);
       }
       setLoading(false);
     };
@@ -403,6 +412,7 @@ const Transactions = () => {
       description: formData.description.trim(),
       category: formData.category,
       date: formData.date,
+      ...(formData.goal_id ? { goal_id: formData.goal_id } : {}),
     };
 
     // Duplicate check — skipped on edit (editing = intentional change to an
@@ -419,7 +429,7 @@ const Transactions = () => {
       const { error } = await supabase.from('transactions').update(payload).eq('id', editingTransaction.id);
       if (!error) {
         setTransactions(prev => prev.map(t => t.id === editingTransaction.id ? { ...t, ...payload } : t));
-        if (addToast) addToast({ type: 'success', title: 'Updated', message: 'Transaction updated' });
+        if (addToast) addToast({ type: 'success', title: 'Transaction Updated', message: `${payload.description} — ${formatCurrency(payload.amount)}` });
         // Editing a transaction → user actively confirmed merchant→category. Vote.
         if (payload.description && payload.category && payload.category !== 'Other' && payload.type === 'expense') {
           supabase.rpc('vote_for_merchant_category', {
@@ -432,7 +442,17 @@ const Transactions = () => {
       const { data, error } = await supabase.from('transactions').insert([payload]).select();
       if (!error && data) {
         setTransactions(prev => [data[0], ...prev]);
-        if (addToast) addToast({ type: 'success', title: 'Added', message: 'Transaction added' });
+        const goalName = payload.goal_id ? goalsById[payload.goal_id] : null;
+        const matchedBudget = !goalName && payload.type === 'expense' ? budgetsByCategory[payload.category] : null;
+        if (addToast) addToast({
+          type: 'success',
+          title: goalName ? `Added to ${goalName}` : 'Transaction Added',
+          message: goalName
+            ? `${formatCurrency(payload.amount)} saved towards ${goalName}`
+            : matchedBudget
+              ? `${payload.description} — ${formatCurrency(payload.amount)} applied to your ${payload.category} budget`
+              : `${payload.description} — ${formatCurrency(payload.amount)}`,
+        });
         // Manual add → user explicitly chose merchant + category. Vote.
         if (payload.description && payload.category && payload.category !== 'Other' && payload.type === 'expense') {
           supabase.rpc('vote_for_merchant_category', {
@@ -445,7 +465,7 @@ const Transactions = () => {
 
     setModalOpen(false);
     setEditingTransaction(null);
-    setFormData({ type: 'expense', amount: '', description: '', category: 'Food & Dining', date: new Date().toISOString().split('T')[0] });
+    setFormData({ type: 'expense', amount: '', description: '', category: 'Food & Dining', date: new Date().toISOString().split('T')[0], goal_id: '' });
     setFormErrors({});
     setDuplicateMatches([]);
     setDuplicateOverride(false);
@@ -1371,7 +1391,7 @@ const Transactions = () => {
               <div className="tx-field-row">
                 <div className="tx-field">
                   <label>Category</label>
-                  <select value={formData.category} onChange={e => { setFormData({...formData, category: e.target.value}); setDuplicateMatches([]); }}>
+                  <select value={formData.category} onChange={e => { setFormData({...formData, category: e.target.value, goal_id: ''}); setDuplicateMatches([]); }}>
                     {categories.map(c => <option key={c} value={c}>{c}</option>)}
                   </select>
                 </div>
@@ -1380,6 +1400,19 @@ const Transactions = () => {
                   <input type="date" value={formData.date} onChange={e => setFormData({...formData, date: e.target.value})} />
                 </div>
               </div>
+              {formData.category === 'Savings' && formData.type === 'expense' && Object.keys(goalsById).length > 0 && (
+                <div className="tx-field">
+                  <label style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <PiggyBank size={14} /> Link to Savings Goal <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 400 }}>(optional)</span>
+                  </label>
+                  <select value={formData.goal_id} onChange={e => setFormData({...formData, goal_id: e.target.value})}>
+                    <option value=''>— No specific goal —</option>
+                    {Object.entries(goalsById).map(([id, name]) => (
+                      <option key={id} value={id}>{name}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
               <button type="submit" className="tx-submit">{editingTransaction ? 'Save' : 'Add Transaction'}</button>
             </form>
           </div>
