@@ -1,69 +1,44 @@
 import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import {
+  validateEmail, validatePassword, validatePasswordMatch, validateFullName,
+} from '../utils/validation';
 import { Mail, Lock, User, ArrowRight, Check, AlertCircle, Eye, EyeOff } from 'lucide-react';
 import Slideshow from '../components/Slideshow';
 import './Auth.css';
 
 const SignUp = () => {
   const [formData, setFormData] = useState({
-    fullName: '',
-    email: '',
-    password: '',
-    confirmPassword: '',
+    fullName: '', email: '', password: '', confirmPassword: '',
   });
   const [errors, setErrors] = useState({});
   const [touched, setTouched] = useState({});
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
+  const [serverError, setServerError] = useState('');
   const [success, setSuccess] = useState(false);
   const navigate = useNavigate();
   const { signUp } = useAuth();
 
-  // Validation rules
-  const validateField = (name, value) => {
-    switch (name) {
-      case 'fullName':
-        if (!value.trim()) return 'Full name is required';
-        if (value.trim().length < 2) return 'Name must be at least 2 characters';
-        if (value.trim().length > 50) return 'Name must be less than 50 characters';
-        if (!/^[a-zA-Z\s'-]+$/.test(value)) return 'Name can only contain letters, spaces, hyphens, and apostrophes';
-        return '';
-      
-      case 'email':
-        if (!value.trim()) return 'Email is required';
-        if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)) return 'Please enter a valid email address';
-        return '';
-      
-      case 'password':
-        if (!value) return 'Password is required';
-        if (value.length < 8) return 'Password must be at least 8 characters';
-        if (!/[A-Z]/.test(value)) return 'Password must contain at least one uppercase letter';
-        if (!/[a-z]/.test(value)) return 'Password must contain at least one lowercase letter';
-        if (!/[0-9]/.test(value)) return 'Password must contain at least one number';
-        return '';
-      
-      case 'confirmPassword':
-        if (!value) return 'Please confirm your password';
-        if (value !== formData.password) return 'Passwords do not match';
-        return '';
-      
-      default:
-        return '';
-    }
+  const validateField = (name, value, allData = formData) => {
+    if (name === 'fullName') return validateFullName(value);
+    if (name === 'email') return validateEmail(value.trim());
+    if (name === 'password') return validatePassword(value);
+    if (name === 'confirmPassword') return validatePasswordMatch(allData.password, value);
+    return '';
   };
 
   // Password strength indicator
-  const getPasswordStrength = (password) => {
-    let strength = 0;
-    if (password.length >= 8) strength++;
-    if (/[A-Z]/.test(password)) strength++;
-    if (/[a-z]/.test(password)) strength++;
-    if (/[0-9]/.test(password)) strength++;
-    if (/[^A-Za-z0-9]/.test(password)) strength++;
-    return strength;
+  const getPasswordStrength = (pw) => {
+    let s = 0;
+    if (pw.length >= 8) s++;
+    if (/[A-Z]/.test(pw)) s++;
+    if (/[a-z]/.test(pw)) s++;
+    if (/[0-9]/.test(pw)) s++;
+    if (/[^A-Za-z0-9]/.test(pw)) s++;
+    return s;
   };
 
   const passwordStrength = getPasswordStrength(formData.password);
@@ -72,56 +47,57 @@ const SignUp = () => {
 
   const handleChange = (e) => {
     const { name, value } = e.target;
-    setFormData({ ...formData, [name]: value });
-    setError('');
-    
+    const updated = { ...formData, [name]: value };
+    setFormData(updated);
+    setServerError('');
     if (touched[name]) {
-      setErrors({ ...errors, [name]: validateField(name, value) });
+      setErrors(prev => ({ ...prev, [name]: validateField(name, value, updated) }));
     }
-    
+    // Re-validate confirm password live when password changes
     if (name === 'password' && touched.confirmPassword) {
       setErrors(prev => ({
         ...prev,
-        confirmPassword: formData.confirmPassword !== value ? 'Passwords do not match' : ''
+        confirmPassword: validatePasswordMatch(value, updated.confirmPassword),
       }));
     }
   };
 
   const handleBlur = (e) => {
     const { name, value } = e.target;
-    setTouched({ ...touched, [name]: true });
-    setErrors({ ...errors, [name]: validateField(name, value) });
+    setTouched(prev => ({ ...prev, [name]: true }));
+    setErrors(prev => ({ ...prev, [name]: validateField(name, value) }));
   };
 
-  const validateForm = () => {
+  const validateAll = () => {
     const newErrors = {
-      fullName: validateField('fullName', formData.fullName),
-      email: validateField('email', formData.email),
-      password: validateField('password', formData.password),
-      confirmPassword: validateField('confirmPassword', formData.confirmPassword),
+      fullName: validateFullName(formData.fullName),
+      email: validateEmail(formData.email.trim()),
+      password: validatePassword(formData.password),
+      confirmPassword: validatePasswordMatch(formData.password, formData.confirmPassword),
     };
-    
     setErrors(newErrors);
     setTouched({ fullName: true, email: true, password: true, confirmPassword: true });
-    
-    return !Object.values(newErrors).some(error => error);
+    return !Object.values(newErrors).some(e => e);
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    
-    if (!validateForm()) return;
+    if (!validateAll()) return;
 
     setLoading(true);
-    setError('');
+    setServerError('');
 
-    const { error } = await signUp(formData.email, formData.password, formData.fullName.trim());
-    
+    const { error } = await signUp(
+      formData.email.trim(),
+      formData.password,
+      formData.fullName.trim(),
+    );
+
     if (error) {
       if (error.message.includes('User already registered')) {
-        setError('An account with this email already exists. Please sign in instead.');
+        setServerError('An account with this email already exists. Please sign in instead.');
       } else {
-        setError(error.message);
+        setServerError(error.message);
       }
       setLoading(false);
     } else {
@@ -136,16 +112,12 @@ const SignUp = () => {
         <Slideshow />
         <div className="auth-container">
           <div className="auth-card success-card">
-            <div className="success-icon">
-              <Check size={24} />
-            </div>
+            <div className="success-icon"><Check size={24} /></div>
             <h2>Check your email</h2>
-            <p>We sent a verification link to <strong>{formData.email}</strong></p>
+            <p>We sent a verification link to <strong>{formData.email.trim()}</strong></p>
             <span className="success-note">Redirecting to sign in...</span>
           </div>
-          <footer className="auth-footer">
-            <p>&copy; Plumfolio 2026</p>
-          </footer>
+          <footer className="auth-footer"><p>&copy; Plumfolio 2026</p></footer>
         </div>
       </div>
     );
@@ -154,26 +126,26 @@ const SignUp = () => {
   return (
     <div className="auth-page">
       <Slideshow />
-      
       <div className="auth-container">
         <Link to="/" className="auth-logo-link">
           <img src={`${process.env.PUBLIC_URL}/logo.png`} alt="Plumfolio" className="auth-logo" />
         </Link>
-        
+
         <div className="auth-card">
           <div className="auth-header">
             <h1>Create account</h1>
             <p>Start tracking your finances</p>
           </div>
-          
-          {error && (
+
+          {serverError && (
             <div className="auth-error">
               <AlertCircle size={16} />
-              <span>{error}</span>
+              <span>{serverError}</span>
             </div>
           )}
-          
+
           <form onSubmit={handleSubmit} className="auth-form" noValidate>
+            {/* Full Name */}
             <div className="input-group">
               <label htmlFor="fullName">
                 Full Name <span className="required">*</span>
@@ -189,15 +161,17 @@ const SignUp = () => {
                   onBlur={handleBlur}
                   placeholder="John Doe"
                   autoComplete="name"
+                  maxLength={60}
                   required
                 />
               </div>
-              {errors.fullName && touched.fullName && (
-                <span className="field-error">{errors.fullName}</span>
-              )}
-              <span className="field-hint">Enter your full name as it appears on official documents</span>
+              {errors.fullName && touched.fullName
+                ? <span className="field-error">{errors.fullName}</span>
+                : <span className="field-hint">Letters, spaces, hyphens and apostrophes only</span>
+              }
             </div>
-            
+
+            {/* Email */}
             <div className="input-group">
               <label htmlFor="email">
                 Email <span className="required">*</span>
@@ -213,15 +187,18 @@ const SignUp = () => {
                   onBlur={handleBlur}
                   placeholder="you@example.com"
                   autoComplete="email"
+                  autoCapitalize="off"
+                  maxLength={254}
                   required
                 />
               </div>
-              {errors.email && touched.email && (
-                <span className="field-error">{errors.email}</span>
-              )}
-              <span className="field-hint">We'll send a verification link to this address</span>
+              {errors.email && touched.email
+                ? <span className="field-error">{errors.email}</span>
+                : <span className="field-hint">We'll send a verification link to this address</span>
+              }
             </div>
-            
+
+            {/* Password */}
             <div className="input-group">
               <label htmlFor="password">
                 Password <span className="required">*</span>
@@ -237,12 +214,14 @@ const SignUp = () => {
                   onBlur={handleBlur}
                   placeholder="Create a strong password"
                   autoComplete="new-password"
+                  minLength={8}
+                  maxLength={128}
                   required
                 />
-                <button 
-                  type="button" 
+                <button
+                  type="button"
                   className="password-toggle"
-                  onClick={() => setShowPassword(!showPassword)}
+                  onClick={() => setShowPassword(v => !v)}
                   tabIndex={-1}
                 >
                   {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
@@ -251,14 +230,14 @@ const SignUp = () => {
               {errors.password && touched.password && (
                 <span className="field-error">{errors.password}</span>
               )}
-              
-              {/* Password Strength Meter */}
+
+              {/* Password strength meter */}
               {formData.password && (
                 <div className="password-strength">
                   <div className="strength-bar">
                     {[...Array(5)].map((_, i) => (
-                      <div 
-                        key={i} 
+                      <div
+                        key={i}
                         className={`strength-segment ${i < passwordStrength ? 'active' : ''}`}
                         style={{ backgroundColor: i < passwordStrength ? strengthColors[passwordStrength - 1] : undefined }}
                       />
@@ -269,10 +248,13 @@ const SignUp = () => {
                   </span>
                 </div>
               )}
-              
-              <span className="field-hint">Min. 8 characters with uppercase, lowercase, and number</span>
+
+              {!(errors.password && touched.password) && (
+                <span className="field-hint">Min. 8 characters with uppercase, lowercase, and number</span>
+              )}
             </div>
-            
+
+            {/* Confirm Password */}
             <div className="input-group">
               <label htmlFor="confirmPassword">
                 Confirm Password <span className="required">*</span>
@@ -288,12 +270,13 @@ const SignUp = () => {
                   onBlur={handleBlur}
                   placeholder="Repeat your password"
                   autoComplete="new-password"
+                  maxLength={128}
                   required
                 />
-                <button 
-                  type="button" 
+                <button
+                  type="button"
                   className="password-toggle"
-                  onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                  onClick={() => setShowConfirmPassword(v => !v)}
                   tabIndex={-1}
                 >
                   {showConfirmPassword ? <EyeOff size={16} /> : <Eye size={16} />}
@@ -303,24 +286,17 @@ const SignUp = () => {
                 <span className="field-error">{errors.confirmPassword}</span>
               )}
             </div>
-            
+
             <button type="submit" className="auth-btn" disabled={loading}>
-              {loading ? (
-                <span className="spinner" />
-              ) : (
-                <>
-                  Create Account
-                  <ArrowRight size={18} />
-                </>
-              )}
+              {loading ? <span className="spinner" /> : <> Create Account <ArrowRight size={18} /> </>}
             </button>
           </form>
-          
+
           <p className="auth-switch">
             Already have an account? <Link to="/signin">Sign in</Link>
           </p>
         </div>
-        
+
         <footer className="auth-footer">
           <p>&copy; Plumfolio 2026</p>
         </footer>
