@@ -312,10 +312,10 @@ const Budgets = () => {
     .reduce((s, b) => s + parseFloat(b.allocated || 0), 0);
 
   const modalTotalAfter = existingThisMonthAllocated + modalAllocatedNum;
-  // The only ceiling is this month's income
-  const modalExceedsFunds = modalAllocatedNum > 0 && modalAllocatedNum > thisMonthBalance + 0.01;
-  // What's left in this month's income after existing allocations
-  const modalRoomLeft = Math.max(0, modalMonthIncome - existingThisMonthAllocated);
+  // Room left = balance minus what's already allocated to other budgets
+  const budgetRoomLeft = Math.max(0, thisMonthBalance - existingThisMonthAllocated);
+  const modalExceedsFunds = modalAllocatedNum > 0 && modalAllocatedNum > budgetRoomLeft + 0.01;
+  const modalRoomLeft = budgetRoomLeft;
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -350,7 +350,9 @@ const Budgets = () => {
 
     if (modalExceedsFunds) {
       setFormErrors({
-        allocated: `This exceeds your current balance of ${formatCurrency(thisMonthBalance)}. Enter an amount you actually have.`
+        allocated: budgetRoomLeft <= 0
+          ? `Your existing budgets (${formatCurrency(existingThisMonthAllocated)}) already exceed your balance of ${formatCurrency(thisMonthBalance)}. Delete or lower an existing budget first.`
+          : `Only ${formatCurrency(budgetRoomLeft)} left to budget (balance ${formatCurrency(thisMonthBalance)} minus ${formatCurrency(existingThisMonthAllocated)} already allocated).`
       });
       return;
     }
@@ -762,7 +764,7 @@ const Budgets = () => {
               >
                 <Zap size={16} /> Budget Formula
               </button>
-              <button className="add-budget-btn" onClick={() => { const month = viewMonth >= currentMonthKey ? viewMonth : currentMonthKey; setFormData({ category: 'Food & Dining', allocated: thisMonthBalance > 0 ? thisMonthBalance.toFixed(2) : '', month_year: month }); setFormErrors({}); setEditingBudget(null); setModalOpen(true); }}>
+              <button className="add-budget-btn" onClick={() => { const month = viewMonth >= currentMonthKey ? viewMonth : currentMonthKey; const roomLeft = Math.max(0, thisMonthBalance - allocatedForMonth(month)); setFormData({ category: 'Food & Dining', allocated: roomLeft > 0 ? roomLeft.toFixed(2) : '', month_year: month }); setFormErrors({}); setEditingBudget(null); setModalOpen(true); }}>
                 <Plus size={18} /> Add Budget
               </button>
             </div>
@@ -863,7 +865,7 @@ const Budgets = () => {
                     >
                       <Zap size={18} /> Use a Formula
                     </button>
-                    <button className="empty-action-btn primary" onClick={() => { setFormData({ category: 'Food & Dining', allocated: thisMonthBalance > 0 ? thisMonthBalance.toFixed(2) : '', month_year: viewMonth }); setFormErrors({}); setEditingBudget(null); setModalOpen(true); }}>
+                    <button className="empty-action-btn primary" onClick={() => { const roomLeft = Math.max(0, thisMonthBalance - allocatedForMonth(viewMonth)); setFormData({ category: 'Food & Dining', allocated: roomLeft > 0 ? roomLeft.toFixed(2) : '', month_year: viewMonth }); setFormErrors({}); setEditingBudget(null); setModalOpen(true); }}>
                       <Plus size={18} /> Create Budget
                     </button>
                   </div>
@@ -1019,7 +1021,10 @@ const Budgets = () => {
                   display: 'flex', alignItems: 'center', gap: 6,
                 }}>
                   <AlertTriangle size={14} />
-                  Amount exceeds your current balance of {formatCurrency(thisMonthBalance)}.
+                  {budgetRoomLeft <= 0
+                    ? <>Your existing budgets ({formatCurrency(existingThisMonthAllocated)}) already exceed your balance of {formatCurrency(thisMonthBalance)}. Delete or lower an existing budget first.</>
+                    : <>Only {formatCurrency(budgetRoomLeft)} left to budget (balance {formatCurrency(thisMonthBalance)} minus {formatCurrency(existingThisMonthAllocated)} already allocated).</>
+                  }
                 </div>
               )}
 
