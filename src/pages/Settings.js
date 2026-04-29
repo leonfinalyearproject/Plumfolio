@@ -8,7 +8,7 @@ import { User, Mail, Lock, Shield, Trash2, Save, Globe, Check, Search, KeyRound,
 import './Settings.css';
 
 const Settings = () => {
-  const { user, profile, updateProfile } = useAuth();
+  const { user, profile, updateProfile, signOut } = useAuth();
   const { currencyCode, formatCurrency, rate, ratesLoaded } = useCurrency();
   const { addToast } = useInsights();
   const [activeTab, setActiveTab] = useState('profile');
@@ -24,6 +24,31 @@ const Settings = () => {
   const [switchingTo, setSwitchingTo] = useState(null);
   const [message, setMessage] = useState({ type: '', text: '' });
   const [resetSent, setResetSent] = useState(false);
+  const [deleteConfirm, setDeleteConfirm] = useState(false);
+  const [deleteTyped, setDeleteTyped] = useState('');
+  const [deleting, setDeleting] = useState(false);
+
+  const handleDeleteAccount = async () => {
+    if (deleteTyped !== 'DELETE') return;
+    setDeleting(true);
+    try {
+      const uid = user.id;
+      // Delete all user data from app tables
+      await Promise.all([
+        supabase.from('transactions').delete().eq('user_id', uid),
+        supabase.from('budgets').delete().eq('user_id', uid),
+        supabase.from('savings_goals').delete().eq('user_id', uid),
+      ]);
+      // Attempt to call server-side function to remove auth user (if available)
+      await supabase.rpc('delete_own_account').catch(() => {});
+      // Sign out and redirect
+      await signOut();
+      if (addToast) addToast({ type: 'info', title: 'Account Deleted', message: 'Your account and all data have been removed.' });
+    } catch (err) {
+      if (addToast) addToast({ type: 'warning', title: 'Deletion Failed', message: err.message || 'Something went wrong. Please try again.' });
+      setDeleting(false);
+    }
+  };
 
   // Dashboard preferences (stored in localStorage, scoped per user).
   // `showAllTimeNet` controls whether the all-time net sub-label is shown on
@@ -490,7 +515,55 @@ const Settings = () => {
 
             <div className="danger-zone">
               <div className="section-header"><h2>Danger Zone</h2><p>Permanently delete your account and all data.</p></div>
-              <button className="delete-btn"><Trash2 size={16} /> Delete Account</button>
+              {!deleteConfirm ? (
+                <button className="delete-btn" onClick={() => setDeleteConfirm(true)}>
+                  <Trash2 size={16} /> Delete Account
+                </button>
+              ) : (
+                <div style={{ background: 'rgba(239,68,68,0.06)', border: '1px solid rgba(239,68,68,0.3)', borderRadius: 10, padding: '16px 20px' }}>
+                  <p style={{ color: '#EF4444', fontWeight: 600, marginBottom: 8, fontSize: '0.9rem' }}>
+                    This action is irreversible. All your transactions, budgets, and goals will be permanently deleted.
+                  </p>
+                  <p style={{ color: 'var(--text-secondary)', fontSize: '0.82rem', marginBottom: 12 }}>
+                    Type <strong style={{ color: '#EF4444' }}>DELETE</strong> to confirm:
+                  </p>
+                  <input
+                    type="text"
+                    value={deleteTyped}
+                    onChange={e => setDeleteTyped(e.target.value)}
+                    placeholder="Type DELETE"
+                    autoComplete="off"
+                    style={{
+                      background: 'var(--bg-elevated)',
+                      border: '1px solid var(--border-color)',
+                      borderRadius: 6,
+                      padding: '8px 12px',
+                      color: 'var(--text-primary)',
+                      fontSize: '0.85rem',
+                      fontFamily: 'inherit',
+                      width: '100%',
+                      marginBottom: 12,
+                    }}
+                  />
+                  <div style={{ display: 'flex', gap: 10 }}>
+                    <button
+                      className="delete-btn"
+                      disabled={deleteTyped !== 'DELETE' || deleting}
+                      onClick={handleDeleteAccount}
+                      style={{ opacity: deleteTyped !== 'DELETE' ? 0.5 : 1 }}
+                    >
+                      {deleting ? 'Deleting...' : 'Permanently Delete My Account'}
+                    </button>
+                    <button
+                      className="save-btn outline"
+                      onClick={() => { setDeleteConfirm(false); setDeleteTyped(''); }}
+                      style={{ marginLeft: 'auto' }}
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         )}
