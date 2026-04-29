@@ -35,7 +35,7 @@ import './Budgets.css';
 
 const Budgets = () => {
   const { formatCurrency } = useCurrency();
-  const { addToast, refreshInsights, monthlyIncome, typicalMonthlyIncome, incomeBreakdown, cashOnHand } = useInsights();
+  const { addToast, refreshInsights, monthlyIncome, typicalMonthlyIncome, incomeBreakdown } = useInsights();
   const { user } = useAuth();
   const [budgets, setBudgets] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -245,6 +245,14 @@ const Budgets = () => {
   const currentMonthKey = new Date().toISOString().slice(0, 7);
   const isPastMonth = (my) => my && my < currentMonthKey;
 
+  // Current month's real balance: income received minus expenses paid this month.
+  // This is the honest "how much money do I actually have?" for the current month,
+  // matching what the Dashboard shows. Used as the reference when creating budgets.
+  const thisMonthExpenses = (ctxTransactions || [])
+    .filter(t => t.type === 'expense' && (t.date || '').slice(0, 7) === currentMonthKey)
+    .reduce((s, t) => s + parseFloat(t.amount || 0), 0);
+  const thisMonthBalance = incomeForMonth(currentMonthKey) - thisMonthExpenses;
+
   // Budget Formula vs Manual budgets — mutually exclusive.
   // The two ways of setting up a month are (a) click the formula and let
   // it auto-split your income, OR (b) add budgets one by one manually.
@@ -306,7 +314,7 @@ const Budgets = () => {
 
   const modalTotalAfter = existingThisMonthAllocated + modalAllocatedNum;
   // The only ceiling is this month's income
-  const modalExceedsFunds = modalAllocatedNum > 0 && modalAllocatedNum > cashOnHand + 0.01;
+  const modalExceedsFunds = modalAllocatedNum > 0 && modalAllocatedNum > thisMonthBalance + 0.01;
   // What's left in this month's income after existing allocations
   const modalRoomLeft = Math.max(0, modalMonthIncome - existingThisMonthAllocated);
 
@@ -343,7 +351,7 @@ const Budgets = () => {
 
     if (modalExceedsFunds) {
       setFormErrors({
-        allocated: `This exceeds your current balance of ${formatCurrency(cashOnHand)}. Enter an amount you actually have.`
+        allocated: `This exceeds your current balance of ${formatCurrency(thisMonthBalance)}. Enter an amount you actually have.`
       });
       return;
     }
@@ -715,7 +723,7 @@ const Budgets = () => {
           {/* Over-budget warning — shown when total planned budgets exceed the real balance */}
           {visibleBudgets.length > 0 && (() => {
             const monthAllocated = allocatedForMonth(viewMonth);
-            const overBudgeted = cashOnHand > 0 && monthAllocated > cashOnHand + 0.01;
+            const overBudgeted = thisMonthBalance > 0 && monthAllocated > thisMonthBalance + 0.01;
             if (!overBudgeted) return null;
             return (
               <div style={{
@@ -731,11 +739,11 @@ const Budgets = () => {
                     Over-budgeted by
                   </div>
                   <div style={{ fontSize: '1.4rem', fontWeight: 700, color: '#EF4444' }}>
-                    {formatCurrency(monthAllocated - cashOnHand)}
+                    {formatCurrency(monthAllocated - thisMonthBalance)}
                   </div>
                 </div>
                 <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', textAlign: 'right', maxWidth: 460 }}>
-                  Your budgets total <strong style={{ color: '#EF4444' }}>{formatCurrency(monthAllocated)}</strong> but your current balance is only <strong style={{ color: '#22C55E' }}>{formatCurrency(cashOnHand)}</strong>. Lower a budget to match what you actually have.
+                  Your budgets total <strong style={{ color: '#EF4444' }}>{formatCurrency(monthAllocated)}</strong> but your current balance is only <strong style={{ color: '#22C55E' }}>{formatCurrency(thisMonthBalance)}</strong>. Lower a budget to match what you actually have.
                 </div>
               </div>
             );
@@ -755,7 +763,7 @@ const Budgets = () => {
               >
                 <Zap size={16} /> Budget Formula
               </button>
-              <button className="add-budget-btn" onClick={() => { const month = viewMonth >= currentMonthKey ? viewMonth : currentMonthKey; setFormData({ category: 'Food & Dining', allocated: cashOnHand > 0 ? cashOnHand.toFixed(2) : '', month_year: month }); setFormErrors({}); setEditingBudget(null); setModalOpen(true); }}>
+              <button className="add-budget-btn" onClick={() => { const month = viewMonth >= currentMonthKey ? viewMonth : currentMonthKey; setFormData({ category: 'Food & Dining', allocated: thisMonthBalance > 0 ? thisMonthBalance.toFixed(2) : '', month_year: month }); setFormErrors({}); setEditingBudget(null); setModalOpen(true); }}>
                 <Plus size={18} /> Add Budget
               </button>
             </div>
@@ -856,7 +864,7 @@ const Budgets = () => {
                     >
                       <Zap size={18} /> Use a Formula
                     </button>
-                    <button className="empty-action-btn primary" onClick={() => { setFormData({ category: 'Food & Dining', allocated: cashOnHand > 0 ? cashOnHand.toFixed(2) : '', month_year: viewMonth }); setFormErrors({}); setEditingBudget(null); setModalOpen(true); }}>
+                    <button className="empty-action-btn primary" onClick={() => { setFormData({ category: 'Food & Dining', allocated: thisMonthBalance > 0 ? thisMonthBalance.toFixed(2) : '', month_year: viewMonth }); setFormErrors({}); setEditingBudget(null); setModalOpen(true); }}>
                       <Plus size={18} /> Create Budget
                     </button>
                   </div>
@@ -1012,7 +1020,7 @@ const Budgets = () => {
                   display: 'flex', alignItems: 'center', gap: 6,
                 }}>
                   <AlertTriangle size={14} />
-                  Amount exceeds your current balance of {formatCurrency(cashOnHand)}.
+                  Amount exceeds your current balance of {formatCurrency(thisMonthBalance)}.
                 </div>
               )}
 
