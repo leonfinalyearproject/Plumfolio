@@ -31,6 +31,7 @@ const getGoalIconComponent = (icon) => {
   if (EMOJI_TO_KEY[icon]) return GOAL_ICONS[EMOJI_TO_KEY[icon]];
   return Target;
 };
+import MonthPicker from '../components/MonthPicker';
 import './Budgets.css';
 
 const Budgets = () => {
@@ -660,18 +661,9 @@ const Budgets = () => {
             flexWrap: 'wrap',
           }}>
             <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>Viewing:</span>
-            <input
-              type="month"
+            <MonthPicker
               value={viewMonth}
-              onChange={e => setViewMonth(e.target.value)}
-              style={{
-                background: 'var(--bg-elevated)',
-                color: 'var(--text-primary)',
-                border: '1px solid var(--border-color)',
-                borderRadius: 8, padding: '6px 10px',
-                fontSize: '0.85rem',
-                fontFamily: 'inherit',
-              }}
+              onChange={v => v && setViewMonth(v)}
             />
             {viewMonth === currentMonthKey && (
               <span style={{ fontSize: '0.7rem', color: '#22C55E', background: 'rgba(34,197,94,0.1)', padding: '2px 8px', borderRadius: 6 }}>

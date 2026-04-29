@@ -20,6 +20,7 @@ import {
   Check, Loader, AlertCircle, Image, ScanLine, Calendar, DollarSign,
   Star, ChevronDown, ChevronRight, Search, RefreshCw, TrendingUp, TrendingDown, Sparkles, PiggyBank
 } from 'lucide-react';
+import MonthPicker from '../components/MonthPicker';
 import './Transactions.css';
 
 const Transactions = () => {
@@ -1069,15 +1070,9 @@ const Transactions = () => {
           ))}
         </div>
         {period === 'month' && (
-          <input
-            type="month"
+          <MonthPicker
             value={selectedMonth}
-            onChange={e => setSelectedMonth(e.target.value)}
-            style={{
-              background: 'var(--bg-elevated)', color: 'var(--text-primary)',
-              border: '1px solid var(--border-color)', borderRadius: 8,
-              padding: '6px 10px', fontSize: '0.85rem', fontFamily: 'inherit',
-            }}
+            onChange={v => v && setSelectedMonth(v)}
           />
         )}
         {period === 'year' && (
