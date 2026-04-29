@@ -94,8 +94,17 @@ const SignUp = () => {
     );
 
     if (error) {
-      if (error.message.includes('User already registered')) {
-        setServerError('An account with this email already exists. Please sign in instead.');
+      const isDuplicate =
+        error.message?.toLowerCase().includes('user already registered') ||
+        error.message?.toLowerCase().includes('already been registered') ||
+        error.message?.toLowerCase().includes('email address is already') ||
+        error.message?.toLowerCase().includes('already in use') ||
+        error.code === '23505';   // Postgres unique-violation code
+      if (isDuplicate) {
+        // Show the error on the email field so it's impossible to miss
+        setErrors(prev => ({ ...prev, email: 'This email is already registered. Sign in instead.' }));
+        setTouched(prev => ({ ...prev, email: true }));
+        setServerError('');
       } else {
         setServerError(error.message);
       }
@@ -192,10 +201,16 @@ const SignUp = () => {
                   required
                 />
               </div>
-              {errors.email && touched.email
-                ? <span className="field-error">{errors.email}</span>
-                : <span className="field-hint">We'll send a verification link to this address</span>
-              }
+              {errors.email && touched.email ? (
+                <span className="field-error">
+                  {errors.email}
+                  {errors.email.includes('already registered') && (
+                    <> — <Link to="/signin" style={{ color: 'inherit', fontWeight: 700 }}>Sign in</Link></>
+                  )}
+                </span>
+              ) : (
+                <span className="field-hint">We'll send a verification link to this address</span>
+              )}
             </div>
 
             {/* Password */}
