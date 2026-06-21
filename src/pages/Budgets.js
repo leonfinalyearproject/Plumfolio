@@ -592,7 +592,7 @@ const Budgets = () => {
               </span>
             )}
             {viewMonth < currentMonthKey && (
-              <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', background: 'rgba(255,255,255,0.04)', padding: '2px 8px', borderRadius: 6 }}>
+              <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', background: 'var(--bg-tertiary)', padding: '2px 8px', borderRadius: 6 }}>
                 Historical
               </span>
             )}

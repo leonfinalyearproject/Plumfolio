@@ -175,11 +175,10 @@
   .icon-picker { gap: 4px; }
   .icon-btn { width: 34px; height: 34px; font-size: 1rem; }
 
-  /* Auth */
-  .auth-page { flex-direction: column; }
-  .auth-slideshow { display: none; }
-  .auth-container { width: 100%; max-width: 100%; padding: 20px 16px; }
+  /* Auth split layout */
+  .auth-main { padding: 20px 16px; min-height: auto; }
   .auth-card { border-radius: 16px; }
+  .auth-aside-title { font-size: 1.35rem; }
 
   /* Modals — slide up */
   .modal-overlay { padding: 0 !important; align-items: flex-end !important; }

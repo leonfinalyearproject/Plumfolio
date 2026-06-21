@@ -1,143 +1,143 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { ArrowRight, PieChart, TrendingUp, Shield, Smartphone } from 'lucide-react';
-import ScrollReveal, { StaggerReveal, useParallax } from '../components/ScrollReveal';
+import {
+  ArrowRight, PieChart, TrendingUp, Shield, Smartphone,
+  Wallet, BarChart3, Target
+} from 'lucide-react';
+import ScrollReveal, { StaggerReveal } from '../components/ScrollReveal';
 import './Landing.css';
 
 const Landing = () => {
-  const [introPhase, setIntroPhase] = useState(0);
-  const [showMain, setShowMain] = useState(false);
   const navigate = useNavigate();
   const { user } = useAuth();
-  const heroParallax = useParallax(0.2);
 
   useEffect(() => {
-    if (user) {
-      navigate('/dashboard');
-      return;
-    }
-
-    setTimeout(() => setIntroPhase(1), 100);
-    setTimeout(() => setIntroPhase(2), 1000);
-    setTimeout(() => setIntroPhase(3), 2800);
-    setTimeout(() => {
-      setIntroPhase(4);
-      setShowMain(true);
-    }, 3600);
-
+    if (user) navigate('/dashboard');
   }, [user, navigate]);
 
   return (
     <div className="landing-wrapper">
-      <div className={`intro-overlay ${introPhase >= 3 ? 'fade-out' : ''} ${introPhase >= 4 ? 'hidden' : ''}`}>
-        <div className={`intro-logo-container ${introPhase >= 1 ? 'visible' : ''} ${introPhase >= 2 ? 'glow' : ''} ${introPhase >= 3 ? 'zoom-out' : ''}`}>
-          <img 
-            src={`${process.env.PUBLIC_URL}/logo.png`} 
-            alt="Plumfolio" 
-            className="intro-logo"
+      <header className="landing-nav">
+        <div className="landing-brand">
+          <img
+            src={`${process.env.PUBLIC_URL}/logo.png`}
+            alt="Plumfolio"
+            className="landing-nav-logo"
           />
+          <span className="landing-brand-name">Plumfolio</span>
         </div>
-      </div>
-
-      <div className={`landing-main ${showMain ? 'visible' : ''}`}>
-        <div className="spotlights">
-          <div className="spotlight purple" />
-          <div className="spotlight green" />
-          <div className="spotlight purple-2" />
-          <div className="spotlight green-2" />
+        <div className="landing-nav-actions">
+          <button type="button" onClick={() => navigate('/signin')} className="btn-text">
+            Sign in
+          </button>
+          <button type="button" onClick={() => navigate('/signup')} className="btn-main btn-sm">
+            Get started
+          </button>
         </div>
-        
-        <section className="hero" ref={heroParallax}>
-          <ScrollReveal animation="scale" duration={1}>
-            <img 
-              src={`${process.env.PUBLIC_URL}/logo.png`} 
-              alt="Plumfolio" 
-              className="landing-logo"
-            />
-          </ScrollReveal>
-          
-          <ScrollReveal animation="up" delay={120}>
-            <h1 className="hero-title">
-              Take control of your <span>finances</span>
-            </h1>
-          </ScrollReveal>
-          
-          <ScrollReveal animation="up" delay={220}>
-            <p className="hero-subtitle">
-              Track expenses, manage budgets, and gain insights into your spending habits. 
-              Simple, secure, and designed to help you save.
-            </p>
-          </ScrollReveal>
+      </header>
 
-          <ScrollReveal animation="up" delay={320}>
-            <div className="hero-buttons">
-              <button onClick={() => navigate('/signup')} className="btn-main">
-                Get Started Free
-                <ArrowRight size={18} />
-              </button>
-              <button onClick={() => navigate('/signin')} className="btn-outline">
-                Sign In
-              </button>
+      <main className="landing-main">
+        <section className="landing-hero">
+          <div className="landing-hero-copy">
+            <ScrollReveal animation="up">
+              <p className="landing-eyebrow">Personal finance, simplified</p>
+              <h1 className="landing-headline">
+                Track spending, plan budgets, and stay on top of your money.
+              </h1>
+              <p className="landing-lead">
+                Plumfolio gives you a clear view of income, expenses, and savings goals —
+                without spreadsheets or guesswork.
+              </p>
+            </ScrollReveal>
+
+            <ScrollReveal animation="up" delay={120}>
+              <div className="landing-hero-actions">
+                <button type="button" onClick={() => navigate('/signup')} className="btn-main">
+                  Create free account
+                  <ArrowRight size={18} />
+                </button>
+                <button type="button" onClick={() => navigate('/signin')} className="btn-outline">
+                  Sign in
+                </button>
+              </div>
+            </ScrollReveal>
+
+            <ScrollReveal animation="up" delay={200}>
+              <ul className="landing-trust-list">
+                <li><Shield size={16} /> Secure sign-in</li>
+                <li><Wallet size={16} /> Real-time balances</li>
+                <li><BarChart3 size={16} /> Clear reports</li>
+              </ul>
+            </ScrollReveal>
+          </div>
+
+          <ScrollReveal animation="left" delay={80} className="landing-hero-panel">
+            <div className="landing-preview-card">
+              <div className="preview-row">
+                <span className="preview-label">Balance this month</span>
+                <span className="preview-value">P12,450.00</span>
+              </div>
+              <div className="preview-row">
+                <span className="preview-label">Budget remaining</span>
+                <span className="preview-value preview-positive">P3,820.00</span>
+              </div>
+              <div className="preview-row">
+                <span className="preview-label">Savings rate</span>
+                <span className="preview-value">28%</span>
+              </div>
+              <div className="preview-divider" />
+              <p className="preview-note">
+                Dashboard, budgets, forecasts, and reports — all in one place.
+              </p>
             </div>
           </ScrollReveal>
         </section>
 
-        <section className="features">
+        <section className="landing-features">
           <ScrollReveal animation="up">
-            <h2 className="section-title">Everything you need to manage your money</h2>
+            <h2 className="landing-section-title">Built for everyday money management</h2>
           </ScrollReveal>
-          
-          <StaggerReveal className="features-grid" animation="up" stagger={100}>
-            <div className="feature-card">
-              <div className="feature-icon">
-                <TrendingUp size={22} />
-              </div>
-              <h3>Smart Analytics</h3>
-              <p>Visualize spending patterns with intuitive charts and discover where your money goes.</p>
-            </div>
-            
-            <div className="feature-card">
-              <div className="feature-icon">
-                <PieChart size={22} />
-              </div>
-              <h3>Budget Tracking</h3>
-              <p>Set monthly budgets by category and get alerts before you overspend.</p>
-            </div>
-            
-            <div className="feature-card">
-              <div className="feature-icon">
-                <Shield size={22} />
-              </div>
-              <h3>Secure & Private</h3>
-              <p>Your data is encrypted and protected. We never share your financial information.</p>
-            </div>
-            
-            <div className="feature-card">
-              <div className="feature-icon">
-                <Smartphone size={22} />
-              </div>
-              <h3>Works Everywhere</h3>
-              <p>Access your finances from any device with our fully responsive design.</p>
-            </div>
+
+          <StaggerReveal className="landing-features-grid" animation="up" stagger={80}>
+            <article className="landing-feature">
+              <div className="landing-feature-icon"><TrendingUp size={20} /></div>
+              <h3>Analytics</h3>
+              <p>See where your money goes with charts and category breakdowns.</p>
+            </article>
+            <article className="landing-feature">
+              <div className="landing-feature-icon"><Target size={20} /></div>
+              <h3>Budgets</h3>
+              <p>Set monthly limits and track progress as you spend.</p>
+            </article>
+            <article className="landing-feature">
+              <div className="landing-feature-icon"><PieChart size={20} /></div>
+              <h3>Forecasts</h3>
+              <p>Get spending predictions and alerts before you overspend.</p>
+            </article>
+            <article className="landing-feature">
+              <div className="landing-feature-icon"><Smartphone size={20} /></div>
+              <h3>Any device</h3>
+              <p>Use Plumfolio on desktop or mobile — your data stays in sync.</p>
+            </article>
           </StaggerReveal>
         </section>
 
-        <section className="cta">
-          <ScrollReveal animation="scale">
-            <h2>Ready to start tracking?</h2>
-            <p>Join thousands of users managing their finances smarter.</p>
-            <button onClick={() => navigate('/signup')} className="btn-main">
-              Create Free Account
+        <section className="landing-cta">
+          <ScrollReveal animation="up">
+            <h2>Ready to take control?</h2>
+            <p>Create your account in under a minute.</p>
+            <button type="button" onClick={() => navigate('/signup')} className="btn-main">
+              Get started free
               <ArrowRight size={18} />
             </button>
           </ScrollReveal>
         </section>
+      </main>
 
-        <footer className="landing-footer">
-          <p>&copy; Plumfolio 2026</p>
-        </footer>
-      </div>
+      <footer className="landing-footer">
+        <p>&copy; Plumfolio 2026</p>
+      </footer>
     </div>
   );
 };

@@ -333,7 +333,7 @@
 }
 
 .tx-group-header:hover {
-  background: rgba(255,255,255,0.02);
+  background: var(--bg-tertiary);
 }
 
 .tx-group-left {
@@ -403,7 +403,7 @@
 }
 
 .tx-item:hover {
-  background: rgba(255,255,255,0.02);
+  background: var(--bg-tertiary);
 }
 
 .tx-item-main {

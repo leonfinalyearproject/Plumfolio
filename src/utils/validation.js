@@ -177,6 +177,19 @@ export const validatePasswordMatch = (password, confirmPassword) => {
   return '';
 };
 
+/** Live password requirement checks for signup UI */
+export const getPasswordRequirements = (password = '') => ({
+  length: password.length >= 8,
+  uppercase: /[A-Z]/.test(password),
+  lowercase: /[a-z]/.test(password),
+  number: /[0-9]/.test(password),
+});
+
+export const isPasswordStrongEnough = (password) => {
+  const req = getPasswordRequirements(password);
+  return req.length && req.uppercase && req.lowercase && req.number;
+};
+
 // ========== FULL FORM VALIDATORS ==========
 export const validateTransactionForm = (formData, categories) => {
   const errors = {};

@@ -1117,7 +1117,7 @@ const Transactions = () => {
           </span>
         )}
         {period === 'month' && selectedMonth < todayKey && (
-          <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', background: 'rgba(255,255,255,0.04)', padding: '2px 8px', borderRadius: 6 }}>
+          <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', background: 'var(--bg-tertiary)', padding: '2px 8px', borderRadius: 6 }}>
             Historical
           </span>
         )}
@@ -1671,7 +1671,7 @@ const Transactions = () => {
                   <div style={{
                     fontSize: '0.78rem',
                     color: 'var(--text-secondary)',
-                    background: 'rgba(255,255,255,0.03)',
+                    background: 'var(--bg-tertiary)',
                     border: '1px solid var(--border-color)',
                     borderRadius: 8,
                     padding: '10px 12px',
@@ -1744,7 +1744,7 @@ const Transactions = () => {
                     color: 'var(--text-secondary)',
                     marginBottom: 10,
                     padding: '8px 12px',
-                    background: 'rgba(255,255,255,0.02)',
+                    background: 'var(--bg-tertiary)',
                     borderRadius: 6,
                     lineHeight: 1.5,
                   }}>
@@ -1773,7 +1773,7 @@ const Transactions = () => {
                         'income-default': { label: 'income default', color: '#22C55E', bg: 'rgba(34,197,94,0.1)' },
                         'user-edited': { label: 'edited by you', color: '#F59E0B', bg: 'rgba(245,158,11,0.12)' },
                       };
-                      const src = sourceLabels[r._categorySource] || { label: 'auto', color: 'var(--text-muted)', bg: 'rgba(255,255,255,0.04)' };
+                      const src = sourceLabels[r._categorySource] || { label: 'auto', color: 'var(--text-muted)', bg: 'var(--bg-tertiary)' };
 
                       return (
                         <div key={i} style={{
@@ -1782,7 +1782,7 @@ const Transactions = () => {
                           gap: 10,
                           alignItems: 'center',
                           padding: '10px 12px',
-                          background: 'rgba(255,255,255,0.02)',
+                          background: 'var(--bg-tertiary)',
                           border: '1px solid var(--border-color)',
                           borderRadius: 8,
                           fontSize: '0.82rem',
@@ -1852,7 +1852,7 @@ const Transactions = () => {
                       <button
                         onClick={() => setImportExpanded(!importExpanded)}
                         style={{
-                          background: 'rgba(255,255,255,0.04)',
+                          background: 'var(--bg-tertiary)',
                           border: '1px dashed var(--border-color)',
                           borderRadius: 8,
                           padding: '10px',

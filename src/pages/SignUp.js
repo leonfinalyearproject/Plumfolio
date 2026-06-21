@@ -1,12 +1,20 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { validateSignUpForm, getPasswordRequirements } from '../utils/validation';
 import {
-  validateEmail, validatePassword, validatePasswordMatch, validateFullName,
-} from '../utils/validation';
-import { Mail, Lock, User, ArrowRight, Check, AlertCircle, Eye, EyeOff } from 'lucide-react';
-import Slideshow from '../components/Slideshow';
+  Mail, Lock, User, ArrowRight, Check, AlertCircle, Sparkles,
+  MailCheck, LayoutDashboard,
+} from 'lucide-react';
+import AuthField from '../components/AuthField';
+import PasswordChecklist from '../components/PasswordChecklist';
 import './Auth.css';
+
+const STEPS = [
+  { num: '1', title: 'Create your account', desc: 'Name, email, and a secure password' },
+  { num: '2', title: 'Verify your email', desc: 'One click to activate your account' },
+  { num: '3', title: 'Start tracking', desc: 'Add transactions and set your first budget' },
+];
 
 const SignUp = () => {
   const [formData, setFormData] = useState({
@@ -16,34 +24,49 @@ const SignUp = () => {
   const [touched, setTouched] = useState({});
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [passwordFocused, setPasswordFocused] = useState(false);
   const [loading, setLoading] = useState(false);
   const [serverError, setServerError] = useState('');
   const [success, setSuccess] = useState(false);
   const navigate = useNavigate();
   const { signUp } = useAuth();
 
+  const formProgress = useMemo(() => {
+    let filled = 0;
+    if (formData.fullName.trim()) filled++;
+    if (formData.email.trim()) filled++;
+    if (formData.password) filled++;
+    if (formData.confirmPassword) filled++;
+    return (filled / 4) * 100;
+  }, [formData]);
+
+  const { isValid: formReady } = useMemo(
+    () => validateSignUpForm({
+      fullName: formData.fullName.trim(),
+      email: formData.email.trim(),
+      password: formData.password,
+      confirmPassword: formData.confirmPassword,
+    }),
+    [formData],
+  );
+
+  const passwordStrength = useMemo(() => {
+    const req = getPasswordRequirements(formData.password);
+    return Object.values(req).filter(Boolean).length;
+  }, [formData.password]);
+
+  const strengthLabels = ['', 'Weak', 'Fair', 'Good', 'Strong'];
+  const strengthColors = ['', '#ef4444', '#eab308', '#84cc16', '#22c55e'];
+
   const validateField = (name, value, allData = formData) => {
-    if (name === 'fullName') return validateFullName(value);
-    if (name === 'email') return validateEmail(value.trim());
-    if (name === 'password') return validatePassword(value);
-    if (name === 'confirmPassword') return validatePasswordMatch(allData.password, value);
-    return '';
+    const result = validateSignUpForm({
+      fullName: name === 'fullName' ? value.trim() : allData.fullName.trim(),
+      email: name === 'email' ? value.trim() : allData.email.trim(),
+      password: name === 'password' ? value : allData.password,
+      confirmPassword: name === 'confirmPassword' ? value : allData.confirmPassword,
+    });
+    return result.errors[name] || '';
   };
-
-  // Password strength indicator
-  const getPasswordStrength = (pw) => {
-    let s = 0;
-    if (pw.length >= 8) s++;
-    if (/[A-Z]/.test(pw)) s++;
-    if (/[a-z]/.test(pw)) s++;
-    if (/[0-9]/.test(pw)) s++;
-    if (/[^A-Za-z0-9]/.test(pw)) s++;
-    return s;
-  };
-
-  const passwordStrength = getPasswordStrength(formData.password);
-  const strengthLabels = ['Very Weak', 'Weak', 'Fair', 'Good', 'Strong'];
-  const strengthColors = ['#ef4444', '#f97316', '#eab308', '#84cc16', '#22c55e'];
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -51,33 +74,32 @@ const SignUp = () => {
     setFormData(updated);
     setServerError('');
     if (touched[name]) {
-      setErrors(prev => ({ ...prev, [name]: validateField(name, value, updated) }));
+      setErrors((prev) => ({ ...prev, [name]: validateField(name, value, updated) }));
     }
-    // Re-validate confirm password live when password changes
     if (name === 'password' && touched.confirmPassword) {
-      setErrors(prev => ({
+      setErrors((prev) => ({
         ...prev,
-        confirmPassword: validatePasswordMatch(value, updated.confirmPassword),
+        confirmPassword: validateField('confirmPassword', updated.confirmPassword, updated),
       }));
     }
   };
 
   const handleBlur = (e) => {
     const { name, value } = e.target;
-    setTouched(prev => ({ ...prev, [name]: true }));
-    setErrors(prev => ({ ...prev, [name]: validateField(name, value) }));
+    setTouched((prev) => ({ ...prev, [name]: true }));
+    setErrors((prev) => ({ ...prev, [name]: validateField(name, value) }));
   };
 
   const validateAll = () => {
-    const newErrors = {
-      fullName: validateFullName(formData.fullName),
-      email: validateEmail(formData.email.trim()),
-      password: validatePassword(formData.password),
-      confirmPassword: validatePasswordMatch(formData.password, formData.confirmPassword),
-    };
-    setErrors(newErrors);
+    const result = validateSignUpForm({
+      fullName: formData.fullName.trim(),
+      email: formData.email.trim(),
+      password: formData.password,
+      confirmPassword: formData.confirmPassword,
+    });
+    setErrors(result.errors);
     setTouched({ fullName: true, email: true, password: true, confirmPassword: true });
-    return !Object.values(newErrors).some(e => e);
+    return result.isValid;
   };
 
   const handleSubmit = async (e) => {
@@ -93,9 +115,6 @@ const SignUp = () => {
       formData.fullName.trim(),
     );
 
-    // Supabase silently "succeeds" for duplicate emails when email confirmation
-    // is enabled — it returns no error but gives back a user with an empty
-    // identities array. Detect and reject this case explicitly.
     const isDuplicateSilent =
       !error && data?.user && Array.isArray(data.user.identities) && data.user.identities.length === 0;
 
@@ -108,8 +127,8 @@ const SignUp = () => {
     );
 
     if (isDuplicateSilent || isDuplicateError) {
-      setErrors(prev => ({ ...prev, email: 'This email is already registered. Sign in instead.' }));
-      setTouched(prev => ({ ...prev, email: true }));
+      setErrors((prev) => ({ ...prev, email: 'This email is already registered. Sign in instead.' }));
+      setTouched((prev) => ({ ...prev, email: true }));
       setServerError('');
       setLoading(false);
     } else if (error) {
@@ -117,211 +136,248 @@ const SignUp = () => {
       setLoading(false);
     } else {
       setSuccess(true);
-      setTimeout(() => navigate('/signin'), 3000);
+      setTimeout(() => navigate('/signin'), 4000);
     }
   };
 
+  const passwordsMatch =
+    formData.confirmPassword &&
+    formData.password === formData.confirmPassword &&
+    !errors.confirmPassword;
+
   if (success) {
     return (
-      <div className="auth-page">
-        <Slideshow />
-        <div className="auth-container">
-          <div className="auth-card success-card">
-            <div className="success-icon"><Check size={24} /></div>
-            <h2>Check your email</h2>
-            <p>We sent a verification link to <strong>{formData.email.trim()}</strong></p>
-            <span className="success-note">Redirecting to sign in...</span>
+      <div className="auth-shell auth-shell--signup">
+        <aside className="auth-aside auth-aside--signup">
+          <Link to="/" className="auth-aside-brand">
+            <img src={`${process.env.PUBLIC_URL}/logo.png`} alt="" className="auth-aside-logo" />
+            <span>Plumfolio</span>
+          </Link>
+          <div className="auth-aside-body">
+            <p className="auth-aside-eyebrow">Almost there</p>
+            <h1 className="auth-aside-title">Verify your email to activate your account.</h1>
           </div>
-          <footer className="auth-footer"><p>&copy; Plumfolio 2026</p></footer>
-        </div>
+        </aside>
+        <main className="auth-main">
+          <div className="auth-card success-card auth-card--interactive">
+            <div className="success-icon success-icon--animated"><MailCheck size={28} /></div>
+            <h2>Check your inbox</h2>
+            <p>
+              We sent a verification link to <strong>{formData.email.trim()}</strong>.
+              Click the link, then sign in to get started.
+            </p>
+            <span className="success-note">Redirecting to sign in in a few seconds…</span>
+            <Link to="/signin" className="auth-btn auth-btn--ready" style={{ marginTop: 20, textDecoration: 'none' }}>
+              Go to sign in
+              <ArrowRight size={18} />
+            </Link>
+          </div>
+        </main>
       </div>
     );
   }
 
   return (
-    <div className="auth-page">
-      <Slideshow />
-      <div className="auth-container">
-        <Link to="/" className="auth-logo-link">
-          <img src={`${process.env.PUBLIC_URL}/logo.png`} alt="Plumfolio" className="auth-logo" />
+    <div className="auth-shell auth-shell--signup">
+      <aside className="auth-aside auth-aside--signup">
+        <Link to="/" className="auth-aside-brand">
+          <img src={`${process.env.PUBLIC_URL}/logo.png`} alt="" className="auth-aside-logo" />
+          <span>Plumfolio</span>
         </Link>
 
-        <div className="auth-card">
+        <div className="auth-aside-body">
+          <p className="auth-aside-eyebrow">Get started free</p>
+          <h1 className="auth-aside-title">Set up your personal finance workspace in minutes.</h1>
+          <p className="auth-aside-lead">
+            Track spending, plan budgets, and forecast ahead — all in one place.
+          </p>
+
+          <ol className="auth-aside-steps">
+            {STEPS.map(({ num, title, desc }) => (
+              <li key={num}>
+                <span className="auth-step-num">{num}</span>
+                <div>
+                  <strong>{title}</strong>
+                  <span>{desc}</span>
+                </div>
+              </li>
+            ))}
+          </ol>
+        </div>
+
+        <p className="auth-aside-foot">&copy; Plumfolio 2026</p>
+      </aside>
+
+      <main className="auth-main">
+        <Link to="/" className="auth-mobile-brand">
+          <img src={`${process.env.PUBLIC_URL}/logo.png`} alt="" />
+          <span>Plumfolio</span>
+        </Link>
+
+        <div className="auth-card auth-card--interactive">
+          <div className="auth-form-progress" aria-hidden="true">
+            <div className="auth-form-progress-bar" style={{ width: `${formProgress}%` }} />
+          </div>
+
           <div className="auth-header">
-            <h1>Create account</h1>
-            <p>Start tracking your finances</p>
+            <div className="auth-header-icon auth-header-icon--signup">
+              <Sparkles size={20} />
+            </div>
+            <h2>Create account</h2>
+            <p>Fill in your details below</p>
           </div>
 
           {serverError && (
-            <div className="auth-error">
+            <div className="auth-error auth-error--shake" role="alert">
               <AlertCircle size={16} />
               <span>{serverError}</span>
             </div>
           )}
 
           <form onSubmit={handleSubmit} className="auth-form" noValidate>
-            {/* Full Name */}
-            <div className="input-group">
-              <label htmlFor="fullName">
-                Full Name <span className="required">*</span>
-              </label>
-              <div className={`input-field ${errors.fullName && touched.fullName ? 'error' : ''}`}>
-                <User size={18} />
-                <input
-                  type="text"
-                  id="fullName"
-                  name="fullName"
-                  value={formData.fullName}
-                  onChange={handleChange}
-                  onBlur={handleBlur}
-                  placeholder="John Doe"
-                  autoComplete="name"
-                  maxLength={60}
-                  required
-                />
-              </div>
-              {errors.fullName && touched.fullName
-                ? <span className="field-error">{errors.fullName}</span>
-                : <span className="field-hint">Letters, spaces, hyphens and apostrophes only</span>
-              }
-            </div>
+            <AuthField
+              id="fullName"
+              name="fullName"
+              label="Full name"
+              type="text"
+              value={formData.fullName}
+              onChange={handleChange}
+              onBlur={handleBlur}
+              error={errors.fullName}
+              touched={touched.fullName}
+              hint="Letters, spaces, hyphens, and apostrophes only"
+              icon={User}
+              required
+              autoComplete="name"
+              maxLength={60}
+              placeholder="Leon Maunge"
+            />
 
-            {/* Email */}
-            <div className="input-group">
-              <label htmlFor="email">
-                Email <span className="required">*</span>
-              </label>
-              <div className={`input-field ${errors.email && touched.email ? 'error' : ''}`}>
-                <Mail size={18} />
-                <input
-                  type="email"
-                  id="email"
-                  name="email"
-                  value={formData.email}
-                  onChange={handleChange}
-                  onBlur={handleBlur}
-                  placeholder="you@example.com"
-                  autoComplete="email"
-                  autoCapitalize="off"
-                  maxLength={254}
-                  required
-                />
-              </div>
-              {errors.email && touched.email ? (
-                <span className="field-error">
-                  {errors.email}
-                  {errors.email.includes('already registered') && (
-                    <> — <Link to="/signin" style={{ color: 'inherit', fontWeight: 700 }}>Sign in</Link></>
-                  )}
+            <AuthField
+              id="email"
+              name="email"
+              label="Email address"
+              type="email"
+              value={formData.email}
+              onChange={handleChange}
+              onBlur={handleBlur}
+              error={errors.email}
+              touched={touched.email}
+              hint="We'll send a verification link to this address"
+              icon={Mail}
+              required
+              autoComplete="email"
+              maxLength={254}
+              placeholder="you@example.com"
+            >
+              {errors.email?.includes('already registered') && touched.email && (
+                <span className="field-hint field-hint--action">
+                  Already registered? <Link to="/signin">Sign in instead</Link>
                 </span>
-              ) : (
-                <span className="field-hint">We'll send a verification link to this address</span>
               )}
-            </div>
+            </AuthField>
 
-            {/* Password */}
-            <div className="input-group">
-              <label htmlFor="password">
-                Password <span className="required">*</span>
-              </label>
-              <div className={`input-field ${errors.password && touched.password ? 'error' : ''}`}>
-                <Lock size={18} />
-                <input
-                  type={showPassword ? 'text' : 'password'}
-                  id="password"
-                  name="password"
-                  value={formData.password}
-                  onChange={handleChange}
-                  onBlur={handleBlur}
-                  placeholder="Create a strong password"
-                  autoComplete="new-password"
-                  minLength={8}
-                  maxLength={128}
-                  required
-                />
-                <button
-                  type="button"
-                  className="password-toggle"
-                  onClick={() => setShowPassword(v => !v)}
-                  tabIndex={-1}
-                >
-                  {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
-                </button>
-              </div>
-              {errors.password && touched.password && (
-                <span className="field-error">{errors.password}</span>
-              )}
-
-              {/* Password strength meter */}
-              {formData.password && (
+            <AuthField
+              id="password"
+              name="password"
+              label="Password"
+              value={formData.password}
+              onChange={handleChange}
+              onBlur={(e) => { setPasswordFocused(false); handleBlur(e); }}
+              onFocus={() => setPasswordFocused(true)}
+              error={errors.password}
+              touched={touched.password}
+              icon={Lock}
+              required
+              autoComplete="new-password"
+              minLength={8}
+              maxLength={128}
+              placeholder="Create a strong password"
+              showToggle
+              showPassword={showPassword}
+              onTogglePassword={() => setShowPassword((v) => !v)}
+            >
+              <PasswordChecklist
+                password={formData.password}
+                visible={passwordFocused || Boolean(formData.password)}
+              />
+              {formData.password && passwordStrength > 0 && (
                 <div className="password-strength">
                   <div className="strength-bar">
-                    {[...Array(5)].map((_, i) => (
+                    {[1, 2, 3, 4].map((i) => (
                       <div
                         key={i}
-                        className={`strength-segment ${i < passwordStrength ? 'active' : ''}`}
-                        style={{ backgroundColor: i < passwordStrength ? strengthColors[passwordStrength - 1] : undefined }}
+                        className={`strength-segment ${i <= passwordStrength ? 'active' : ''}`}
+                        style={{
+                          backgroundColor: i <= passwordStrength
+                            ? strengthColors[passwordStrength]
+                            : undefined,
+                        }}
                       />
                     ))}
                   </div>
-                  <span className="strength-label" style={{ color: strengthColors[passwordStrength - 1] }}>
-                    {passwordStrength > 0 ? strengthLabels[passwordStrength - 1] : ''}
+                  <span
+                    className="strength-label"
+                    style={{ color: strengthColors[passwordStrength] }}
+                  >
+                    {strengthLabels[passwordStrength]}
                   </span>
                 </div>
               )}
+            </AuthField>
 
-              {!(errors.password && touched.password) && (
-                <span className="field-hint">Min. 8 characters with uppercase, lowercase, and number</span>
+            <AuthField
+              id="confirmPassword"
+              name="confirmPassword"
+              label="Confirm password"
+              value={formData.confirmPassword}
+              onChange={handleChange}
+              onBlur={handleBlur}
+              error={errors.confirmPassword}
+              touched={touched.confirmPassword}
+              hint={passwordsMatch ? undefined : 'Re-enter your password to confirm'}
+              icon={Lock}
+              required
+              autoComplete="new-password"
+              maxLength={128}
+              placeholder="Repeat your password"
+              showToggle
+              showPassword={showConfirmPassword}
+              onTogglePassword={() => setShowConfirmPassword((v) => !v)}
+            >
+              {passwordsMatch && (
+                <span className="field-hint field-hint--success">
+                  <Check size={12} aria-hidden="true" /> Passwords match
+                </span>
               )}
-            </div>
+            </AuthField>
 
-            {/* Confirm Password */}
-            <div className="input-group">
-              <label htmlFor="confirmPassword">
-                Confirm Password <span className="required">*</span>
-              </label>
-              <div className={`input-field ${errors.confirmPassword && touched.confirmPassword ? 'error' : ''}`}>
-                <Lock size={18} />
-                <input
-                  type={showConfirmPassword ? 'text' : 'password'}
-                  id="confirmPassword"
-                  name="confirmPassword"
-                  value={formData.confirmPassword}
-                  onChange={handleChange}
-                  onBlur={handleBlur}
-                  placeholder="Repeat your password"
-                  autoComplete="new-password"
-                  maxLength={128}
-                  required
-                />
-                <button
-                  type="button"
-                  className="password-toggle"
-                  onClick={() => setShowConfirmPassword(v => !v)}
-                  tabIndex={-1}
-                >
-                  {showConfirmPassword ? <EyeOff size={16} /> : <Eye size={16} />}
-                </button>
-              </div>
-              {errors.confirmPassword && touched.confirmPassword && (
-                <span className="field-error">{errors.confirmPassword}</span>
+            <button
+              type="submit"
+              className={`auth-btn ${formReady ? 'auth-btn--ready' : ''}`}
+              disabled={loading}
+            >
+              {loading ? (
+                <span className="spinner" aria-label="Creating account" />
+              ) : (
+                <>
+                  Create account
+                  <ArrowRight size={18} />
+                </>
               )}
-            </div>
-
-            <button type="submit" className="auth-btn" disabled={loading}>
-              {loading ? <span className="spinner" /> : <> Create Account <ArrowRight size={18} /> </>}
             </button>
           </form>
 
           <p className="auth-switch">
             Already have an account? <Link to="/signin">Sign in</Link>
           </p>
-        </div>
 
-        <footer className="auth-footer">
-          <p>&copy; Plumfolio 2026</p>
-        </footer>
-      </div>
+          <p className="auth-legal">
+            By creating an account you agree to use Plumfolio responsibly.
+            Your data stays private to your account.
+          </p>
+        </div>
+      </main>
     </div>
   );
 };

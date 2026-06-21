@@ -161,7 +161,7 @@
   font-size: 0.72rem;
   font-weight: 700;
   color: var(--text-dim);
-  background: rgba(255, 255, 255, 0.03);
+  background: var(--bg-tertiary);
   border-radius: var(--radius-sm);
   flex-shrink: 0;
 }
@@ -181,7 +181,7 @@
 
 .category-bar {
   height: 4px;
-  background: rgba(255, 255, 255, 0.04);
+  background: var(--bg-tertiary);
   border-radius: 2px;
   overflow: hidden;
 }

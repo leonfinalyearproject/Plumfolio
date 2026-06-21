@@ -169,7 +169,7 @@ const Analytics = () => {
       legend: {
         position: 'top',
         labels: {
-          color: '#D0D0DA',
+          color: '#475569',
           usePointStyle: true,
           font: { family: "'DM Sans', sans-serif" },
         },
@@ -177,13 +177,13 @@ const Analytics = () => {
     },
     scales: {
       x: {
-        grid: { color: 'rgba(255, 255, 255, 0.05)' },
-        ticks: { color: '#B0B0BC' },
+        grid: { color: '#E2E8F0' },
+        ticks: { color: '#64748B' },
       },
       y: {
-        grid: { color: 'rgba(255, 255, 255, 0.05)' },
+        grid: { color: '#E2E8F0' },
         ticks: { 
-          color: '#B0B0BC',
+          color: '#64748B',
           callback: (value) => symbol + value.toLocaleString(),
         },
       },
@@ -213,7 +213,7 @@ const Analytics = () => {
       legend: {
         position: 'bottom',
         labels: {
-          color: '#D0D0DA',
+          color: '#475569',
           padding: 16,
           usePointStyle: true,
           font: { family: "'DM Sans', sans-serif", size: 11 },
@@ -243,12 +243,12 @@ const Analytics = () => {
     scales: {
       x: {
         grid: { display: false },
-        ticks: { color: '#B0B0BC' },
+        ticks: { color: '#64748B' },
       },
       y: {
-        grid: { color: 'rgba(255, 255, 255, 0.05)' },
+        grid: { color: '#E2E8F0' },
         ticks: { 
-          color: '#B0B0BC',
+          color: '#64748B',
           callback: (value) => symbol + value.toLocaleString(),
         },
       },

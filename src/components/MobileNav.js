@@ -45,21 +45,22 @@ const MobileNav = () => {
           padding: '20px',
         }}>
           <div style={{
-            background: '#1a1a2e', border: '1px solid rgba(255,255,255,0.1)',
+            background: 'var(--bg-secondary)', border: '1px solid var(--border-color)',
             borderRadius: '16px', padding: '24px', maxWidth: '300px', width: '100%',
             textAlign: 'center',
+            boxShadow: '0 8px 32px rgba(15, 23, 42, 0.12)',
           }}>
             <LogOut size={32} style={{ color: '#e74c3c', marginBottom: '12px' }} />
-            <h3 style={{ color: '#f2ede5', margin: '0 0 8px', fontSize: '1.1rem' }}>Sign Out?</h3>
-            <p style={{ color: 'rgba(255,255,255,0.4)', fontSize: '0.85rem', margin: '0 0 20px' }}>
+            <h3 style={{ color: 'var(--text-primary)', margin: '0 0 8px', fontSize: '1.1rem' }}>Sign Out?</h3>
+            <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', margin: '0 0 20px' }}>
               Are you sure you want to sign out of Plumfolio?
             </p>
             <div style={{ display: 'flex', gap: '10px' }}>
               <button
                 onClick={() => setShowLogout(false)}
                 style={{
-                  flex: 1, padding: '10px', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.1)',
-                  background: 'rgba(255,255,255,0.05)', color: 'rgba(255,255,255,0.6)',
+                  flex: 1, padding: '10px', borderRadius: '8px', border: '1px solid var(--border-color)',
+                  background: 'var(--bg-tertiary)', color: 'var(--text-secondary)',
                   fontSize: '0.9rem', cursor: 'pointer',
                 }}
               >

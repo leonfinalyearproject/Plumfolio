@@ -417,7 +417,7 @@ const Settings = () => {
                   </div>
 
                   {/* Progress bar */}
-                  <div style={{ height: 6, borderRadius: 3, background: 'rgba(255,255,255,0.06)', overflow: 'hidden' }}>
+                  <div style={{ height: 6, borderRadius: 3, background: 'var(--bg-tertiary)', overflow: 'hidden' }}>
                     <div style={{
                       width: `${usagePct}%`,
                       height: '100%',

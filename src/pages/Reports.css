@@ -92,14 +92,14 @@
 .breakdown-header { display: flex; justify-content: space-between; }
 .breakdown-name { font-size: 0.82rem; color: var(--text-secondary); }
 .breakdown-amount { font-size: 0.82rem; font-weight: 600; color: var(--text-primary); }
-.breakdown-bar { height: 6px; background: rgba(255,255,255,0.04); border-radius: 3px; overflow: hidden; }
+.breakdown-bar { height: 6px; background: var(--bg-tertiary); border-radius: 3px; overflow: hidden; }
 .breakdown-fill { height: 100%; border-radius: 3px; transition: width 500ms ease; }
 .breakdown-pct { font-size: 0.68rem; color: var(--text-dim); }
 
 /* Quick Stats */
 .quick-stats { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; }
 .quick-stat {
-  padding: 12px 14px; background: rgba(255,255,255,0.02);
+  padding: 12px 14px; background: var(--bg-tertiary);
   border: 1px solid var(--border-color); border-radius: 10px;
   display: flex; flex-direction: column; gap: 4px;
 }
@@ -124,7 +124,7 @@
 .income-amount { color: #22C55E; font-weight: 600; }
 .cat-badge {
   display: inline-block; padding: 2px 8px;
-  background: rgba(255,255,255,0.03); border: 1px solid var(--border-color);
+  background: var(--bg-tertiary); border: 1px solid var(--border-color);
   border-radius: 20px; font-size: 0.72rem; color: var(--text-muted);
 }
 

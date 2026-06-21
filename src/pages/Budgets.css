@@ -85,7 +85,7 @@
   width: 28px; height: 28px; display: flex; align-items: center; justify-content: center;
   border-radius: 6px; color: var(--text-dim); background: none; border: none; cursor: pointer;
 }
-.budget-actions button:hover { background: rgba(255,255,255,0.04); color: var(--text-secondary); }
+.budget-actions button:hover { background: var(--bg-tertiary); color: var(--text-secondary); }
 
 .budget-amounts { display: flex; align-items: baseline; gap: 4px; margin-bottom: 10px; }
 .budget-amounts .spent { font-size: 1.1rem; font-weight: 700; color: var(--text-primary); }
@@ -93,7 +93,7 @@
 .budget-amounts .allocated { font-size: 0.82rem; color: var(--text-muted); }
 
 .budget-progress-bar {
-  height: 6px; background: rgba(255,255,255,0.04);
+  height: 6px; background: var(--bg-tertiary);
   border-radius: 3px; overflow: hidden; margin-bottom: 10px;
 }
 .progress-fill {
@@ -198,7 +198,7 @@
 .rule-splits { display: flex; gap: 8px; }
 .rule-split {
   display: flex; flex-direction: column; align-items: center; gap: 2px;
-  flex: 1; padding: 8px; background: rgba(255,255,255,0.02);
+  flex: 1; padding: 8px; background: var(--bg-tertiary);
   border-radius: 8px;
 }
 .rule-split-pct { font-size: 1rem; font-weight: 700; color: #A855F7; }
@@ -275,18 +275,18 @@ input[type="date"]:focus::-webkit-datetime-edit-day-field:focus,
 input[type="date"]:focus::-webkit-datetime-edit-year-field:focus,
 input[type="month"]:focus::-webkit-datetime-edit-month-field:focus,
 input[type="month"]:focus::-webkit-datetime-edit-year-field:focus {
-  background: rgba(168,85,247,0.2);
-  color: #fff !important;
+  background: var(--plum-wash);
+  color: var(--text-primary) !important;
   outline: none;
 }
 input[type="date"]::-webkit-calendar-picker-indicator,
 input[type="month"]::-webkit-calendar-picker-indicator {
-  filter: invert(1) opacity(0.6);
+  filter: opacity(0.6);
   cursor: pointer;
   padding: 2px;
 }
 input[type="date"]:hover::-webkit-calendar-picker-indicator,
-input[type="month"]:hover::-webkit-calendar-picker-indicator { filter: invert(1) opacity(1); }
+input[type="month"]:hover::-webkit-calendar-picker-indicator { filter: opacity(1); }
 
 /* Custom date picker trio — day/month/year dropdowns.
    Used instead of <input type="date"> where native editing is flaky on dark themes. */
@@ -338,7 +338,7 @@ input[type="month"]:hover::-webkit-calendar-picker-indicator { filter: invert(1)
   width: 30px; height: 30px; display: flex; align-items: center; justify-content: center;
   border-radius: 8px; color: var(--text-dim); background: none; border: none; cursor: pointer;
 }
-.modal-close:hover { background: rgba(255,255,255,0.05); }
+.modal-close:hover { background: var(--bg-tertiary); }
 .modal-form { padding: 16px 20px; display: flex; flex-direction: column; gap: 12px; }
 
 .form-group { display: flex; flex-direction: column; gap: 4px; }
@@ -373,7 +373,7 @@ input[type="month"]:hover::-webkit-calendar-picker-indicator { filter: invert(1)
 .empty-state-actions { display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; margin-top: 8px; }
 .empty-action-btn {
   display: inline-flex; align-items: center; gap: 6px;
-  padding: 9px 16px; background: rgba(255,255,255,0.03);
+  padding: 9px 16px; background: var(--bg-tertiary);
   color: var(--text-secondary); border: 1px solid var(--border-color);
   border-radius: 10px; font-size: 0.85rem; font-weight: 500;
   cursor: pointer; transition: all 250ms;
