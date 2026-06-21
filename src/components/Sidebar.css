@@ -1,0 +1,121 @@
+/* Sidebar — professional light theme */
+
+.sidebar {
+  width: 220px;
+  min-width: 220px;
+  height: 100vh;
+  background: var(--bg-secondary);
+  border-right: 1px solid var(--border-color);
+  display: flex;
+  flex-direction: column;
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: 50;
+  overflow-y: auto;
+  box-shadow: var(--shadow-sm);
+}
+
+.sidebar-logo {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 22px 20px 24px;
+}
+
+.sidebar-logo-img {
+  width: 32px;
+  height: 32px;
+  object-fit: contain;
+}
+
+.sidebar-logo-text {
+  font-family: var(--font-display);
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  letter-spacing: -0.03em;
+}
+
+.sidebar-nav {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  padding: 0 12px;
+  gap: 2px;
+}
+
+.sidebar-link {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  padding: 10px 12px;
+  border-radius: var(--radius-md);
+  color: var(--text-muted);
+  text-decoration: none;
+  font-size: 0.875rem;
+  font-weight: 500;
+  transition: all 0.2s var(--ease-out);
+  white-space: nowrap;
+}
+
+.sidebar-link:hover {
+  color: var(--text-primary);
+  background: var(--bg-tertiary);
+}
+
+.sidebar-link.active {
+  color: var(--plum-medium);
+  background: var(--plum-wash);
+  font-weight: 600;
+}
+
+.sidebar-link svg {
+  flex-shrink: 0;
+  width: 18px;
+  height: 18px;
+  opacity: 0.65;
+  transition: opacity 0.2s;
+}
+
+.sidebar-link:hover svg,
+.sidebar-link.active svg {
+  opacity: 1;
+}
+
+.sidebar-link.active svg {
+  color: var(--plum-light);
+}
+
+.sidebar-footer {
+  padding: 14px 12px 18px;
+  border-top: 1px solid var(--border-color);
+}
+
+.sidebar-logout {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  width: 100%;
+  padding: 10px 12px;
+  border-radius: var(--radius-md);
+  color: var(--text-muted);
+  font-size: 0.875rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s var(--ease-out);
+}
+
+.sidebar-logout:hover {
+  color: var(--error);
+  background: rgba(220, 38, 38, 0.06);
+}
+
+.sidebar-logout svg {
+  width: 18px;
+  height: 18px;
+  opacity: 0.65;
+}
+
+.sidebar-logout:hover svg { opacity: 1; }

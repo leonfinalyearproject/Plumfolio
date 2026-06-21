@@ -1,0 +1,35 @@
+{
+  "name": "plumfolio",
+  "version": "1.0.0",
+  "description": "Personal Finance Tracker - Final Year Project",
+  "private": true,
+  "homepage": "https://leonfinalyearproject.github.io/Plumfolio",
+  "scripts": {
+    "start": "react-scripts start",
+    "build": "react-scripts build",
+    "test": "react-scripts test",
+    "eject": "react-scripts eject"
+  },
+  "browserslist": {
+    "production": [
+      ">0.2%",
+      "not dead",
+      "not op_mini all"
+    ],
+    "development": [
+      "last 1 chrome version",
+      "last 1 firefox version",
+      "last 1 safari version"
+    ]
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.93.3",
+    "chart.js": "^4.5.1",
+    "lucide-react": "^0.563.0",
+    "react": "^18.3.1",
+    "react-chartjs-2": "^5.3.1",
+    "react-dom": "^18.3.1",
+    "react-router-dom": "^6.30.3",
+    "react-scripts": "^5.0.1"
+  }
+}

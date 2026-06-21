@@ -1,0 +1,111 @@
+/* Lusion-inspired scroll reveal animations */
+
+html {
+  scroll-behavior: smooth;
+}
+
+.scroll-reveal {
+  opacity: 0;
+  will-change: transform, opacity;
+  transition:
+    opacity var(--reveal-duration, 0.85s) cubic-bezier(0.16, 1, 0.3, 1) var(--reveal-delay, 0ms),
+    transform var(--reveal-duration, 0.85s) cubic-bezier(0.16, 1, 0.3, 1) var(--reveal-delay, 0ms);
+}
+
+.scroll-reveal-up {
+  transform: translateY(48px);
+}
+
+.scroll-reveal-down {
+  transform: translateY(-32px);
+}
+
+.scroll-reveal-left {
+  transform: translateX(-40px);
+}
+
+.scroll-reveal-right {
+  transform: translateX(40px);
+}
+
+.scroll-reveal-scale {
+  transform: scale(0.94);
+}
+
+.scroll-reveal-fade {
+  transform: none;
+}
+
+.scroll-reveal.is-visible {
+  opacity: 1;
+  transform: none;
+}
+
+/* Live data pulse — synced across app */
+@keyframes livePulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.5; transform: scale(0.85); }
+}
+
+@keyframes dataFlash {
+  0% { background-color: rgba(124, 58, 237, 0.12); }
+  100% { background-color: transparent; }
+}
+
+.data-sync-flash {
+  animation: dataFlash 0.6s ease-out;
+  border-radius: var(--radius-xl);
+}
+
+.live-sync-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: var(--radius-full);
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-color);
+  transition: all 0.3s ease;
+}
+
+.live-sync-badge.is-live {
+  color: var(--success);
+  border-color: rgba(22, 163, 74, 0.25);
+  background: rgba(22, 163, 74, 0.06);
+}
+
+.live-sync-badge.is-syncing {
+  color: var(--plum-medium);
+  border-color: rgba(124, 58, 237, 0.2);
+}
+
+.live-sync-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--text-dim);
+}
+
+.live-sync-badge.is-live .live-sync-dot {
+  background: var(--success);
+  animation: livePulse 2s ease-in-out infinite;
+}
+
+.live-sync-badge.is-syncing .live-sync-dot {
+  background: var(--plum-light);
+  animation: livePulse 0.8s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  .scroll-reveal {
+    opacity: 1;
+    transform: none;
+    transition: none;
+  }
+}
