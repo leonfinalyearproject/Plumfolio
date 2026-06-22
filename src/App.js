@@ -51,7 +51,7 @@ const ProtectedRoute = ({ children }) => {
   if (!user) return <Navigate to="/signin" />;
 
   const onOnboarding = location.pathname === '/onboarding';
-  const needsOnboarding = shouldShowOnboarding(user.id, { transactions, budgets });
+  const needsOnboarding = shouldShowOnboarding(user.id);
 
   if (needsOnboarding && !onOnboarding) return <Navigate to="/onboarding" replace />;
   if (!needsOnboarding && onOnboarding) return <Navigate to="/dashboard" replace />;
@@ -78,7 +78,7 @@ const OnboardingRoute = ({ children }) => {
 
   if (!user) return <Navigate to="/signin" />;
 
-  if (!shouldShowOnboarding(user.id, { transactions, budgets })) {
+  if (!shouldShowOnboarding(user.id)) {
     return <Navigate to="/dashboard" replace />;
   }
 

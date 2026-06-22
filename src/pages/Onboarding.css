@@ -205,6 +205,52 @@
 }
 
 /* Currency picker */
+.onboarding-currency-search {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  margin-bottom: 12px;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  background: rgba(255, 252, 247, 0.7);
+}
+
+.onboarding-currency-search input {
+  flex: 1;
+  border: none;
+  background: transparent;
+  font-size: 0.85rem;
+  color: var(--text-primary);
+  outline: none;
+}
+
+.onboarding-currency-search svg {
+  color: var(--text-muted);
+  flex-shrink: 0;
+}
+
+.onboarding-currency-scroll {
+  max-height: 280px;
+  overflow-y: auto;
+  padding-right: 4px;
+  margin-bottom: 8px;
+}
+
+.onboarding-currency-group {
+  margin-bottom: 14px;
+}
+
+.onboarding-currency-group-label {
+  display: block;
+  font-family: var(--font-ledger-mono, monospace);
+  font-size: 0.62rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  margin-bottom: 8px;
+}
+
 .onboarding-currency-grid {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
@@ -239,6 +285,21 @@
 .onboarding-currency-card.selected {
   border-color: var(--plum-medium);
   background: var(--plum-wash);
+}
+
+.onboarding-currency-card:disabled {
+  opacity: 0.85;
+  cursor: default;
+}
+
+.onboarding-field select {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  background: rgba(255, 252, 247, 0.7);
+  font-size: 0.9rem;
+  color: var(--text-primary);
 }
 
 .onboarding-currency-card .flag {

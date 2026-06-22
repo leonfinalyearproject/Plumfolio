@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useCurrency, CURRENCIES, getCurrencyInfo } from '../context/CurrencyContext';
@@ -8,18 +8,26 @@ import { validateFullName, validateAmount } from '../utils/validation';
 import { markOnboardingComplete, clearOnboardingReplay, isOnboardingReplayRequested } from '../utils/onboardingStorage';
 import {
   Sparkles, Globe, Wallet, Target, ArrowRight, ArrowLeft,
-  Check, TrendingUp, TrendingDown, Loader, User,
+  Check, TrendingUp, TrendingDown, Loader, User, Search,
 } from 'lucide-react';
 import './Onboarding.css';
 
 const STEPS = ['welcome', 'profile', 'income', 'budgets', 'transaction', 'complete'];
 const STEP_LABELS = ['Welcome', 'Profile', 'Income', 'Budgets', 'Transaction', 'Done'];
 
-const POPULAR_CURRENCIES = ['BWP', 'ZAR', 'USD', 'GBP', 'EUR', 'NGN', 'KES'];
+const AFRICAN_CURRENCY_CODES = ['BWP', 'ZAR', 'NGN', 'KES', 'GHS', 'TZS', 'UGX', 'ZMW', 'NAD', 'MWK', 'LSL', 'SZL', 'EGP'];
+
+const EXPENSE_CATEGORIES = [
+  'Food & Dining', 'Transportation', 'Housing', 'Utilities',
+  'Entertainment', 'Shopping', 'Health & Fitness', 'Education',
+  'Groceries', 'Subscriptions', 'Personal Care', 'Travel',
+  'Savings', 'Investments', 'Gifts & Donations', 'Other',
+];
 
 const DEFAULT_BUDGETS = [
-  { category: 'Food & Dining', hint: 'Groceries & meals', pct: 0.3 },
+  { category: 'Food & Dining', hint: 'Groceries & meals', pct: 0.25 },
   { category: 'Transportation', hint: 'Fuel & travel', pct: 0.15 },
+  { category: 'Housing', hint: 'Rent & utilities', pct: 0.3 },
   { category: 'Entertainment', hint: 'Fun & leisure', pct: 0.1 },
   { category: 'Savings', hint: 'Monthly savings', pct: 0.2 },
 ];
@@ -100,15 +108,20 @@ const OnboardingPreview = ({
 const Onboarding = () => {
   const navigate = useNavigate();
   const { user, profile, updateProfile } = useAuth();
-  const { convertToBwp } = useCurrency();
+  const { convertToBwp, rate } = useCurrency();
   const {
     refreshInsights, transactions, budgets, isLive, syncing, dataVersion,
   } = useInsights();
+
+  const isReplay = isOnboardingReplayRequested();
+  const txPrefilled = useRef(false);
+  const replayHydrated = useRef(false);
 
   const [stepIndex, setStepIndex] = useState(0);
   const [saving, setSaving] = useState(false);
   const [flash, setFlash] = useState(false);
   const [error, setError] = useState('');
+  const [currencySearch, setCurrencySearch] = useState('');
 
   const [fullName, setFullName] = useState(
     profile?.full_name || user?.user_metadata?.full_name || '',
@@ -126,7 +139,8 @@ const Onboarding = () => {
 
   const [txType, setTxType] = useState('income');
   const [txAmount, setTxAmount] = useState('');
-  const [txDescription, setTxDescription] = useState('Starting balance');
+  const [txDescription, setTxDescription] = useState('Salary');
+  const [txCategory, setTxCategory] = useState('Food & Dining');
   const [txError, setTxError] = useState('');
   const [txSaved, setTxSaved] = useState(false);
 
@@ -150,21 +164,45 @@ const Onboarding = () => {
   const previewBalance = useMemo(() => {
     const income = parseFloat(monthlyIncome) || 0;
     const tx = txSaved && txAmount ? parseFloat(txAmount) : 0;
-    const liveTxTotal = (transactions || []).reduce((sum, t) => {
-      const amt = parseFloat(t.amount) || 0;
-      return sum + (t.type === 'income' ? amt : -amt);
-    }, 0);
-    if (transactions?.length > 0) return liveTxTotal;
+
+    if (!isReplay && transactions?.length > 0) {
+      return (transactions || []).reduce((sum, t) => {
+        const amt = parseFloat(t.amount) || 0;
+        return sum + (t.type === 'income' ? amt : -amt);
+      }, 0);
+    }
+
     if (txType === 'income') return income + tx;
     return income - tx;
-  }, [monthlyIncome, txAmount, txType, txSaved, transactions]);
+  }, [monthlyIncome, txAmount, txType, txSaved, transactions, isReplay]);
+
+  const previewTransactionCount = isReplay
+    ? (txSaved ? 1 : 0)
+    : (transactions?.length || (txSaved ? 1 : 0));
 
   const budgetTotal = useMemo(
     () => budgetRows.reduce((s, b) => s + (parseFloat(b.amount) || 0), 0),
     [budgetRows],
   );
 
-  const transactionCount = transactions?.length || (txSaved ? 1 : 0);
+  const transactionCount = previewTransactionCount;
+
+  const filteredCurrencies = useMemo(() => {
+    const q = currencySearch.trim().toLowerCase();
+    if (!q) return CURRENCIES;
+    return CURRENCIES.filter((c) =>
+      c.name.toLowerCase().includes(q)
+      || c.code.toLowerCase().includes(q)
+      || c.symbol.toLowerCase().includes(q),
+    );
+  }, [currencySearch]);
+
+  const africanCurrencies = filteredCurrencies.filter(
+    (c) => AFRICAN_CURRENCY_CODES.includes(c.code) && (currencySearch || c.code !== currency),
+  );
+  const internationalCurrencies = filteredCurrencies.filter(
+    (c) => !AFRICAN_CURRENCY_CODES.includes(c.code) && (currencySearch || c.code !== currency),
+  );
 
   const triggerFlash = useCallback(() => {
     setFlash(true);
@@ -177,9 +215,48 @@ const Onboarding = () => {
   }, [stepIndex, currency, monthlyIncome, budgetRows, txAmount, dataVersion, triggerFlash]);
 
   useEffect(() => {
-    if (profile?.full_name) setFullName(profile.full_name);
+    if (profile?.full_name && !isReplay) setFullName(profile.full_name);
     if (profile?.currency) setCurrency(profile.currency);
-  }, [profile]);
+  }, [profile, isReplay]);
+
+  useEffect(() => {
+    if (!isReplay || replayHydrated.current) return;
+
+    const month = new Date().toISOString().slice(0, 7);
+    const currentBudgets = (budgets || []).filter((b) => b.month_year === month);
+
+    if (currentBudgets.length > 0) {
+      setBudgetRows(currentBudgets.map((b) => ({
+        category: b.category,
+        hint: 'Your current budget',
+        pct: 0,
+        amount: parseFloat(b.allocated) || 0,
+      })));
+    }
+
+    if ((transactions || []).length > 0) {
+      const incomeTx = transactions.find((t) => t.type === 'income');
+      if (incomeTx) {
+        const bwpAmt = parseFloat(incomeTx.amount) || 0;
+        const displayAmt = rate ? bwpAmt * rate : bwpAmt;
+        setMonthlyIncome(String(Math.round(displayAmt)));
+        setTxType('income');
+        setTxDescription(incomeTx.description || 'Income');
+      }
+    }
+
+    replayHydrated.current = true;
+  }, [isReplay, budgets, transactions, rate]);
+
+  useEffect(() => {
+    if (step !== 'transaction' || isReplay || txPrefilled.current) return;
+    if (monthlyIncome) {
+      setTxType('income');
+      setTxAmount(monthlyIncome);
+      setTxDescription('Salary');
+      txPrefilled.current = true;
+    }
+  }, [step, monthlyIncome, isReplay]);
 
   const applyIncomeToBudgets = (incomeVal) => {
     const n = parseFloat(incomeVal);
@@ -207,6 +284,8 @@ const Onboarding = () => {
       return false;
     }
     setNameError('');
+    if (isReplay) return true;
+
     setSaving(true);
     setError('');
     const { error: err } = await updateProfile({
@@ -222,6 +301,8 @@ const Onboarding = () => {
   };
 
   const saveBudgets = async () => {
+    if (isReplay) return true;
+
     const month = new Date().toISOString().slice(0, 7);
     const toInsert = budgetRows
       .filter((b) => parseFloat(b.amount) > 0)
@@ -249,6 +330,10 @@ const Onboarding = () => {
 
   const saveTransaction = async () => {
     if (!txAmount) return true;
+    if (isReplay) {
+      setTxSaved(true);
+      return true;
+    }
 
     const amtErr = validateAmount(txAmount);
     if (amtErr) {
@@ -268,7 +353,7 @@ const Onboarding = () => {
       type: txType,
       amount: bwpAmount,
       description: txDescription.trim(),
-      category: txType === 'income' ? 'Income' : 'Other',
+      category: txType === 'income' ? 'Income' : txCategory,
       date: new Date().toISOString().split('T')[0],
     }]);
     setSaving(false);
@@ -283,10 +368,10 @@ const Onboarding = () => {
 
   const finishOnboarding = () => {
     markOnboardingComplete(user.id, {
-      currency,
-      budgets: budgetRows.filter((b) => b.amount > 0).length,
-      transaction: txSaved,
-      replay: isOnboardingReplayRequested(),
+      currency: isReplay ? (profile?.currency || currency) : currency,
+      budgets: isReplay ? (budgets?.length || 0) : budgetRows.filter((b) => b.amount > 0).length,
+      transaction: isReplay ? ((transactions?.length || 0) > 0) : txSaved,
+      replay: isReplay,
     });
     clearOnboardingReplay();
     navigate('/dashboard');
@@ -351,20 +436,23 @@ const Onboarding = () => {
           <>
             <div className="onboarding-icon-wrap"><Sparkles size={22} /></div>
             <h1>Welcome{fullName ? `, ${fullName.split(' ')[0]}` : ''}!</h1>
-            {isOnboardingReplayRequested() && (
+            {isReplay ? (
               <p className="onboarding-replay-note">
-                You&apos;re replaying the setup guide. Your existing data stays in place.
+                Tutorial mode — walk through the steps again. Nothing you change here will update your dashboard.
+              </p>
+            ) : (
+              <p>
+                Let&apos;s set up Plumfolio in a few quick steps. Your currency, budgets, and first
+                transaction will appear on your dashboard exactly as you enter them here.
               </p>
             )}
-            <p>
-              Let&apos;s personalize Plumfolio in a few quick steps. Everything you enter
-              updates your dashboard in real time — no page reloads needed.
-            </p>
-            <ul className="onboarding-summary-list">
-              <li><Check size={16} /> Choose your currency</li>
-              <li><Check size={16} /> Set monthly income &amp; budgets</li>
-              <li><Check size={16} /> Add your first transaction</li>
-            </ul>
+            {!isReplay && (
+              <ul className="onboarding-summary-list">
+                <li><Check size={16} /> Choose your display currency</li>
+                <li><Check size={16} /> Plan monthly budgets by category</li>
+                <li><Check size={16} /> Log your first income or expense</li>
+              </ul>
+            )}
           </>
         );
 
@@ -373,7 +461,11 @@ const Onboarding = () => {
           <>
             <div className="onboarding-icon-wrap"><User size={22} /></div>
             <h1>Your profile</h1>
-            <p>Confirm your name and pick the currency you track money in.</p>
+            <p>
+              {isReplay
+                ? 'This is the same currency picker you will find in Settings. In tutorial mode your selection is preview only.'
+                : 'Your name and currency are saved to your profile and used across the dashboard, budgets, and reports.'}
+            </p>
 
             <div className="onboarding-field">
               <label htmlFor="ob-name">Full name</label>
@@ -383,6 +475,7 @@ const Onboarding = () => {
                 onChange={(e) => { setFullName(e.target.value); setNameError(''); }}
                 placeholder="Your name"
                 maxLength={60}
+                readOnly={isReplay}
               />
               {nameError && <p className="onboarding-field-error">{nameError}</p>}
             </div>
@@ -391,26 +484,82 @@ const Onboarding = () => {
               <Globe size={18} />
             </div>
             <p style={{ marginBottom: 12, fontSize: '0.85rem' }}>Display currency</p>
-            <div className="onboarding-currency-grid">
-              {POPULAR_CURRENCIES.map((code) => {
-                const c = CURRENCIES.find((x) => x.code === code);
-                if (!c) return null;
-                return (
-                  <button
-                    key={code}
-                    type="button"
-                    className={`onboarding-currency-card ${currency === code ? 'selected' : ''}`}
-                    onClick={() => setCurrency(code)}
-                  >
-                    <span className="flag">{c.flag}</span>
-                    <span className="code">{c.code}</span>
-                    <span className="name">{c.name}</span>
-                  </button>
-                );
-              })}
+
+            <div className="onboarding-currency-search">
+              <Search size={16} />
+              <input
+                type="text"
+                placeholder="Search currencies..."
+                value={currencySearch}
+                onChange={(e) => setCurrencySearch(e.target.value)}
+              />
             </div>
+
+            <div className="onboarding-currency-scroll">
+              {!currencySearch && (
+                <div className="onboarding-currency-group">
+                  <span className="onboarding-currency-group-label">Selected</span>
+                  <button
+                    type="button"
+                    className="onboarding-currency-card selected"
+                    onClick={() => !isReplay && setCurrency(currency)}
+                  >
+                    <span className="flag">{currencyInfo.flag}</span>
+                    <span className="code">{currencyInfo.code}</span>
+                    <span className="name">{currencyInfo.name}</span>
+                  </button>
+                </div>
+              )}
+
+              {africanCurrencies.length > 0 && (
+                <div className="onboarding-currency-group">
+                  {!currencySearch && <span className="onboarding-currency-group-label">African</span>}
+                  <div className="onboarding-currency-grid">
+                    {africanCurrencies.map((c) => (
+                      <button
+                        key={c.code}
+                        type="button"
+                        className={`onboarding-currency-card ${currency === c.code ? 'selected' : ''}`}
+                        onClick={() => !isReplay && setCurrency(c.code)}
+                        disabled={isReplay}
+                      >
+                        <span className="flag">{c.flag}</span>
+                        <span className="code">{c.code}</span>
+                        <span className="name">{c.name}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {internationalCurrencies.length > 0 && (
+                <div className="onboarding-currency-group">
+                  {!currencySearch && <span className="onboarding-currency-group-label">International</span>}
+                  <div className="onboarding-currency-grid">
+                    {internationalCurrencies.map((c) => (
+                      <button
+                        key={c.code}
+                        type="button"
+                        className={`onboarding-currency-card ${currency === c.code ? 'selected' : ''}`}
+                        onClick={() => !isReplay && setCurrency(c.code)}
+                        disabled={isReplay}
+                      >
+                        <span className="flag">{c.flag}</span>
+                        <span className="code">{c.code}</span>
+                        <span className="name">{c.name}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {filteredCurrencies.length === 0 && (
+                <p className="onboarding-field-hint">No currencies match your search.</p>
+              )}
+            </div>
+
             <p className="onboarding-field-hint" style={{ marginTop: 10 }}>
-              Preview: {previewFormat(1000)} sample amount
+              Dashboard preview: {previewFormat(1000)} · same formatting as Settings
             </p>
           </>
         );
@@ -421,7 +570,9 @@ const Onboarding = () => {
             <div className="onboarding-icon-wrap"><Wallet size={22} /></div>
             <h1>Monthly income</h1>
             <p>
-              Optional, but helps us suggest budget amounts. You can change this anytime.
+              {isReplay
+                ? 'In the real setup, this figure suggests budget amounts on the next step.'
+                : 'Optional, but helps suggest budget amounts. Your dashboard income is calculated from transactions you log — we will pre-fill your first one on the next step.'}
             </p>
 
             <div className="onboarding-quick-picks">
@@ -465,7 +616,9 @@ const Onboarding = () => {
             <div className="onboarding-icon-wrap"><Target size={22} /></div>
             <h1>Your first budgets</h1>
             <p>
-              Adjust the amounts below — they&apos;ll be created for this month when you continue.
+              {isReplay
+                ? 'These categories match the Budgets page. In tutorial mode, changes are preview only.'
+                : 'Same categories as your Budgets page. Amounts are created for this month when you continue.'}
             </p>
 
             <div className="onboarding-budget-list">
@@ -498,9 +651,14 @@ const Onboarding = () => {
               <strong>{previewFormat(budgetTotal)}</strong>
             </div>
 
-            {budgetsSaved && (
+            {budgetsSaved && !isReplay && (
               <p className="onboarding-field-hint onboarding-field-hint--success" style={{ marginTop: 10 }}>
-                <Check size={12} /> Budgets synced to your account
+                <Check size={12} /> Budgets saved — visible on your Budgets page and dashboard
+              </p>
+            )}
+            {isReplay && (
+              <p className="onboarding-field-hint" style={{ marginTop: 10 }}>
+                Tutorial preview — your existing budgets on the dashboard are unchanged.
               </p>
             )}
           </>
@@ -512,7 +670,9 @@ const Onboarding = () => {
             <div className="onboarding-icon-wrap"><TrendingUp size={22} /></div>
             <h1>First transaction</h1>
             <p>
-              Log a starting balance or recent income/expense. Skip if you&apos;d rather add later.
+              {isReplay
+                ? 'Transactions use the same categories as the Transactions page. Tutorial mode will not create new entries.'
+                : 'This is saved like any transaction on your dashboard — income updates your balance and expense categories feed your spending charts.'}
             </p>
 
             <div className="onboarding-type-toggle">
@@ -551,11 +711,27 @@ const Onboarding = () => {
                 id="ob-tx-desc"
                 value={txDescription}
                 onChange={(e) => setTxDescription(e.target.value)}
-                placeholder="e.g. Salary, Starting balance"
+                placeholder="e.g. Salary, Groceries"
                 maxLength={100}
               />
-              {txError && <p className="onboarding-field-error">{txError}</p>}
             </div>
+
+            {txType === 'expense' && (
+              <div className="onboarding-field">
+                <label htmlFor="ob-tx-cat">Category</label>
+                <select
+                  id="ob-tx-cat"
+                  value={txCategory}
+                  onChange={(e) => setTxCategory(e.target.value)}
+                >
+                  {EXPENSE_CATEGORIES.map((cat) => (
+                    <option key={cat} value={cat}>{cat}</option>
+                  ))}
+                </select>
+              </div>
+            )}
+
+            {txError && <p className="onboarding-field-error">{txError}</p>}
           </>
         );
 
@@ -563,16 +739,23 @@ const Onboarding = () => {
         return (
           <>
             <div className="onboarding-complete-check"><Check size={32} /></div>
-            <h1>You&apos;re all set!</h1>
-            <p>Your Plumfolio workspace is ready. Here&apos;s what we configured:</p>
+            <h1>{isReplay ? 'Tutorial complete!' : 'You\'re all set!'}</h1>
+            <p>
+              {isReplay
+                ? 'You have walked through the setup flow again. Your live dashboard data is unchanged.'
+                : 'Your Plumfolio workspace is ready. Here\'s what we configured:'}
+            </p>
             <ul className="onboarding-summary-list">
               <li><Check size={16} /> Currency: {currencyInfo.flag} {currencyInfo.name}</li>
               {fullName && <li><Check size={16} /> Profile: {fullName.trim()}</li>}
-              {budgetRows.filter((b) => b.amount > 0).length > 0 && (
-                <li><Check size={16} /> {budgetRows.filter((b) => b.amount > 0).length} monthly budgets</li>
+              {!isReplay && budgetRows.filter((b) => b.amount > 0).length > 0 && (
+                <li><Check size={16} /> {budgetRows.filter((b) => b.amount > 0).length} monthly budgets on Budgets page</li>
               )}
-              {(txSaved || transactions?.length > 0) && (
-                <li><Check size={16} /> First transaction recorded</li>
+              {!isReplay && (txSaved || transactions?.length > 0) && (
+                <li><Check size={16} /> First transaction on your dashboard</li>
+              )}
+              {isReplay && (budgets?.length > 0) && (
+                <li><Check size={16} /> Your live budgets remain on the dashboard</li>
               )}
             </ul>
           </>
@@ -642,7 +825,7 @@ const Onboarding = () => {
               {saving ? (
                 <Loader size={18} className="spin" />
               ) : step === 'complete' ? (
-                <>Open dashboard <ArrowRight size={16} /></>
+                <>{isReplay ? 'Back to dashboard' : 'Open dashboard'} <ArrowRight size={16} /></>
               ) : step === 'transaction' && !txAmount ? (
                 <>Continue <ArrowRight size={16} /></>
               ) : (

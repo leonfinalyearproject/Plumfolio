@@ -33,11 +33,10 @@ export const isOnboardingReplayRequested = () => {
   }
 };
 
-/** Clear completion flag and allow the setup wizard to open again. */
+/** Open the setup wizard in tutorial mode without clearing completion. */
 export const requestOnboardingReplay = (userId) => {
   if (!userId) return;
   try {
-    localStorage.removeItem(onboardingKey(userId));
     sessionStorage.setItem(REPLAY_KEY, '1');
   } catch (_) { /* ignore */ }
 };
@@ -48,13 +47,8 @@ export const clearOnboardingReplay = () => {
   } catch (_) { /* ignore */ }
 };
 
-export const shouldShowOnboarding = (userId, { transactions = [], budgets = [] } = {}) => {
+export const shouldShowOnboarding = (userId) => {
   if (!userId) return false;
   if (isOnboardingReplayRequested()) return true;
-  if (isOnboardingComplete(userId)) return false;
-  if (transactions.length > 0 || budgets.length > 0) {
-    markOnboardingComplete(userId, { reason: 'existing_data' });
-    return false;
-  }
-  return true;
+  return !isOnboardingComplete(userId);
 };
