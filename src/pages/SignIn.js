@@ -94,21 +94,6 @@ const SignIn = () => {
           <p className="auth-ledger-lead">
             Your budgets, transactions, and forecasts pick up exactly where you left them.
           </p>
-
-          <div className="auth-ledger-slip">
-            <div className="auth-ledger-slip-row">
-              <span>Session</span>
-              <span>Encrypted</span>
-            </div>
-            <div className="auth-ledger-slip-row">
-              <span>Sync</span>
-              <span>Real-time</span>
-            </div>
-            <div className="auth-ledger-slip-row">
-              <span>Ref</span>
-              <span>PF-ACC-{new Date().getFullYear()}</span>
-            </div>
-          </div>
         </div>
 
         <p className="auth-ledger-copy">© {new Date().getFullYear()} Futurify Designs</p>

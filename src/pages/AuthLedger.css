@@ -23,12 +23,26 @@
   padding: 40px 44px;
   background: #1C1917;
   color: #E7E0D4;
-  border-right: 3px solid #3B1858;
+  position: relative;
 }
 
 @media (min-width: 900px) {
   .auth-ledger-panel {
     display: flex;
+  }
+
+  .auth-ledger-panel::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    width: 1px;
+    background: rgba(0, 0, 0, 0.35);
+    box-shadow:
+      1px 0 4px rgba(0, 0, 0, 0.18),
+      -1px 0 2px rgba(255, 255, 255, 0.06);
+    pointer-events: none;
   }
 }
 
@@ -93,30 +107,6 @@
   color: #A8A29E;
   max-width: 340px;
   margin-bottom: 32px;
-}
-
-.auth-ledger-slip {
-  border: 1px solid #44403C;
-  padding: 16px 18px;
-  background: rgba(255, 252, 247, 0.04);
-}
-
-.auth-ledger-slip-row {
-  display: flex;
-  justify-content: space-between;
-  font-family: 'IBM Plex Mono', monospace;
-  font-size: 0.72rem;
-  padding: 6px 0;
-  border-bottom: 1px solid #44403C;
-  color: #D6D0C4;
-}
-
-.auth-ledger-slip-row:last-child {
-  border-bottom: none;
-}
-
-.auth-ledger-slip-row span:last-child {
-  color: #FFFCF7;
 }
 
 .auth-ledger-steps {

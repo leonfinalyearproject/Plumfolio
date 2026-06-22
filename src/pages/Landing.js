@@ -76,12 +76,6 @@ const Landing = () => {
               </div>
             </div>
 
-            <div className="lp-spine" aria-hidden="true">
-              <div className="lp-binder-rings">
-                <span /><span /><span />
-              </div>
-            </div>
-
             <div className="lp-page lp-page--right">
               <div className="lp-page-inner">
                 <div className="lp-sheet-head">

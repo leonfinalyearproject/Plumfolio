@@ -151,49 +151,6 @@
     linear-gradient(90deg, transparent 72%, rgba(180, 170, 155, 0.25) 72%, rgba(180, 170, 155, 0.25) 72.5%, transparent 72.5%);
 }
 
-.lp-spine {
-  display: none;
-  background: linear-gradient(90deg, #1a1210 0%, #4a3728 35%, #6b5344 50%, #4a3728 65%, #1a1210 100%);
-  position: relative;
-  box-shadow: inset 0 0 12px rgba(0, 0, 0, 0.5);
-  min-height: 100%;
-}
-
-.lp-binder-rings {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 56px;
-  height: 100%;
-  min-height: 380px;
-  padding: 48px 0;
-}
-
-.lp-binder-rings span {
-  display: block;
-  width: 20px;
-  height: 20px;
-  border-radius: 50%;
-  border: 3px solid #9ca3af;
-  background:
-    radial-gradient(circle at 35% 30%, #f3f4f6, #6b7280 45%, #374151 100%);
-  box-shadow:
-    inset 0 2px 4px rgba(255, 255, 255, 0.45),
-    inset 0 -2px 4px rgba(0, 0, 0, 0.35),
-    0 3px 6px rgba(0, 0, 0, 0.45);
-  position: relative;
-}
-
-.lp-binder-rings span::after {
-  content: '';
-  position: absolute;
-  inset: 5px;
-  border-radius: 50%;
-  border: 1px solid rgba(0, 0, 0, 0.15);
-  background: radial-gradient(circle at 40% 35%, rgba(255, 255, 255, 0.3), transparent 60%);
-}
-
 /* Hole punches */
 .lp-page-holes {
   position: absolute;
@@ -576,17 +533,28 @@
 
 @media (min-width: 768px) {
   .lp-book {
-    grid-template-columns: 1fr 22px 1fr;
+    grid-template-columns: 1fr 1fr;
     grid-template-rows: auto;
-  }
-
-  .lp-spine {
-    display: block;
   }
 
   .lp-page--left {
     border-right: none;
     border-radius: 4px 0 0 4px;
+  }
+
+  .lp-page--left::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    width: 1px;
+    z-index: 2;
+    background: rgba(100, 85, 65, 0.28);
+    box-shadow:
+      1px 0 4px rgba(0, 0, 0, 0.07),
+      -1px 0 2px rgba(0, 0, 0, 0.04);
+    pointer-events: none;
   }
 
   .lp-page--right {
