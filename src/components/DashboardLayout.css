@@ -1,7 +1,7 @@
 .dashboard-layout {
   display: flex;
   min-height: 100vh;
-  background: var(--bg-primary);
+  background: var(--ledger-desk);
 }
 
 .dashboard-main {
@@ -14,20 +14,22 @@
 
 .dashboard-content {
   flex: 1;
-  padding: 28px 32px;
+  padding: 20px 24px 28px;
   overflow-y: auto;
 }
 
 .dashboard-footer {
   text-align: center;
-  padding: 16px 24px;
-  border-top: 1px solid var(--border-color);
+  padding: 14px 24px;
+  border-top: 1px solid var(--ledger-border);
+  background: rgba(212, 201, 184, 0.6);
 }
 
 .dashboard-footer p {
-  font-size: 0.7rem;
-  color: var(--text-dim);
-  letter-spacing: 0.04em;
+  font-family: var(--font-ledger-mono);
+  font-size: 0.65rem;
+  color: var(--ledger-ink-muted);
+  letter-spacing: 0.08em;
 }
 
 .loading-screen {
@@ -35,12 +37,15 @@
   align-items: center;
   justify-content: center;
   min-height: 100vh;
-  background: var(--bg-primary);
+  background: var(--ledger-desk);
+  background-image:
+    linear-gradient(var(--ledger-rule) 1px, transparent 1px);
+  background-size: 100% var(--ledger-rule-height);
 }
 
 @media (max-width: 768px) {
   .dashboard-main { margin-left: 0; }
-  .dashboard-content { padding: 14px; padding-bottom: 90px; }
+  .dashboard-content { padding: 12px 10px 16px; }
 }
 
 @media (min-width: 769px) and (max-width: 1024px) {

@@ -1,23 +1,39 @@
-/* Header — professional light theme */
+/* Header — ledger strip on desk */
 
 .dashboard-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 14px 32px;
-  background: var(--bg-secondary);
-  border-bottom: 1px solid var(--border-color);
+  padding: 12px 28px;
+  background: var(--ledger-paper-warm);
+  border-bottom: 2px solid var(--ledger-ink);
   position: sticky;
   top: 0;
   z-index: 40;
+  box-shadow: 0 2px 0 rgba(28, 25, 23, 0.06);
+}
+
+.page-title-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.page-folio-id {
+  font-family: var(--font-ledger-mono);
+  font-size: 0.62rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ledger-ink-muted);
 }
 
 .page-title {
-  font-family: var(--font-display);
-  font-size: 1.1rem;
-  font-weight: 600;
+  font-family: var(--font-ledger-display);
+  font-size: 1.15rem;
+  font-weight: 700;
   letter-spacing: -0.02em;
-  color: var(--text-primary);
+  color: var(--ledger-ink);
+  line-height: 1.2;
 }
 
 .header-actions {
@@ -33,23 +49,25 @@
   align-items: center;
   gap: 10px;
   padding: 5px 12px 5px 5px;
-  background: var(--bg-tertiary);
-  border: 1px solid var(--border-color);
-  border-radius: var(--radius-full);
+  background: var(--ledger-paper-alt);
+  border: 1px solid var(--ledger-border);
+  border-radius: var(--radius-sm);
   cursor: pointer;
   transition: all 0.2s var(--ease-out);
+  box-shadow: 2px 2px 0 rgba(28, 25, 23, 0.08);
 }
 
 .user-menu-trigger:hover {
-  border-color: var(--border-hover);
-  box-shadow: var(--shadow-sm);
+  border-color: var(--ledger-border-dark);
+  transform: translate(-1px, -1px);
+  box-shadow: 3px 3px 0 var(--ledger-accent);
 }
 
 .user-avatar {
   width: 28px;
   height: 28px;
-  border-radius: 50%;
-  background: linear-gradient(135deg, var(--plum-medium), var(--plum-light));
+  border-radius: 2px;
+  background: var(--ledger-accent);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -83,11 +101,11 @@
   top: calc(100% + 8px);
   right: 0;
   min-width: 220px;
-  background: var(--bg-elevated);
-  border: 1px solid var(--border-color);
-  border-radius: var(--radius-lg);
+  background: var(--ledger-paper-alt);
+  border: 1px solid var(--ledger-border);
+  border-radius: var(--radius-sm);
   padding: 6px;
-  box-shadow: var(--shadow-lg);
+  box-shadow: var(--ledger-shadow-stamp);
   animation: fadeInUp 0.2s var(--ease-out) forwards;
   z-index: 100;
 }
@@ -100,19 +118,21 @@
 }
 
 .dropdown-name {
+  font-family: var(--font-ledger-display);
   font-size: 0.88rem;
-  font-weight: 600;
-  color: var(--text-primary);
+  font-weight: 700;
+  color: var(--ledger-ink);
 }
 
 .dropdown-email {
-  font-size: 0.75rem;
+  font-family: var(--font-ledger-mono);
+  font-size: 0.72rem;
   color: var(--text-muted);
 }
 
 .dropdown-divider {
   height: 1px;
-  background: var(--border-color);
+  background: var(--ledger-border);
   margin: 4px 0;
 }
 
@@ -122,7 +142,7 @@
   gap: 10px;
   width: 100%;
   padding: 9px 12px;
-  border-radius: var(--radius-md);
+  border-radius: var(--radius-sm);
   color: var(--text-secondary);
   font-size: 0.84rem;
   font-weight: 500;
@@ -131,8 +151,8 @@
 }
 
 .dropdown-item:hover {
-  background: var(--bg-tertiary);
-  color: var(--text-primary);
+  background: rgba(59, 24, 88, 0.06);
+  color: var(--ledger-ink);
 }
 
 .dropdown-item.logout:hover {
@@ -141,6 +161,7 @@
 }
 
 @media (max-width: 768px) {
-  .dashboard-header { padding: 12px 16px; }
+  .dashboard-header { padding: 10px 14px; }
   .user-name { display: none; }
+  .page-title { font-size: 1rem; }
 }

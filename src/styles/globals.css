@@ -1,9 +1,8 @@
 /* ================================================
    PLUMFOLIO — Design System v3
    Professional light finance tracker aesthetic
+   Ledger book theme applied via ledger.css
    ================================================ */
-
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
 
 :root {
   /* ---- Brand ---- */
@@ -131,10 +130,10 @@ input, textarea, select {
 ::-webkit-scrollbar { width: 6px; height: 6px; }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb {
-  background: #CBD5E1;
-  border-radius: 4px;
+  background: var(--ledger-border-dark);
+  border-radius: 2px;
 }
-::-webkit-scrollbar-thumb:hover { background: #94A3B8; }
+::-webkit-scrollbar-thumb:hover { background: var(--ledger-ink-muted); }
 
 @keyframes fadeIn {
   from { opacity: 0; }

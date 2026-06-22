@@ -9,7 +9,7 @@ import './Header.css';
  * Header Component
  * Implements FR-1.3: The system shall allow a logged-in user to log out.
  */
-const Header = ({ title }) => {
+const Header = ({ title, folio }) => {
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const { profile, signOut } = useAuth();
   const navigate = useNavigate();
@@ -35,7 +35,10 @@ const Header = ({ title }) => {
 
   return (
     <header className="dashboard-header">
-      <h1 className="page-title">{title}</h1>
+      <div className="page-title-wrap">
+        <span className="page-folio-id">Folio {folio || 'I'}</span>
+        <h1 className="page-title">{title}</h1>
+      </div>
       
       <div className="header-actions">
         <LiveSyncBadge />

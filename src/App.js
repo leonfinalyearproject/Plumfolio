@@ -28,6 +28,7 @@ import AIInsightWidget from './components/AIInsightWidget';
 import MobileNav from './components/MobileNav';
 
 import './styles/globals.css';
+import './styles/ledger.css';
 import './styles/scrollAnimations.css';
 import './styles/mobile.css';
 

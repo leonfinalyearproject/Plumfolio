@@ -8,12 +8,11 @@
   position: fixed;
   bottom: 0; left: 0; right: 0;
   z-index: 1000;
-  background: rgba(5, 5, 5, 0.95);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
-  border-top: 1px solid var(--border-color);
+  background: var(--ledger-spine);
+  border-top: 2px solid rgba(255, 252, 247, 0.1);
   padding: 6px 8px;
   padding-bottom: max(6px, env(safe-area-inset-bottom));
+  box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.2);
 }
 .mobile-nav-inner {
   display: flex; justify-content: space-around; align-items: center;
@@ -21,13 +20,19 @@
 }
 .mobile-nav-link {
   display: flex; flex-direction: column; align-items: center; gap: 2px;
-  padding: 6px 6px; border-radius: 10px;
-  color: var(--text-dim); text-decoration: none;
-  font-size: 0.58rem; font-weight: 500;
+  padding: 6px 6px; border-radius: var(--radius-sm);
+  color: #78716C; text-decoration: none;
+  font-family: var(--font-ledger-mono);
+  font-size: 0.52rem; font-weight: 500;
+  letter-spacing: 0.04em;
   transition: all 0.2s; min-width: 40px;
 }
-.mobile-nav-link svg { width: 20px; height: 20px; }
-.mobile-nav-link.active { color: var(--plum-glow); }
+.mobile-nav-link svg { width: 20px; height: 20px; opacity: 0.75; }
+.mobile-nav-link.active {
+  color: #FFFCF7;
+  background: rgba(59, 24, 88, 0.4);
+}
+.mobile-nav-link.active svg { opacity: 1; }
 
 /* ================================================
    MOBILE (max-width: 768px)
@@ -84,12 +89,12 @@
   .dashboard-greeting { margin-bottom: 16px; }
   .stats-row { grid-template-columns: 1fr !important; gap: 10px !important; }
   .stat-card.main { grid-column: 1 !important; }
-  .stat-card { padding: 16px 18px; border-radius: 14px; }
+  .stat-card { padding: 16px 18px; border-radius: var(--radius-md); }
   .stat-amount { font-size: 1.3rem !important; }
   .stat-card.main .stat-amount { font-size: 1.5rem !important; }
   .dashboard-grid { grid-template-columns: 1fr !important; gap: 10px !important; }
   .card.wide { grid-column: 1 !important; }
-  .card { padding: 16px 18px; border-radius: 14px; }
+  .card { padding: 16px 18px; border-radius: var(--radius-md); }
   .chart-area { height: 180px; }
 
   /* Transactions */

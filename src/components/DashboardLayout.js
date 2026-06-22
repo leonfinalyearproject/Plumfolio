@@ -59,13 +59,37 @@ const DashboardLayout = ({ children }) => {
     return 'Dashboard';
   };
 
+  const getFolioRef = () => {
+    const path = location.pathname;
+    if (path.includes('transactions')) return 'II';
+    if (path.includes('budgets')) return 'III';
+    if (path.includes('analytics')) return 'IV';
+    if (path.includes('insights')) return 'V';
+    if (path.includes('reports')) return 'VI';
+    if (path.includes('settings')) return 'VII';
+    return 'I';
+  };
+
+  const folioMonth = new Date().toLocaleString('en-GB', { month: 'long', year: 'numeric' });
+
   return (
     <div className="dashboard-layout">
       <Sidebar />
       <div className="dashboard-main">
-        <Header title={getPageTitle()} />
+        <Header title={getPageTitle()} folio={getFolioRef()} />
         <main className="dashboard-content">
-          {children}
+          <div className="book-spread">
+            <div className="book-holes" aria-hidden="true">
+              <span /><span /><span />
+            </div>
+            <div className="book-inner">
+              <div className="book-folio" aria-hidden="true">
+                <span>{folioMonth}</span>
+                <strong>Folio {getFolioRef()}</strong>
+              </div>
+              {children}
+            </div>
+          </div>
         </main>
         <footer className="dashboard-footer">
           <p>&copy; {new Date().getFullYear()} Futurify Designs</p>

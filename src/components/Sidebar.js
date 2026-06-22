@@ -18,13 +18,13 @@ const Sidebar = () => {
   };
 
   const navItems = [
-    { path: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
-    { path: '/transactions', label: 'Transactions', icon: ArrowLeftRight },
-    { path: '/budgets', label: 'Budgets', icon: Target },
-    { path: '/analytics', label: 'Analytics', icon: BarChart3 },
-    { path: '/insights', label: 'Forecasts', icon: Brain },
-    { path: '/reports', label: 'Reports', icon: FileText },
-    { path: '/settings', label: 'Settings', icon: Settings },
+    { path: '/dashboard', label: 'Dashboard', icon: LayoutDashboard, index: '01' },
+    { path: '/transactions', label: 'Transactions', icon: ArrowLeftRight, index: '02' },
+    { path: '/budgets', label: 'Budgets', icon: Target, index: '03' },
+    { path: '/analytics', label: 'Analytics', icon: BarChart3, index: '04' },
+    { path: '/insights', label: 'Forecasts', icon: Brain, index: '05' },
+    { path: '/reports', label: 'Reports', icon: FileText, index: '06' },
+    { path: '/settings', label: 'Settings', icon: Settings, index: '07' },
   ];
 
   return (
@@ -35,12 +35,13 @@ const Sidebar = () => {
       </div>
 
       <nav className="sidebar-nav">
-        {navItems.map(({ path, label, icon: Icon }) => (
+        {navItems.map(({ path, label, icon: Icon, index }) => (
           <NavLink
             key={path}
             to={path}
             className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`}
           >
+            <span className="sidebar-index">{index}</span>
             <Icon size={18} />
             <span>{label}</span>
           </NavLink>
