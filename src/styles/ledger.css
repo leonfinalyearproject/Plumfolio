@@ -25,16 +25,16 @@
   --font-ledger-mono: 'IBM Plex Mono', 'Courier New', monospace;
 
   --ledger-rule-height: 28px;
-  --ledger-shadow-stamp: 4px 4px 0 var(--ledger-accent);
-  --ledger-shadow-paper: 0 12px 36px rgba(28, 25, 23, 0.14), 0 2px 6px rgba(28, 25, 23, 0.08);
+  --ledger-shadow-stamp: none;
+  --ledger-shadow-paper: 0 8px 28px rgba(28, 25, 23, 0.1), 0 1px 3px rgba(28, 25, 23, 0.06);
 
   /* Override design-system surfaces for book feel */
   --bg-primary: var(--ledger-desk);
-  --bg-secondary: var(--ledger-spine);
-  --bg-tertiary: #E8E0D4;
+  --bg-secondary: var(--ledger-paper-alt);
+  --bg-tertiary: rgba(232, 224, 212, 0.55);
   --bg-elevated: var(--ledger-paper-alt);
-  --bg-card: var(--ledger-paper-alt);
-  --bg-card-hover: #FFFDF8;
+  --bg-card: transparent;
+  --bg-card-hover: rgba(59, 24, 88, 0.04);
   --bg-glass: rgba(247, 242, 232, 0.92);
   --bg-glass-hover: rgba(255, 252, 247, 0.98);
 
@@ -56,11 +56,11 @@
   --radius-xl: 4px;
   --radius-2xl: 6px;
 
-  --shadow-sm: 2px 2px 0 rgba(28, 25, 23, 0.06);
-  --shadow-md: 3px 3px 0 rgba(28, 25, 23, 0.08);
-  --shadow-lg: var(--ledger-shadow-stamp);
-  --shadow-xl: 6px 6px 0 rgba(59, 24, 88, 0.2);
-  --shadow-glow: 4px 4px 0 rgba(59, 24, 88, 0.15);
+  --shadow-sm: none;
+  --shadow-md: none;
+  --shadow-lg: none;
+  --shadow-xl: none;
+  --shadow-glow: none;
 }
 
 body {
@@ -88,13 +88,10 @@ h1, h2, h3, h4, h5, h6 {
   background-size: 100% var(--ledger-rule-height), 100% 100%, 100% 100%, 100% 100%;
   border: 1px solid var(--ledger-border);
   box-shadow: var(--ledger-shadow-paper);
-  transition: box-shadow 0.35s var(--ease-out);
 }
 
 .book-spread:hover {
-  box-shadow:
-    0 16px 44px rgba(28, 25, 23, 0.16),
-    0 3px 8px rgba(28, 25, 23, 0.1);
+  box-shadow: var(--ledger-shadow-paper);
 }
 
 .book-holes {
@@ -146,7 +143,7 @@ h1, h2, h3, h4, h5, h6 {
   font-weight: 500;
 }
 
-/* ===== LEDGER CARD OVERRIDES (inside book) ===== */
+/* ===== INK-ON-PAPER — content written on the page ===== */
 .book-inner .stat-card,
 .book-inner .card,
 .book-inner .tx-card,
@@ -156,15 +153,48 @@ h1, h2, h3, h4, h5, h6 {
 .book-inner .report-card,
 .book-inner .settings-section,
 .book-inner .forecast-card,
-.book-inner .chart-card {
-  background: var(--ledger-paper-alt);
-  border: 1px solid var(--ledger-border);
-  border-radius: var(--radius-md);
-  box-shadow: var(--shadow-sm);
-  transition:
-    transform 0.25s var(--ease-out),
-    box-shadow 0.25s var(--ease-out),
-    border-color 0.2s;
+.book-inner .chart-card,
+.book-inner .summary-card,
+.book-inner .summary-stat,
+.book-inner .prediction-block,
+.book-inner .recurring-card,
+.book-inner .savings-card,
+.book-inner .warning-block,
+.book-inner .budgets-tabs,
+.book-inner .actions-bar,
+.book-inner .tx-table-wrap,
+.book-inner .report-table-wrap,
+.book-inner .analytics-summary .summary-stat {
+  background: transparent !important;
+  border: none !important;
+  border-bottom: 1px solid var(--ledger-border) !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+}
+
+.book-inner .stats-row,
+.book-inner .insights-summary-cards,
+.book-inner .budget-summary,
+.book-inner .analytics-summary,
+.book-inner .tx-summary {
+  gap: 0;
+}
+
+.book-inner .stat-card,
+.book-inner .summary-card,
+.book-inner .summary-stat,
+.book-inner .tx-card {
+  border-right: 1px solid var(--ledger-border) !important;
+  border-bottom: none !important;
+  padding: 16px 18px;
+}
+
+.book-inner .stats-row .stat-card:last-child,
+.book-inner .insights-summary-cards .summary-card:last-child,
+.book-inner .budget-summary .summary-card:last-child,
+.book-inner .analytics-summary .summary-stat:last-child,
+.book-inner .tx-summary .tx-card:last-child {
+  border-right: none !important;
 }
 
 .book-inner .stat-card:hover,
@@ -173,18 +203,109 @@ h1, h2, h3, h4, h5, h6 {
 .book-inner .budget-card:hover,
 .book-inner .analytics-card:hover,
 .book-inner .insight-card:hover,
-.book-inner .report-card:hover {
-  transform: translate(-2px, -2px);
-  box-shadow: var(--ledger-shadow-stamp);
-  border-color: var(--ledger-border-dark);
+.book-inner .report-card:hover,
+.book-inner .summary-card:hover,
+.book-inner .summary-stat:hover,
+.book-inner .forecast-card:hover,
+.book-inner .chart-card:hover {
+  transform: none !important;
+  box-shadow: none !important;
+  background: rgba(59, 24, 88, 0.03) !important;
 }
 
-.book-inner .stat-card.main {
-  border-color: rgba(59, 24, 88, 0.25);
+.book-inner .dashboard-grid {
+  gap: 0;
 }
 
-.book-inner .stat-card.main:hover {
-  box-shadow: 5px 5px 0 var(--ledger-accent);
+.book-inner .dashboard-grid .card {
+  border-bottom: 1px solid var(--ledger-border) !important;
+  border-right: 1px solid var(--ledger-border) !important;
+  padding: 18px 4px 18px 0;
+}
+
+.book-inner .dashboard-grid .card:nth-child(even) {
+  border-right: none !important;
+  padding-left: 18px;
+}
+
+.book-inner .card.wide {
+  border-right: none !important;
+  padding-left: 0 !important;
+}
+
+.book-inner .chart-area,
+.book-inner .chart-wrapper,
+.book-inner .chart-wrapper canvas {
+  background: transparent !important;
+}
+
+.book-inner .transaction-row {
+  background: transparent;
+  border-radius: 0;
+  border-bottom: 1px solid rgba(196, 186, 168, 0.6);
+}
+
+.book-inner .transaction-row:hover {
+  background: rgba(59, 24, 88, 0.04);
+}
+
+.book-inner .summary-label,
+.book-inner .summary-value,
+.book-inner .summary-content,
+.book-inner .insight-message,
+.book-inner .forecast-value,
+.book-inner .forecast-detail {
+  color: var(--ledger-ink);
+}
+
+.book-inner .card-link {
+  background: transparent;
+  border: 1px solid var(--ledger-border);
+  border-radius: var(--radius-sm);
+  color: var(--ledger-accent);
+  box-shadow: none;
+}
+
+.book-inner .card-link:hover {
+  background: rgba(59, 24, 88, 0.06);
+  transform: none;
+}
+
+.book-inner .settings-section {
+  padding: 20px 0;
+  margin-bottom: 8px;
+}
+
+.book-inner .settings-tabs {
+  border-bottom: 1px solid var(--ledger-border);
+  background: transparent;
+}
+
+.book-inner .empty-state,
+.book-inner .empty-state-container {
+  background: transparent;
+  box-shadow: none;
+}
+
+.book-inner .insights-header-left h2,
+.book-inner .budgets-header h2,
+.book-inner .analytics-page > h2 {
+  font-family: var(--font-ledger-display);
+  border-bottom: none;
+}
+
+.book-inner .main-forecast {
+  border-left: 3px solid var(--ledger-accent) !important;
+  padding-left: 14px;
+}
+
+.book-inner .severity-high,
+.book-inner .severity-medium,
+.book-inner .severity-positive,
+.book-inner .severity-info {
+  border-left-width: 3px !important;
+  border-left-style: solid !important;
+  padding-left: 12px;
 }
 
 .book-inner .stat-label,
@@ -229,50 +350,81 @@ h1, h2, h3, h4, h5, h6 {
   background: rgba(59, 24, 88, 0.04);
 }
 
-/* Buttons — stamp style */
+/* Buttons — ink style, no stamp blocks */
 .book-inner .action-btn,
 .book-inner .save-btn,
 .book-inner .add-btn,
 .book-inner .primary-btn,
-.book-inner .filter-btn.active {
+.book-inner .filter-btn.active,
+.book-inner .refresh-btn {
   border-radius: var(--radius-sm);
   font-family: var(--font-ledger-body);
   font-weight: 600;
   letter-spacing: 0.02em;
-  box-shadow: 2px 2px 0 rgba(28, 25, 23, 0.12);
-  transition: transform 0.15s var(--ease-out), box-shadow 0.15s;
+  box-shadow: none;
+  border: 1px solid var(--ledger-ink);
+  transition: background 0.15s var(--ease-out), color 0.15s;
 }
 
 .book-inner .action-btn:hover,
 .book-inner .save-btn:hover:not(:disabled),
-.book-inner .add-btn:hover {
-  transform: translate(-1px, -1px);
-  box-shadow: 3px 3px 0 var(--ledger-accent);
+.book-inner .add-btn:hover,
+.book-inner .refresh-btn:hover {
+  transform: none;
+  box-shadow: none;
+  background: var(--ledger-ink);
+  color: var(--ledger-paper-alt);
 }
 
 .book-inner .action-btn:active,
 .book-inner .save-btn:active:not(:disabled) {
-  transform: translate(1px, 1px);
+  transform: none;
   box-shadow: none;
 }
 
-/* Tabs & filters */
+/* Tabs — underline, not black blocks */
 .book-inner .tab-btn,
 .book-inner .period-tab,
-.book-inner .settings-tab {
-  border-radius: var(--radius-sm);
+.book-inner .settings-tab,
+.book-inner .budgets-tab {
+  border-radius: 0;
   font-family: var(--font-ledger-mono);
   font-size: 0.72rem;
   letter-spacing: 0.06em;
   text-transform: uppercase;
+  background: transparent !important;
+  border: none !important;
+  border-bottom: 2px solid transparent !important;
+  box-shadow: none !important;
+  color: var(--ledger-ink-muted);
+}
+
+.book-inner .tab-btn:hover,
+.book-inner .period-tab:hover,
+.book-inner .settings-tab:hover,
+.book-inner .budgets-tab:hover {
+  color: var(--ledger-ink);
+  background: transparent !important;
 }
 
 .book-inner .tab-btn.active,
 .book-inner .period-tab.active,
-.book-inner .settings-tab.active {
-  background: var(--ledger-ink);
-  color: var(--ledger-paper-alt);
-  box-shadow: 2px 2px 0 var(--ledger-accent);
+.book-inner .settings-tab.active,
+.book-inner .budgets-tab.active {
+  background: transparent !important;
+  color: var(--ledger-ink) !important;
+  border-bottom-color: var(--ledger-accent) !important;
+  box-shadow: none !important;
+}
+
+.book-inner .insights-tabs {
+  border-bottom: 1px solid var(--ledger-border);
+  gap: 0.25rem;
+}
+
+.book-inner .insights-tabs .tab-btn.active {
+  color: var(--ledger-accent) !important;
+  background: transparent !important;
 }
 
 /* Inputs */
@@ -324,6 +476,19 @@ h1, h2, h3, h4, h5, h6 {
     font-size: 0.6rem;
     margin-bottom: 14px;
   }
+
+  .book-inner .stat-card,
+  .book-inner .summary-card,
+  .book-inner .summary-stat,
+  .book-inner .tx-card {
+    border-right: none !important;
+    border-bottom: 1px solid var(--ledger-border) !important;
+  }
+
+  .book-inner .dashboard-grid .card {
+    border-right: none !important;
+    padding-left: 0 !important;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -335,7 +500,7 @@ h1, h2, h3, h4, h5, h6 {
   }
 }
 
-/* Modals & overlays — ledger stamp */
+/* Modals & overlays — paper, no stamp shadow */
 .modal,
 .modal-content,
 .transaction-modal,
@@ -343,7 +508,7 @@ h1, h2, h3, h4, h5, h6 {
   background: var(--ledger-paper-alt) !important;
   border: 1px solid var(--ledger-border) !important;
   border-radius: var(--radius-sm) !important;
-  box-shadow: var(--ledger-shadow-stamp) !important;
+  box-shadow: 0 12px 40px rgba(28, 25, 23, 0.15) !important;
 }
 
 .modal-header h2,
@@ -351,10 +516,10 @@ h1, h2, h3, h4, h5, h6 {
   font-family: var(--font-ledger-display);
 }
 
-/* AI widget — paper note on desk */
+/* AI widget */
 .ai-widget-fab {
   border-radius: var(--radius-sm) !important;
-  box-shadow: 3px 3px 0 var(--ledger-accent) !important;
+  box-shadow: 0 4px 16px rgba(28, 25, 23, 0.15) !important;
 }
 
 .ai-widget-panel,
@@ -362,7 +527,7 @@ h1, h2, h3, h4, h5, h6 {
   background: var(--ledger-paper-alt) !important;
   border: 1px solid var(--ledger-border) !important;
   border-radius: var(--radius-sm) !important;
-  box-shadow: var(--ledger-shadow-stamp) !important;
+  box-shadow: 0 8px 24px rgba(28, 25, 23, 0.12) !important;
 }
 
 .ai-toast-title {
