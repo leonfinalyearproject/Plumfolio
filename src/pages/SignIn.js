@@ -111,7 +111,7 @@ const SignIn = () => {
           </div>
         </div>
 
-        <p className="auth-ledger-copy">© Plumfolio 2026</p>
+        <p className="auth-ledger-copy">© {new Date().getFullYear()} Futurify Designs</p>
       </aside>
 
       <main className="auth-ledger-main">

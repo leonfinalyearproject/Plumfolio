@@ -154,7 +154,7 @@ const SignUp = () => {
           <li><span>03</span> Set currency &amp; budgets</li>
         </ol>
       </div>
-      <p className="auth-ledger-copy">© Plumfolio 2026</p>
+      <p className="auth-ledger-copy">© {new Date().getFullYear()} Futurify Designs</p>
     </aside>
   );
 

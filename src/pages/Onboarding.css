@@ -587,6 +587,16 @@
   gap: 10px;
 }
 
+.onboarding-replay-note {
+  margin: -8px 0 12px;
+  padding: 10px 14px;
+  border-radius: var(--radius-md, 8px);
+  background: rgba(124, 58, 237, 0.08);
+  border: 1px solid rgba(124, 58, 237, 0.2);
+  color: var(--text-primary);
+  font-size: 0.875rem;
+}
+
 .onboarding-summary-list li {
   display: flex;
   align-items: center;

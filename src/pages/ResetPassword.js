@@ -150,7 +150,7 @@ const ResetPassword = () => {
         </div>
 
         <footer className="auth-footer">
-          <p>&copy; Plumfolio 2026</p>
+          <p>&copy; {new Date().getFullYear()} Futurify Designs</p>
         </footer>
       </div>
     </div>

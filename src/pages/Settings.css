@@ -664,3 +664,18 @@
 .pref-toggle-switch.on .pref-toggle-knob {
   transform: translateX(18px);
 }
+
+.settings-onboarding-replay {
+  margin-top: 24px;
+  padding-top: 24px;
+  border-top: 1px solid var(--border-color);
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.settings-onboarding-replay .field-hint {
+  max-width: 420px;
+  line-height: 1.45;
+}

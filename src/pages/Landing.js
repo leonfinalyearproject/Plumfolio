@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import './Landing.css';
 
@@ -57,7 +57,6 @@ const Landing = () => {
                 <span /><span /><span />
               </div>
               <div className="lp-page-inner">
-                <p className="lp-page-label">Account · Personal</p>
                 <h1>
                   Your money,<br />
                   <em>written clearly.</em>
@@ -74,16 +73,13 @@ const Landing = () => {
                     I have an account
                   </button>
                 </div>
-                <dl className="lp-meta">
-                  <div><dt>Cost</dt><dd>Free</dd></div>
-                  <div><dt>Setup</dt><dd>~2 min</dd></div>
-                  <div><dt>Sync</dt><dd>Real-time</dd></div>
-                </dl>
               </div>
             </div>
 
             <div className="lp-spine" aria-hidden="true">
-              <span className="lp-spine-title">Plumfolio</span>
+              <div className="lp-binder-rings">
+                <span /><span /><span />
+              </div>
             </div>
 
             <div className="lp-page lp-page--right">
@@ -176,8 +172,11 @@ const Landing = () => {
       </main>
 
       <footer className="lp-foot">
-        <span>© Plumfolio 2026</span>
-        <span>University of Botswana · FYP</span>
+        <span>© {new Date().getFullYear()} Futurify Designs</span>
+        <nav className="lp-foot-links">
+          <Link to="/terms">Terms &amp; Conditions</Link>
+          <Link to="/privacy">Privacy Policy</Link>
+        </nav>
       </footer>
     </div>
   );

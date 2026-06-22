@@ -5,7 +5,7 @@ import { useCurrency, CURRENCIES, getCurrencyInfo } from '../context/CurrencyCon
 import { useInsights } from '../context/InsightsContext';
 import { supabase } from '../lib/supabase';
 import { validateFullName, validateAmount } from '../utils/validation';
-import { markOnboardingComplete } from '../utils/onboardingStorage';
+import { markOnboardingComplete, clearOnboardingReplay, isOnboardingReplayRequested } from '../utils/onboardingStorage';
 import {
   Sparkles, Globe, Wallet, Target, ArrowRight, ArrowLeft,
   Check, TrendingUp, TrendingDown, Loader, User,
@@ -286,7 +286,9 @@ const Onboarding = () => {
       currency,
       budgets: budgetRows.filter((b) => b.amount > 0).length,
       transaction: txSaved,
+      replay: isOnboardingReplayRequested(),
     });
+    clearOnboardingReplay();
     navigate('/dashboard');
   };
 
@@ -349,6 +351,11 @@ const Onboarding = () => {
           <>
             <div className="onboarding-icon-wrap"><Sparkles size={22} /></div>
             <h1>Welcome{fullName ? `, ${fullName.split(' ')[0]}` : ''}!</h1>
+            {isOnboardingReplayRequested() && (
+              <p className="onboarding-replay-note">
+                You&apos;re replaying the setup guide. Your existing data stays in place.
+              </p>
+            )}
             <p>
               Let&apos;s personalize Plumfolio in a few quick steps. Everything you enter
               updates your dashboard in real time — no page reloads needed.

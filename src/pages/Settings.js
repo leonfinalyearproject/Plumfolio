@@ -1,13 +1,16 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useCurrency, CURRENCIES } from '../context/CurrencyContext';
 import { useInsights } from '../context/InsightsContext';
 import { supabase } from '../lib/supabase';
 import { validateFullName, validateEmail } from '../utils/validation';
-import { User, Mail, Lock, Shield, Trash2, Save, Globe, Check, Search, KeyRound, Activity, ScanLine, LayoutDashboard } from 'lucide-react';
+import { User, Mail, Lock, Shield, Trash2, Save, Globe, Check, Search, KeyRound, Activity, ScanLine, LayoutDashboard, BookOpen } from 'lucide-react';
+import { requestOnboardingReplay } from '../utils/onboardingStorage';
 import './Settings.css';
 
 const Settings = () => {
+  const navigate = useNavigate();
   const { user, profile, updateProfile, signOut } = useAuth();
   const { currencyCode, formatCurrency, rate, ratesLoaded } = useCurrency();
   const { addToast } = useInsights();
@@ -87,6 +90,12 @@ const Settings = () => {
         localStorage.setItem(dashPrefsKey, JSON.stringify({ showAllTimeNet: next }));
       } catch (_) { /* ignore quota errors */ }
     }
+  };
+
+  const handleReplayOnboarding = () => {
+    if (!user?.id) return;
+    requestOnboardingReplay(user.id);
+    navigate('/onboarding');
   };
 
   // AI scan usage — mirror of the logic in Transactions.js. We query
@@ -326,6 +335,20 @@ const Settings = () => {
                   <span className="pref-toggle-knob" />
                 </span>
               </button>
+
+              <div className="settings-onboarding-replay">
+                <button
+                  type="button"
+                  className="save-btn outline"
+                  onClick={handleReplayOnboarding}
+                >
+                  <BookOpen size={16} />
+                  Replay setup guide
+                </button>
+                <span className="field-hint">
+                  Walk through currency, budgets, and your first transaction again. Existing data is not deleted.
+                </span>
+              </div>
             </div>
           </div>
         )}

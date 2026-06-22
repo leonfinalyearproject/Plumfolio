@@ -20,6 +20,8 @@ import Insights from './pages/Insights';
 import Reports from './pages/Reports';
 import Settings from './pages/Settings';
 import Onboarding from './pages/Onboarding';
+import Terms from './pages/Terms';
+import Privacy from './pages/Privacy';
 import DashboardLayout from './components/DashboardLayout';
 import { shouldShowOnboarding } from './utils/onboardingStorage';
 import AIInsightWidget from './components/AIInsightWidget';
@@ -107,6 +109,8 @@ function App() {
             <InsightsProvider>
               <Routes>
                 <Route path="/" element={<Landing />} />
+                <Route path="/terms" element={<Terms />} />
+                <Route path="/privacy" element={<Privacy />} />
                 <Route path="/signup" element={<SignUp />} />
                 <Route path="/signin" element={<SignIn />} />
                 <Route path="/verified" element={<EmailVerified />} />

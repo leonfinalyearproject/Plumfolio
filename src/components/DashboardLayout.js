@@ -68,7 +68,7 @@ const DashboardLayout = ({ children }) => {
           {children}
         </main>
         <footer className="dashboard-footer">
-          <p>&copy; Plumfolio 2026</p>
+          <p>&copy; {new Date().getFullYear()} Futurify Designs</p>
         </footer>
       </div>
     </div>
