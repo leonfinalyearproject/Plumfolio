@@ -2,19 +2,10 @@ import React, { useState, useMemo } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { validateSignUpForm, getPasswordRequirements } from '../utils/validation';
-import {
-  Mail, Lock, User, ArrowRight, Check, AlertCircle, Sparkles,
-  MailCheck, LayoutDashboard,
-} from 'lucide-react';
+import { Check, AlertCircle } from 'lucide-react';
 import AuthField from '../components/AuthField';
 import PasswordChecklist from '../components/PasswordChecklist';
 import './Auth.css';
-
-const STEPS = [
-  { num: '1', title: 'Create your account', desc: 'Name, email, and a secure password' },
-  { num: '2', title: 'Verify your email', desc: 'One click to activate your account' },
-  { num: '3', title: 'Start tracking', desc: 'Add transactions and set your first budget' },
-];
 
 const SignUp = () => {
   const [formData, setFormData] = useState({
@@ -56,7 +47,7 @@ const SignUp = () => {
   }, [formData.password]);
 
   const strengthLabels = ['', 'Weak', 'Fair', 'Good', 'Strong'];
-  const strengthColors = ['', '#ef4444', '#eab308', '#84cc16', '#22c55e'];
+  const strengthColors = ['', '#991B1B', '#A16207', '#3B1858', '#166534'];
 
   const validateField = (name, value, allData = formData) => {
     const result = validateSignUpForm({
@@ -145,31 +136,46 @@ const SignUp = () => {
     formData.password === formData.confirmPassword &&
     !errors.confirmPassword;
 
+  const panel = (
+    <aside className="auth-ledger-panel auth-ledger-panel--signup">
+      <Link to="/" className="auth-ledger-mark">
+        <img src={`${process.env.PUBLIC_URL}/logo.png`} alt="" />
+        <span>Plumfolio</span>
+      </Link>
+      <div className="auth-ledger-panel-body">
+        <p className="auth-ledger-tag">New account</p>
+        <h1>Open a personal ledger.</h1>
+        <p className="auth-ledger-lead">
+          Free to use. No card. Verify your email, then record your first figures.
+        </p>
+        <ol className="auth-ledger-steps">
+          <li><span>01</span> Register below</li>
+          <li><span>02</span> Confirm via email</li>
+          <li><span>03</span> Set currency &amp; budgets</li>
+        </ol>
+      </div>
+      <p className="auth-ledger-copy">© Plumfolio 2026</p>
+    </aside>
+  );
+
   if (success) {
     return (
-      <div className="auth-shell auth-shell--signup">
-        <aside className="auth-aside auth-aside--signup">
-          <Link to="/" className="auth-aside-brand">
-            <img src={`${process.env.PUBLIC_URL}/logo.png`} alt="" className="auth-aside-logo" />
-            <span>Plumfolio</span>
-          </Link>
-          <div className="auth-aside-body">
-            <p className="auth-aside-eyebrow">Almost there</p>
-            <h1 className="auth-aside-title">Verify your email to activate your account.</h1>
-          </div>
-        </aside>
-        <main className="auth-main">
-          <div className="auth-card success-card auth-card--interactive">
-            <div className="success-icon success-icon--animated"><MailCheck size={28} /></div>
-            <h2>Check your inbox</h2>
-            <p>
-              We sent a verification link to <strong>{formData.email.trim()}</strong>.
-              Click the link, then sign in to get started.
+      <div className="auth-ledger auth-ledger--signup">
+        {panel}
+        <main className="auth-ledger-main">
+          <div className="auth-ledger-form-wrap auth-ledger-form-wrap--success">
+            <div className="auth-ledger-success-mark">✓</div>
+            <header className="auth-ledger-form-head">
+              <span className="auth-ledger-form-id">Confirmation</span>
+              <h2>Check your inbox</h2>
+            </header>
+            <p className="auth-ledger-success-text">
+              Verification sent to <strong>{formData.email.trim()}</strong>.
+              Click the link, then sign in.
             </p>
-            <span className="success-note">Redirecting to sign in in a few seconds…</span>
-            <Link to="/signin" className="auth-btn auth-btn--ready" style={{ marginTop: 20, textDecoration: 'none' }}>
-              Go to sign in
-              <ArrowRight size={18} />
+            <p className="auth-ledger-success-note">Redirecting shortly…</p>
+            <Link to="/signin" className="auth-btn auth-btn--ledger auth-btn--ready">
+              Go to sign in →
             </Link>
           </div>
         </main>
@@ -178,54 +184,24 @@ const SignUp = () => {
   }
 
   return (
-    <div className="auth-shell auth-shell--signup">
-      <aside className="auth-aside auth-aside--signup">
-        <Link to="/" className="auth-aside-brand">
-          <img src={`${process.env.PUBLIC_URL}/logo.png`} alt="" className="auth-aside-logo" />
-          <span>Plumfolio</span>
-        </Link>
+    <div className="auth-ledger auth-ledger--signup">
+      {panel}
 
-        <div className="auth-aside-body">
-          <p className="auth-aside-eyebrow">Get started free</p>
-          <h1 className="auth-aside-title">Set up your personal finance workspace in minutes.</h1>
-          <p className="auth-aside-lead">
-            Track spending, plan budgets, and forecast ahead — all in one place.
-          </p>
-
-          <ol className="auth-aside-steps">
-            {STEPS.map(({ num, title, desc }) => (
-              <li key={num}>
-                <span className="auth-step-num">{num}</span>
-                <div>
-                  <strong>{title}</strong>
-                  <span>{desc}</span>
-                </div>
-              </li>
-            ))}
-          </ol>
-        </div>
-
-        <p className="auth-aside-foot">&copy; Plumfolio 2026</p>
-      </aside>
-
-      <main className="auth-main">
-        <Link to="/" className="auth-mobile-brand">
+      <main className="auth-ledger-main">
+        <Link to="/" className="auth-ledger-mark auth-ledger-mark--mobile">
           <img src={`${process.env.PUBLIC_URL}/logo.png`} alt="" />
           <span>Plumfolio</span>
         </Link>
 
-        <div className="auth-card auth-card--interactive">
-          <div className="auth-form-progress" aria-hidden="true">
-            <div className="auth-form-progress-bar" style={{ width: `${formProgress}%` }} />
+        <div className="auth-ledger-form-wrap">
+          <div className="auth-ledger-progress" aria-hidden="true">
+            <div className="auth-ledger-progress-fill" style={{ width: `${formProgress}%` }} />
           </div>
 
-          <div className="auth-header">
-            <div className="auth-header-icon auth-header-icon--signup">
-              <Sparkles size={20} />
-            </div>
-            <h2>Create account</h2>
-            <p>Fill in your details below</p>
-          </div>
+          <header className="auth-ledger-form-head">
+            <span className="auth-ledger-form-id">Form · Registration</span>
+            <h2>Account details</h2>
+          </header>
 
           {serverError && (
             <div className="auth-error auth-error--shake" role="alert">
@@ -234,8 +210,9 @@ const SignUp = () => {
             </div>
           )}
 
-          <form onSubmit={handleSubmit} className="auth-form" noValidate>
+          <form onSubmit={handleSubmit} className="auth-form auth-form--ledger" noValidate>
             <AuthField
+              variant="ledger"
               id="fullName"
               name="fullName"
               label="Full name"
@@ -245,8 +222,7 @@ const SignUp = () => {
               onBlur={handleBlur}
               error={errors.fullName}
               touched={touched.fullName}
-              hint="Letters, spaces, hyphens, and apostrophes only"
-              icon={User}
+              hint="As it appears on your records"
               required
               autoComplete="name"
               maxLength={60}
@@ -254,17 +230,17 @@ const SignUp = () => {
             />
 
             <AuthField
+              variant="ledger"
               id="email"
               name="email"
-              label="Email address"
+              label="Email"
               type="email"
               value={formData.email}
               onChange={handleChange}
               onBlur={handleBlur}
               error={errors.email}
               touched={touched.email}
-              hint="We'll send a verification link to this address"
-              icon={Mail}
+              hint="We'll send a verification link here"
               required
               autoComplete="email"
               maxLength={254}
@@ -272,12 +248,13 @@ const SignUp = () => {
             >
               {errors.email?.includes('already registered') && touched.email && (
                 <span className="field-hint field-hint--action">
-                  Already registered? <Link to="/signin">Sign in instead</Link>
+                  Already registered? <Link to="/signin">Sign in</Link>
                 </span>
               )}
             </AuthField>
 
             <AuthField
+              variant="ledger"
               id="password"
               name="password"
               label="Password"
@@ -287,12 +264,11 @@ const SignUp = () => {
               onFocus={() => setPasswordFocused(true)}
               error={errors.password}
               touched={touched.password}
-              icon={Lock}
               required
               autoComplete="new-password"
               minLength={8}
               maxLength={128}
-              placeholder="Create a strong password"
+              placeholder="••••••••"
               showToggle
               showPassword={showPassword}
               onTogglePassword={() => setShowPassword((v) => !v)}
@@ -302,7 +278,7 @@ const SignUp = () => {
                 visible={passwordFocused || Boolean(formData.password)}
               />
               {formData.password && passwordStrength > 0 && (
-                <div className="password-strength">
+                <div className="password-strength password-strength--ledger">
                   <div className="strength-bar">
                     {[1, 2, 3, 4].map((i) => (
                       <div
@@ -327,6 +303,7 @@ const SignUp = () => {
             </AuthField>
 
             <AuthField
+              variant="ledger"
               id="confirmPassword"
               name="confirmPassword"
               label="Confirm password"
@@ -335,12 +312,11 @@ const SignUp = () => {
               onBlur={handleBlur}
               error={errors.confirmPassword}
               touched={touched.confirmPassword}
-              hint={passwordsMatch ? undefined : 'Re-enter your password to confirm'}
-              icon={Lock}
+              hint={passwordsMatch ? undefined : 'Must match password above'}
               required
               autoComplete="new-password"
               maxLength={128}
-              placeholder="Repeat your password"
+              placeholder="••••••••"
               showToggle
               showPassword={showConfirmPassword}
               onTogglePassword={() => setShowConfirmPassword((v) => !v)}
@@ -354,27 +330,15 @@ const SignUp = () => {
 
             <button
               type="submit"
-              className={`auth-btn ${formReady ? 'auth-btn--ready' : ''}`}
+              className={`auth-btn auth-btn--ledger ${formReady ? 'auth-btn--ready' : ''}`}
               disabled={loading}
             >
-              {loading ? (
-                <span className="spinner" aria-label="Creating account" />
-              ) : (
-                <>
-                  Create account
-                  <ArrowRight size={18} />
-                </>
-              )}
+              {loading ? <span className="spinner" aria-label="Creating account" /> : 'Create account →'}
             </button>
           </form>
 
-          <p className="auth-switch">
-            Already have an account? <Link to="/signin">Sign in</Link>
-          </p>
-
-          <p className="auth-legal">
-            By creating an account you agree to use Plumfolio responsibly.
-            Your data stays private to your account.
+          <p className="auth-switch auth-switch--ledger">
+            Already registered? <Link to="/signin">Sign in</Link>
           </p>
         </div>
       </main>

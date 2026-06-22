@@ -2,17 +2,9 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { validateSignInForm } from '../utils/validation';
-import {
-  ArrowRight, AlertCircle, Shield, Zap, BarChart3, Lock, Mail,
-} from 'lucide-react';
+import { AlertCircle } from 'lucide-react';
 import AuthField from '../components/AuthField';
 import './Auth.css';
-
-const HIGHLIGHTS = [
-  { icon: Shield, text: 'Encrypted sign-in keeps your data private' },
-  { icon: Zap, text: 'Balances and budgets sync in real time' },
-  { icon: BarChart3, text: 'Pick up right where you left off' },
-];
 
 const SignIn = () => {
   const [formData, setFormData] = useState({ email: '', password: '' });
@@ -89,47 +81,50 @@ const SignIn = () => {
   };
 
   return (
-    <div className="auth-shell auth-shell--signin">
-      <aside className="auth-aside auth-aside--signin">
-        <Link to="/" className="auth-aside-brand">
-          <img src={`${process.env.PUBLIC_URL}/logo.png`} alt="" className="auth-aside-logo" />
-          <span>Plumfolio</span>
-        </Link>
-
-        <div className="auth-aside-body">
-          <p className="auth-aside-eyebrow">Welcome back</p>
-          <h1 className="auth-aside-title">Sign in to manage your money with clarity.</h1>
-          <p className="auth-aside-lead">
-            Your dashboard, budgets, and forecasts are ready whenever you are.
-          </p>
-
-          <ul className="auth-aside-list">
-            {HIGHLIGHTS.map(({ icon: Icon, text }) => (
-              <li key={text}>
-                <span className="auth-aside-list-icon"><Icon size={18} /></span>
-                {text}
-              </li>
-            ))}
-          </ul>
-        </div>
-
-        <p className="auth-aside-foot">&copy; Plumfolio 2026</p>
-      </aside>
-
-      <main className="auth-main">
-        <Link to="/" className="auth-mobile-brand">
+    <div className="auth-ledger auth-ledger--signin">
+      <aside className="auth-ledger-panel">
+        <Link to="/" className="auth-ledger-mark">
           <img src={`${process.env.PUBLIC_URL}/logo.png`} alt="" />
           <span>Plumfolio</span>
         </Link>
 
-        <div className="auth-card auth-card--interactive">
-          <div className="auth-header">
-            <div className="auth-header-icon auth-header-icon--signin">
-              <Lock size={20} />
+        <div className="auth-ledger-panel-body">
+          <p className="auth-ledger-tag">Account access</p>
+          <h1>Sign back<br />into your ledger.</h1>
+          <p className="auth-ledger-lead">
+            Your budgets, transactions, and forecasts pick up exactly where you left them.
+          </p>
+
+          <div className="auth-ledger-slip">
+            <div className="auth-ledger-slip-row">
+              <span>Session</span>
+              <span>Encrypted</span>
             </div>
-            <h2>Sign in</h2>
-            <p>Enter your account credentials</p>
+            <div className="auth-ledger-slip-row">
+              <span>Sync</span>
+              <span>Real-time</span>
+            </div>
+            <div className="auth-ledger-slip-row">
+              <span>Ref</span>
+              <span>PF-ACC-{new Date().getFullYear()}</span>
+            </div>
           </div>
+        </div>
+
+        <p className="auth-ledger-copy">© Plumfolio 2026</p>
+      </aside>
+
+      <main className="auth-ledger-main">
+        <Link to="/" className="auth-ledger-mark auth-ledger-mark--mobile">
+          <img src={`${process.env.PUBLIC_URL}/logo.png`} alt="" />
+          <span>Plumfolio</span>
+        </Link>
+
+        <div className="auth-ledger-form-wrap">
+          <header className="auth-ledger-form-head">
+            <span className="auth-ledger-form-id">Form · Sign-in</span>
+            <h2>Credentials</h2>
+          </header>
 
           {serverError && (
             <div className="auth-error auth-error--shake" role="alert">
@@ -138,19 +133,19 @@ const SignIn = () => {
             </div>
           )}
 
-          <form onSubmit={handleSubmit} className="auth-form" noValidate>
+          <form onSubmit={handleSubmit} className="auth-form auth-form--ledger" noValidate>
             <AuthField
+              variant="ledger"
               id="email"
               name="email"
-              label="Email address"
+              label="Email"
               type="email"
               value={formData.email}
               onChange={handleChange}
               onBlur={handleBlur}
               error={errors.email}
               touched={touched.email}
-              hint="Use the email you registered with"
-              icon={Mail}
+              hint="The address you registered with"
               required
               autoComplete="email"
               autoCapitalize="off"
@@ -159,6 +154,7 @@ const SignIn = () => {
             />
 
             <AuthField
+              variant="ledger"
               id="password"
               name="password"
               label="Password"
@@ -168,38 +164,30 @@ const SignIn = () => {
               error={errors.password}
               touched={touched.password}
               hint="Minimum 6 characters"
-              icon={Lock}
               required
               autoComplete="current-password"
               maxLength={128}
-              placeholder="Your password"
+              placeholder="••••••••"
               showToggle
               showPassword={showPassword}
               onTogglePassword={() => setShowPassword((v) => !v)}
             />
 
             <div className="forgot-password-link">
-              <Link to="/forgot-password">Forgot your password?</Link>
+              <Link to="/forgot-password">Forgot password?</Link>
             </div>
 
             <button
               type="submit"
-              className={`auth-btn ${formReady ? 'auth-btn--ready' : ''}`}
+              className={`auth-btn auth-btn--ledger ${formReady ? 'auth-btn--ready' : ''}`}
               disabled={loading}
             >
-              {loading ? (
-                <span className="spinner" aria-label="Signing in" />
-              ) : (
-                <>
-                  Sign in
-                  <ArrowRight size={18} />
-                </>
-              )}
+              {loading ? <span className="spinner" aria-label="Signing in" /> : 'Sign in →'}
             </button>
           </form>
 
-          <p className="auth-switch">
-            Don&apos;t have an account? <Link to="/signup">Create one free</Link>
+          <p className="auth-switch auth-switch--ledger">
+            No account yet? <Link to="/signup">Open one free</Link>
           </p>
         </div>
       </main>

@@ -14,6 +14,7 @@ const AuthField = ({
   touched,
   hint,
   icon: Icon,
+  variant = 'default',
   required = false,
   autoComplete,
   maxLength,
@@ -26,16 +27,18 @@ const AuthField = ({
 }) => {
   const hasError = Boolean(touched && error);
   const isValid = Boolean(touched && !error && value && String(value).trim());
+  const isLedger = variant === 'ledger';
+  const showIcon = Icon && !isLedger;
 
   return (
-    <div className={`input-group ${hasError ? 'has-error' : ''} ${isValid ? 'is-valid' : ''}`}>
+    <div className={`input-group ${isLedger ? 'input-group--ledger' : ''} ${hasError ? 'has-error' : ''} ${isValid ? 'is-valid' : ''}`}>
       <label htmlFor={id}>
         {label}
         {required && <span className="required" aria-hidden="true">*</span>}
       </label>
 
-      <div className={`input-field ${hasError ? 'error' : ''} ${isValid ? 'valid' : ''}`}>
-        {Icon && <Icon size={18} aria-hidden="true" />}
+      <div className={`input-field ${isLedger ? 'input-field--ledger' : ''} ${hasError ? 'error' : ''} ${isValid ? 'valid' : ''}`}>
+        {showIcon && <Icon size={18} aria-hidden="true" />}
         <input
           type={showToggle ? (showPassword ? 'text' : 'password') : type}
           id={id}

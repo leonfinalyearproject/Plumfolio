@@ -1,0 +1,463 @@
+@import url('https://fonts.googleapis.com/css2?family=Libre+Baskerville:ital,wght@0,400;0,700;1,400&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap');
+
+/* Auth — editorial ledger layout (sign in / sign up) */
+
+.auth-ledger {
+  min-height: 100vh;
+  display: grid;
+  grid-template-columns: 1fr;
+  font-family: 'IBM Plex Sans', system-ui, sans-serif;
+  background: #F3EFE6;
+}
+
+@media (min-width: 900px) {
+  .auth-ledger {
+    grid-template-columns: minmax(300px, 42%) 1fr;
+  }
+}
+
+/* Dark panel */
+.auth-ledger-panel {
+  display: none;
+  flex-direction: column;
+  padding: 40px 44px;
+  background: #1C1917;
+  color: #E7E0D4;
+  border-right: 3px solid #3B1858;
+}
+
+@media (min-width: 900px) {
+  .auth-ledger-panel {
+    display: flex;
+  }
+}
+
+.auth-ledger-mark {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  text-decoration: none;
+  color: #F3EFE6;
+  margin-bottom: 48px;
+}
+
+.auth-ledger-mark img {
+  width: 32px;
+  height: 32px;
+}
+
+.auth-ledger-mark span {
+  font-family: 'Libre Baskerville', Georgia, serif;
+  font-size: 1.1rem;
+  font-weight: 700;
+}
+
+.auth-ledger-mark--mobile {
+  display: flex;
+  margin-bottom: 28px;
+  color: #1C1917;
+}
+
+@media (min-width: 900px) {
+  .auth-ledger-mark--mobile {
+    display: none;
+  }
+}
+
+.auth-ledger-panel-body {
+  flex: 1;
+}
+
+.auth-ledger-tag {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.68rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: #A8A29E;
+  margin-bottom: 16px;
+}
+
+.auth-ledger-panel h1 {
+  font-family: 'Libre Baskerville', Georgia, serif;
+  font-size: clamp(1.75rem, 3vw, 2.35rem);
+  font-weight: 700;
+  line-height: 1.12;
+  color: #FFFCF7;
+  margin-bottom: 16px;
+  letter-spacing: -0.02em;
+}
+
+.auth-ledger-lead {
+  font-size: 0.95rem;
+  line-height: 1.6;
+  color: #A8A29E;
+  max-width: 340px;
+  margin-bottom: 32px;
+}
+
+.auth-ledger-slip {
+  border: 1px solid #44403C;
+  padding: 16px 18px;
+  background: rgba(255, 252, 247, 0.04);
+}
+
+.auth-ledger-slip-row {
+  display: flex;
+  justify-content: space-between;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.72rem;
+  padding: 6px 0;
+  border-bottom: 1px solid #44403C;
+  color: #D6D0C4;
+}
+
+.auth-ledger-slip-row:last-child {
+  border-bottom: none;
+}
+
+.auth-ledger-slip-row span:last-child {
+  color: #FFFCF7;
+}
+
+.auth-ledger-steps {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  border-top: 1px solid #44403C;
+}
+
+.auth-ledger-steps li {
+  display: flex;
+  align-items: baseline;
+  gap: 14px;
+  padding: 14px 0;
+  border-bottom: 1px solid #44403C;
+  font-size: 0.88rem;
+  color: #D6D0C4;
+}
+
+.auth-ledger-steps li span {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.75rem;
+  color: #3B1858;
+  background: #F3EFE6;
+  padding: 2px 6px;
+  font-weight: 500;
+}
+
+.auth-ledger-copy {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.65rem;
+  color: #57534E;
+  margin-top: 32px;
+}
+
+/* Form side */
+.auth-ledger-main {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 32px 24px;
+  min-height: 100vh;
+}
+
+.auth-ledger-form-wrap {
+  width: 100%;
+  max-width: 400px;
+  background: #FFFCF7;
+  border: 1px solid #C4BAA8;
+  padding: 28px 26px 32px;
+  box-shadow: 5px 5px 0 #3B1858;
+}
+
+.auth-ledger-form-wrap--success {
+  text-align: left;
+}
+
+.auth-ledger-progress {
+  height: 2px;
+  background: #E7E0D4;
+  margin: -4px 0 22px;
+}
+
+.auth-ledger-progress-fill {
+  height: 100%;
+  background: #3B1858;
+  transition: width 0.35s ease;
+}
+
+.auth-ledger-form-head {
+  margin-bottom: 24px;
+  padding-bottom: 16px;
+  border-bottom: 2px solid #1C1917;
+}
+
+.auth-ledger-form-id {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.65rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: #78716C;
+  display: block;
+  margin-bottom: 6px;
+}
+
+.auth-ledger-form-head h2 {
+  font-family: 'Libre Baskerville', Georgia, serif;
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: #1C1917;
+  margin: 0;
+}
+
+/* Ledger form fields */
+.auth-form--ledger {
+  gap: 20px;
+}
+
+.input-group--ledger label {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.65rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #78716C;
+  font-weight: 500;
+}
+
+.input-field--ledger input {
+  padding: 10px 0;
+  border: none;
+  border-bottom: 2px solid #D6D0C4;
+  border-radius: 0;
+  background: transparent;
+  font-size: 0.95rem;
+}
+
+.input-field--ledger input:focus {
+  border-bottom-color: #3B1858;
+  box-shadow: none;
+  background: transparent;
+}
+
+.input-field--ledger.error input {
+  border-bottom-color: #991B1B;
+  background: transparent;
+}
+
+.input-field--ledger.valid input {
+  border-bottom-color: #166534;
+  padding-right: 28px;
+}
+
+.input-field--ledger .password-toggle {
+  right: 0;
+}
+
+.input-field--ledger .field-valid-icon {
+  right: 0;
+}
+
+.field-hint {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.62rem;
+  letter-spacing: 0.02em;
+}
+
+.field-hint--action a {
+  color: #3B1858;
+}
+
+.password-checklist-count {
+  color: #3B1858;
+}
+
+.password-strength--ledger .strength-segment {
+  border-radius: 0;
+  height: 2px;
+}
+
+.auth-btn--ledger {
+  width: 100%;
+  background: #1C1917;
+  color: #F3EFE6;
+  border-radius: 0;
+  font-family: 'IBM Plex Sans', sans-serif;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  margin-top: 8px;
+  padding: 14px 20px;
+}
+
+.auth-btn--ledger:hover:not(:disabled) {
+  background: #3B1858;
+  box-shadow: none;
+  transform: none;
+}
+
+.auth-btn--ledger.auth-btn--ready:not(:disabled) {
+  box-shadow: 4px 4px 0 #3B1858;
+}
+
+.auth-switch--ledger {
+  margin-top: 22px;
+  font-size: 0.82rem;
+  text-align: center;
+}
+
+.auth-switch--ledger a {
+  color: #3B1858;
+  font-weight: 600;
+}
+
+.forgot-password-link a {
+  color: #3B1858;
+  font-size: 0.75rem;
+  font-family: 'IBM Plex Mono', monospace;
+}
+
+/* Success */
+.auth-ledger-success-mark {
+  width: 48px;
+  height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.25rem;
+  font-weight: 700;
+  background: #166534;
+  color: #fff;
+  margin-bottom: 20px;
+}
+
+.auth-ledger-success-text {
+  font-size: 0.92rem;
+  line-height: 1.55;
+  color: #57534E;
+  margin-bottom: 8px;
+}
+
+.auth-ledger-success-text strong {
+  color: #1C1917;
+}
+
+.auth-ledger-success-note {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.68rem;
+  color: #A8A29E;
+  margin-bottom: 20px;
+}
+
+.auth-ledger-form-wrap--success .auth-btn--ledger {
+  display: inline-flex;
+  text-decoration: none;
+  justify-content: center;
+}
+
+.auth-error {
+  border-radius: 0;
+  background: rgba(153, 27, 27, 0.08);
+  border-color: rgba(153, 27, 27, 0.25);
+  color: #991B1B;
+}
+
+.auth-error--shake {
+  animation: authShake 0.4s ease;
+}
+
+@keyframes authShake {
+  0%, 100% { transform: translateX(0); }
+  20%, 60% { transform: translateX(-4px); }
+  40%, 80% { transform: translateX(4px); }
+}
+
+/* Password checklist (signup) */
+.password-checklist {
+  margin-top: 8px;
+  padding: 10px 12px;
+  background: #F3EFE6;
+  border: 1px solid #D6D0C4;
+  border-radius: 0;
+}
+
+.password-checklist-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.68rem;
+  font-weight: 600;
+  color: #57534E;
+  margin-bottom: 8px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  font-family: 'IBM Plex Mono', monospace;
+}
+
+.password-checklist-count {
+  color: #3B1858;
+}
+
+.password-checklist-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px 12px;
+}
+
+.password-checklist-list li {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.72rem;
+  color: #78716C;
+}
+
+.password-checklist-list li.met {
+  color: #166534;
+}
+
+.field-hint--success {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  color: #166534 !important;
+}
+
+.password-strength {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 6px;
+}
+
+.strength-bar {
+  display: flex;
+  gap: 3px;
+  flex: 1;
+}
+
+.strength-segment {
+  height: 2px;
+  flex: 1;
+  background: #E7E0D4;
+}
+
+.strength-label {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.62rem;
+  min-width: 48px;
+  text-align: right;
+}
+
+@media (max-width: 640px) {
+  .auth-ledger-main {
+    padding: 20px 16px;
+  }
+
+  .auth-ledger-form-wrap {
+    box-shadow: 3px 3px 0 #3B1858;
+    padding: 22px 18px 26px;
+  }
+}
