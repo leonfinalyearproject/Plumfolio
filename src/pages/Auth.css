@@ -34,7 +34,7 @@
 .auth-logo {
   width: 100px;
   height: auto;
-  filter: drop-shadow(0 4px 16px rgba(157, 78, 221, 0.2));
+  object-fit: contain;
 }
 
 .auth-card {
